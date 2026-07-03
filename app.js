@@ -1,0 +1,4502 @@
+var STORAGE_KEY = "ministry-dashboard-state-v2";
+var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var TIME_SLOTS = ["All Day", "Morning", "Afternoon", "Evening"];
+var EVENT_COLORS = [
+  { key: "plum", name: "Plum", value: "#493548", bg: "rgba(73, 53, 72, 0.13)" },
+  { key: "gold", name: "Gold", value: "#D8A94D", bg: "rgba(240, 208, 143, 0.34)" },
+  { key: "sage", name: "Sage", value: "#6F7D5C", bg: "rgba(111, 125, 92, 0.15)" },
+  { key: "rose", name: "Rose", value: "#B85C5A", bg: "rgba(184, 92, 90, 0.14)" },
+  { key: "blue", name: "Blue", value: "#4E647E", bg: "rgba(78, 100, 126, 0.14)" },
+  { key: "green", name: "Green", value: "#4F7A65", bg: "rgba(79, 122, 101, 0.15)" }
+];
+
+var els = {
+  greeting: document.getElementById("greeting"),
+  todayLabel: document.getElementById("todayLabel"),
+  dateLine: document.getElementById("dateLine"),
+  timeLine: document.getElementById("timeLine"),
+  settingsButton: document.getElementById("settingsButton"),
+  obsidianButton: document.getElementById("obsidianButton"),
+  settingsModal: document.getElementById("settingsModal"),
+  settingsForm: document.getElementById("settingsForm"),
+  preferredName: document.getElementById("preferredName"),
+  timeFormat: document.getElementById("timeFormat"),
+  apiSportsKey: document.getElementById("apiSportsKey"),
+  calendarPanel: document.getElementById("calendarPanel"),
+  calendarGrid: document.getElementById("calendarGrid"),
+  googleCalendarButton: document.getElementById("googleCalendarButton"),
+  googleCalendarSyncButton: document.getElementById("googleCalendarSyncButton"),
+  monthLabel: document.getElementById("monthLabel"),
+  prevMonth: document.getElementById("prevMonth"),
+  nextMonth: document.getElementById("nextMonth"),
+  normalModeButton: document.getElementById("normalModeButton"),
+  scheduleModeButton: document.getElementById("scheduleModeButton"),
+  planningModeButton: document.getElementById("planningModeButton"),
+  birthdayModeButton: document.getElementById("birthdayModeButton"),
+  birthdayHideToggle: document.getElementById("birthdayHideToggle"),
+  hideBirthdaysFromCalendar: document.getElementById("hideBirthdaysFromCalendar"),
+  addScheduleButton: document.getElementById("addScheduleButton"),
+  finalizePlansButton: document.getElementById("finalizePlansButton"),
+  cancelPlansButton: document.getElementById("cancelPlansButton"),
+  undoPlanButton: document.getElementById("undoPlanButton"),
+  planningHint: document.getElementById("planningHint"),
+  eventModal: document.getElementById("eventModal"),
+  eventForm: document.getElementById("eventForm"),
+  eventModalEyebrow: document.getElementById("eventModalEyebrow"),
+  eventModalTitle: document.getElementById("eventModalTitle"),
+  eventType: document.getElementById("eventType"),
+  eventTypeForm: document.getElementById("eventTypeForm"),
+  eventTypeInput: document.getElementById("eventTypeInput"),
+  eventTypeAddButton: document.getElementById("eventTypeAddButton"),
+  eventTypeList: document.getElementById("eventTypeList"),
+  eventColorPalette: document.getElementById("eventColorPalette"),
+  eventTimeSlot: document.getElementById("eventTimeSlot"),
+  eventDate: document.getElementById("eventDate"),
+  eventEndDate: document.getElementById("eventEndDate"),
+  eventTimeRow: document.getElementById("eventTimeRow"),
+  eventTimeStart: document.getElementById("eventTimeStart"),
+  eventTimeEnd: document.getElementById("eventTimeEnd"),
+  eventAllDay: document.getElementById("eventAllDay"),
+  eventRepeatRow: document.getElementById("eventRepeatRow"),
+  eventRepeat: document.getElementById("eventRepeat"),
+  eventRepeatCustomNumberLabel: document.getElementById("eventRepeatCustomNumberLabel"),
+  eventRepeatCustomNumber: document.getElementById("eventRepeatCustomNumber"),
+  eventRepeatCustomUnitLabel: document.getElementById("eventRepeatCustomUnitLabel"),
+  eventRepeatCustomUnit: document.getElementById("eventRepeatCustomUnit"),
+  eventRepeatEndLabel: document.getElementById("eventRepeatEndLabel"),
+  eventRepeatEnd: document.getElementById("eventRepeatEnd"),
+  eventRepeatEndDateLabel: document.getElementById("eventRepeatEndDateLabel"),
+  eventRepeatEndDate: document.getElementById("eventRepeatEndDate"),
+  eventLocation: document.getElementById("eventLocation"),
+  eventPassage: document.getElementById("eventPassage"),
+  eventTitle: document.getElementById("eventTitle"),
+  eventNotes: document.getElementById("eventNotes"),
+  eventTemplateSelect: document.getElementById("eventTemplateSelect"),
+  addTemplateToEvent: document.getElementById("addTemplateToEvent"),
+  eventChecklist: document.getElementById("eventChecklist"),
+  eventChecklistForm: document.getElementById("eventChecklistForm"),
+  eventChecklistInput: document.getElementById("eventChecklistInput"),
+  eventChecklistDue: document.getElementById("eventChecklistDue"),
+  eventChecklistAddButton: document.getElementById("eventChecklistAddButton"),
+  deleteEventButton: document.getElementById("deleteEventButton"),
+  scheduleModal: document.getElementById("scheduleModal"),
+  scheduleForm: document.getElementById("scheduleForm"),
+  scheduleCategory: document.getElementById("scheduleCategory"),
+  scheduleTitle: document.getElementById("scheduleTitle"),
+  scheduleLocation: document.getElementById("scheduleLocation"),
+  scheduleStartDate: document.getElementById("scheduleStartDate"),
+  scheduleEndDate: document.getElementById("scheduleEndDate"),
+  scheduleStartTime: document.getElementById("scheduleStartTime"),
+  scheduleEndTime: document.getElementById("scheduleEndTime"),
+  scheduleColorPalette: document.getElementById("scheduleColorPalette"),
+  eventDetailModal: document.getElementById("eventDetailModal"),
+  eventDetailHero: document.getElementById("eventDetailHero"),
+  eventImageButton: document.getElementById("eventImageButton"),
+  eventImageInput: document.getElementById("eventImageInput"),
+  eventDetailType: document.getElementById("eventDetailType"),
+  eventDetailTitle: document.getElementById("eventDetailTitle"),
+  eventDetailMeta: document.getElementById("eventDetailMeta"),
+  eventDetailNotes: document.getElementById("eventDetailNotes"),
+  eventDetailChecklist: document.getElementById("eventDetailChecklist"),
+  eventDetailDelete: document.getElementById("eventDetailDelete"),
+  eventDetailClose: document.getElementById("eventDetailClose"),
+  eventDetailEdit: document.getElementById("eventDetailEdit"),
+  dayDrawer: document.getElementById("dayDrawer"),
+  drawerDate: document.getElementById("drawerDate"),
+  drawerGroups: document.getElementById("drawerGroups"),
+  drawerAddEvent: document.getElementById("drawerAddEvent"),
+  closeDayDrawer: document.getElementById("closeDayDrawer"),
+  priorityList: document.getElementById("priorityList"),
+  priorityTitle: document.getElementById("priorityTitle"),
+  priorityScopeToggle: document.getElementById("priorityScopeToggle"),
+  verseReference: document.getElementById("verseReference"),
+  verseText: document.getElementById("verseText"),
+  originalLine: document.getElementById("originalLine"),
+  verseToggle: document.getElementById("verseToggle"),
+  verseDetails: document.getElementById("verseDetails"),
+  verseSource: document.getElementById("verseSource"),
+  bibleReaderVerseButton: document.getElementById("bibleReaderVerseButton"),
+  taskForm: document.getElementById("taskForm"),
+  taskInput: document.getElementById("taskInput"),
+  taskDueDate: document.getElementById("taskDueDate"),
+  taskList: document.getElementById("taskList"),
+  templateForm: document.getElementById("templateForm"),
+  templateName: document.getElementById("templateName"),
+  templateList: document.getElementById("templateList"),
+  activeWorkflow: document.getElementById("activeWorkflow"),
+  sportSelector: document.getElementById("sportSelector"),
+  scoreboard: document.getElementById("scoreboard"),
+  headlineStory: document.getElementById("headlineStory"),
+  headlineImage: document.getElementById("headlineImage"),
+  headlineKicker: document.getElementById("headlineKicker"),
+  headlineTitle: document.getElementById("headlineTitle"),
+  headlineSummary: document.getElementById("headlineSummary"),
+  headlineMedia: document.getElementById("headlineMedia"),
+  worldNewsList: document.getElementById("worldNewsList"),
+  philippinesNewsList: document.getElementById("philippinesNewsList"),
+  theologyNewsList: document.getElementById("theologyNewsList"),
+  newsSourcesButton: document.getElementById("newsSourcesButton"),
+  sourceModal: document.getElementById("sourceModal"),
+  sourceForm: document.getElementById("sourceForm"),
+  sourceGrid: document.getElementById("sourceGrid"),
+  closeSourceButton: document.getElementById("closeSourceButton"),
+  resetSourcesButton: document.getElementById("resetSourcesButton"),
+  rssForm: document.getElementById("rssForm"),
+  rssName: document.getElementById("rssName"),
+  rssUrl: document.getElementById("rssUrl"),
+  rssReadMoreUrl: document.getElementById("rssReadMoreUrl"),
+  rssFeedList: document.getElementById("rssFeedList"),
+  rssCardGrid: document.getElementById("rssCardGrid"),
+  rssReadMoreLink: document.getElementById("rssReadMoreLink"),
+  readerModal: document.getElementById("readerModal"),
+  readerSource: document.getElementById("readerSource"),
+  readerTitle: document.getElementById("readerTitle"),
+  readerBody: document.getElementById("readerBody"),
+  readerOriginalLink: document.getElementById("readerOriginalLink"),
+  splitReaderButton: document.getElementById("splitReaderButton"),
+  closeReaderButton: document.getElementById("closeReaderButton"),
+  readerDoneButton: document.getElementById("readerDoneButton"),
+  splitReaderModal: document.getElementById("splitReaderModal"),
+  splitReaderSource: document.getElementById("splitReaderSource"),
+  splitReaderTitle: document.getElementById("splitReaderTitle"),
+  splitReaderLayout: document.getElementById("splitReaderLayout"),
+  splitReaderArticle: document.getElementById("splitReaderArticle"),
+  splitReaderDivider: document.getElementById("splitReaderDivider"),
+  splitReaderFrame: document.getElementById("splitReaderFrame"),
+  splitReaderFallback: document.getElementById("splitReaderFallback"),
+  splitReaderOriginalLink: document.getElementById("splitReaderOriginalLink"),
+  splitReaderFallbackLink: document.getElementById("splitReaderFallbackLink"),
+  closeSplitReaderButton: document.getElementById("closeSplitReaderButton"),
+  splitReaderDock: document.getElementById("splitReaderDock"),
+  dockReaderSource: document.getElementById("dockReaderSource"),
+  dockReaderTitle: document.getElementById("dockReaderTitle"),
+  dockReaderBody: document.getElementById("dockReaderBody"),
+  dockReaderOriginalLink: document.getElementById("dockReaderOriginalLink"),
+  closeDockReaderButton: document.getElementById("closeDockReaderButton"),
+  dockReaderBack: document.getElementById("dockReaderBack"),
+  dockReaderForward: document.getElementById("dockReaderForward"),
+  mainSplitDivider: document.getElementById("mainSplitDivider"),
+  scrollDots: document.getElementById("scrollDots"),
+  languageTabs: document.getElementById("languageTabs"),
+  languageContent: document.getElementById("languageContent"),
+  languageVideoModal: document.getElementById("languageVideoModal"),
+  languageVideoSource: document.getElementById("languageVideoSource"),
+  languageVideoTitle: document.getElementById("languageVideoTitle"),
+  languageVideoFrame: document.getElementById("languageVideoFrame"),
+  closeLanguageVideoButton: document.getElementById("closeLanguageVideoButton"),
+  moduleMenuButton: document.getElementById("moduleMenuButton"),
+  moduleMenu: document.getElementById("moduleMenu"),
+  worldWatchCard: document.getElementById("worldWatchCard"),
+  missionsTabs: document.getElementById("missionsTabs"),
+  missionsCard: document.getElementById("missionsCard"),
+  closeSettingsButton: document.getElementById("closeSettingsButton")
+};
+
+var DEFAULT_EVENT_TYPES = ["General Event", "Reminder", "Sermon", "Bible Study", "Sermon Prep", "Bible Study Prep", "Class", "Ministry", "Others"];
+
+function id(prefix) {
+  return prefix + "-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+function toISO(date) {
+  var copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var year = copy.getFullYear();
+  var month = String(copy.getMonth() + 1).padStart(2, "0");
+  var day = String(copy.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function parseISO(value) {
+  var parts = value.split("-").map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function addDays(date, amount) {
+  var copy = new Date(date);
+  copy.setDate(copy.getDate() + amount);
+  return copy;
+}
+
+function addMonths(date, amount) {
+  var copy = new Date(date);
+  var day = copy.getDate();
+  copy.setDate(1);
+  copy.setMonth(copy.getMonth() + amount);
+  copy.setDate(Math.min(day, new Date(copy.getFullYear(), copy.getMonth() + 1, 0).getDate()));
+  return copy;
+}
+
+function addYears(date, amount) {
+  var copy = new Date(date);
+  copy.setFullYear(copy.getFullYear() + amount);
+  return copy;
+}
+
+function formatShortDate(value) {
+  if (!value) return "";
+  var date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return String(date.getMonth() + 1).padStart(2, "0") + "/" +
+    String(date.getDate()).padStart(2, "0") + "/" +
+    String(date.getFullYear()).slice(-2);
+}
+
+function startOfWeek(date) {
+  return addDays(date, -date.getDay());
+}
+
+function isWithin(dateISO, startISO, endISO) {
+  var current = parseISO(dateISO).getTime();
+  var start = parseISO(startISO).getTime();
+  var end = parseISO(endISO || startISO).getTime();
+  return current >= start && current <= end;
+}
+
+function displayDate(iso) {
+  return parseISO(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function displayLongDate(iso) {
+  return parseISO(iso).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
+function weekOfYearLabel(date) {
+  var weekStart = startOfWeek(date);
+  var firstWeekStart = startOfWeek(new Date(weekStart.getFullYear(), 0, 1));
+  var weekNumber = Math.floor((weekStart - firstWeekStart) / 604800000) + 1;
+  return weekStart.getFullYear() + " Wk " + weekNumber;
+}
+
+function dayDiff(startISO, endISO) {
+  if (!startISO || !endISO) return 0;
+  return Math.max(0, Math.round((parseISO(endISO) - parseISO(startISO)) / 86400000));
+}
+
+function normalizeRange(a, b) {
+  if (parseISO(a) <= parseISO(b)) return { start: a, end: b };
+  return { start: b, end: a };
+}
+
+function getTimeSlotFromTime(value) {
+  if (!value) return "Morning";
+  var hour = Number(value.split(":")[0]);
+  if (hour < 12) return "Morning";
+  if (hour < 18) return "Afternoon";
+  return "Evening";
+}
+
+function defaultTimeForSlot(slot) {
+  if (slot === "Evening") return "18:00";
+  if (slot === "Afternoon") return "12:00";
+  return "08:00";
+}
+
+function formatTimeOption(value) {
+  if (state.settings.timeFormat !== "12") return value;
+  var parts = value.split(":").map(Number);
+  var hour = parts[0];
+  var minute = String(parts[1]).padStart(2, "0");
+  var suffix = hour >= 12 ? "PM" : "AM";
+  var hour12 = hour % 12 || 12;
+  return hour12 + ":" + minute + " " + suffix;
+}
+
+function timeToMinutes(value) {
+  if (!value || value.indexOf(":") === -1) return null;
+  var parts = value.split(":").map(Number);
+  return (parts[0] * 60) + parts[1];
+}
+
+function minutesToTime(minutes) {
+  var clamped = Math.max(0, Math.min((24 * 60) - 15, minutes));
+  var hour = String(Math.floor(clamped / 60)).padStart(2, "0");
+  var minute = String(clamped % 60).padStart(2, "0");
+  return hour + ":" + minute;
+}
+
+function populateTimeSelects() {
+  [els.eventTimeStart, els.eventTimeEnd].forEach(function (select) {
+    var current = select.value || select.dataset.pendingValue || "";
+    select.innerHTML = "";
+    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
+      var hour = String(Math.floor(minutes / 60)).padStart(2, "0");
+      var minute = String(minutes % 60).padStart(2, "0");
+      var value = hour + ":" + minute;
+      var option = document.createElement("option");
+      option.value = value;
+      option.textContent = formatTimeOption(value);
+      select.appendChild(option);
+    }
+    if (current) select.value = current;
+  });
+}
+
+function updateEventEndTimeOptions() {
+  var startMinutes = timeToMinutes(els.eventTimeStart.value);
+  Array.from(els.eventTimeEnd.options).forEach(function (option) {
+    var optionMinutes = timeToMinutes(option.value);
+    option.disabled = startMinutes !== null && optionMinutes !== null && optionMinutes < startMinutes;
+  });
+  var endMinutes = timeToMinutes(els.eventTimeEnd.value);
+  if (startMinutes !== null && (endMinutes === null || endMinutes < startMinutes)) {
+    els.eventTimeEnd.value = els.eventTimeStart.value;
+  }
+}
+
+function shouldHideEventTimes() {
+  return els.eventAllDay.checked || (els.eventDate.value && els.eventEndDate.value && els.eventDate.value !== els.eventEndDate.value);
+}
+
+function syncEventTimeControls() {
+  if (els.eventDate.value) els.eventEndDate.min = els.eventDate.value;
+  var hideTimes = shouldHideEventTimes();
+  els.eventTimeRow.classList.toggle("time-disabled", hideTimes);
+  els.eventTimeStart.disabled = hideTimes;
+  els.eventTimeEnd.disabled = hideTimes;
+  if (hideTimes) {
+    els.eventTimeSlot.value = "All Day";
+    return;
+  }
+  if (!els.eventTimeStart.value) els.eventTimeStart.value = "08:00";
+  if (!els.eventTimeEnd.value) els.eventTimeEnd.value = "09:00";
+  updateEventEndTimeOptions();
+  els.eventTimeSlot.value = getTimeSlotFromTime(els.eventTimeStart.value);
+}
+
+function rememberEventDateRange() {
+  lastEventStartDate = els.eventDate.value;
+  lastEventRangeDays = dayDiff(els.eventDate.value, els.eventEndDate.value || els.eventDate.value);
+}
+
+function rememberEventTimeRange() {
+  var startMinutes = timeToMinutes(els.eventTimeStart.value);
+  var endMinutes = timeToMinutes(els.eventTimeEnd.value);
+  if (startMinutes === null || endMinutes === null) return;
+  lastEventStartTime = els.eventTimeStart.value;
+  lastEventDurationMinutes = Math.max(0, endMinutes - startMinutes);
+}
+
+function handleEventStartDateChange() {
+  if (!els.eventDate.value) return;
+  if (lastEventStartDate && els.eventEndDate.value) {
+    var nextEnd = addDays(parseISO(els.eventDate.value), lastEventRangeDays);
+    els.eventEndDate.value = toISO(nextEnd);
+  } else if (!els.eventEndDate.value || parseISO(els.eventEndDate.value) < parseISO(els.eventDate.value)) {
+    els.eventEndDate.value = els.eventDate.value;
+  }
+  rememberEventDateRange();
+  syncEventTimeControls();
+  syncRepeatControls();
+}
+
+function handleEventEndDateChange() {
+  if (!els.eventEndDate.value || parseISO(els.eventEndDate.value) < parseISO(els.eventDate.value)) {
+    els.eventEndDate.value = els.eventDate.value;
+  }
+  rememberEventDateRange();
+  syncEventTimeControls();
+  syncRepeatControls();
+}
+
+function handleEventStartTimeChange() {
+  var startMinutes = timeToMinutes(els.eventTimeStart.value);
+  if (startMinutes === null) return;
+  if (lastEventStartTime && els.eventTimeEnd.value) {
+    els.eventTimeEnd.value = minutesToTime(startMinutes + lastEventDurationMinutes);
+  }
+  updateEventEndTimeOptions();
+  rememberEventTimeRange();
+  syncEventTimeControls();
+}
+
+function handleEventEndTimeChange() {
+  updateEventEndTimeOptions();
+  rememberEventTimeRange();
+  syncEventTimeControls();
+}
+
+function updateScheduleEndTimeOptions() {
+  var startMinutes = timeToMinutes(els.scheduleStartTime.value);
+  Array.from(els.scheduleEndTime.options).forEach(function (option) {
+    var optionMinutes = timeToMinutes(option.value);
+    option.disabled = startMinutes !== null && optionMinutes !== null && optionMinutes < startMinutes;
+  });
+  var endMinutes = timeToMinutes(els.scheduleEndTime.value);
+  if (startMinutes !== null && (endMinutes === null || endMinutes < startMinutes)) {
+    els.scheduleEndTime.value = els.scheduleStartTime.value;
+  }
+}
+
+function rememberScheduleDateRange() {
+  lastScheduleStartDate = els.scheduleStartDate.value;
+  lastScheduleRangeDays = dayDiff(els.scheduleStartDate.value, els.scheduleEndDate.value || els.scheduleStartDate.value);
+}
+
+function rememberScheduleTimeRange() {
+  var startMinutes = timeToMinutes(els.scheduleStartTime.value);
+  var endMinutes = timeToMinutes(els.scheduleEndTime.value);
+  if (startMinutes === null || endMinutes === null) return;
+  lastScheduleStartTime = els.scheduleStartTime.value;
+  lastScheduleDurationMinutes = Math.max(0, endMinutes - startMinutes);
+}
+
+function handleScheduleStartDateChange() {
+  if (!els.scheduleStartDate.value) return;
+  if (lastScheduleStartDate && els.scheduleEndDate.value) {
+    els.scheduleEndDate.value = toISO(addDays(parseISO(els.scheduleStartDate.value), lastScheduleRangeDays));
+  } else if (!els.scheduleEndDate.value || parseISO(els.scheduleEndDate.value) < parseISO(els.scheduleStartDate.value)) {
+    els.scheduleEndDate.value = els.scheduleStartDate.value;
+  }
+  els.scheduleEndDate.min = els.scheduleStartDate.value;
+  rememberScheduleDateRange();
+}
+
+function handleScheduleEndDateChange() {
+  if (!els.scheduleEndDate.value || parseISO(els.scheduleEndDate.value) < parseISO(els.scheduleStartDate.value)) {
+    els.scheduleEndDate.value = els.scheduleStartDate.value;
+  }
+  rememberScheduleDateRange();
+}
+
+function handleScheduleStartTimeChange() {
+  var startMinutes = timeToMinutes(els.scheduleStartTime.value);
+  if (startMinutes === null) return;
+  if (lastScheduleStartTime && els.scheduleEndTime.value) {
+    els.scheduleEndTime.value = minutesToTime(startMinutes + lastScheduleDurationMinutes);
+  }
+  updateScheduleEndTimeOptions();
+  rememberScheduleTimeRange();
+}
+
+function handleScheduleEndTimeChange() {
+  updateScheduleEndTimeOptions();
+  rememberScheduleTimeRange();
+}
+
+function defaultRepeatRule() {
+  return { frequency: "none", interval: 1, unit: "week", endMode: "never", endDate: "" };
+}
+
+function normalizeRepeatRule(rule) {
+  var source = rule || {};
+  var frequency = source.frequency || "none";
+  var interval = Math.max(1, Number(source.interval || 1));
+  var unit = source.unit || "week";
+  var endMode = source.endMode === "on" ? "on" : "never";
+  var endDate = source.endDate || "";
+  if (frequency === "biweekly") {
+    frequency = "weekly";
+    interval = 2;
+  }
+  if (frequency !== "custom" && ["none", "daily", "weekly", "monthly", "yearly"].indexOf(frequency) === -1) frequency = "none";
+  if (["day", "week", "month", "year"].indexOf(unit) === -1) unit = "week";
+  if (frequency === "none") return defaultRepeatRule();
+  return { frequency: frequency, interval: interval, unit: unit, endMode: endMode, endDate: endDate };
+}
+
+function repeatRuleFromForm() {
+  if (!els.eventRepeat || eventModalMode === "plan") return defaultRepeatRule();
+  var repeat = els.eventRepeat.value || "none";
+  if (repeat === "none") return defaultRepeatRule();
+  var rule = { frequency: repeat, interval: 1, unit: "week", endMode: els.eventRepeatEnd.value || "never", endDate: els.eventRepeatEndDate.value || "" };
+  if (repeat === "biweekly") {
+    rule.frequency = "weekly";
+    rule.interval = 2;
+  } else if (repeat === "custom") {
+    rule.interval = Math.max(1, Number(els.eventRepeatCustomNumber.value || 1));
+    rule.unit = els.eventRepeatCustomUnit.value || "week";
+  }
+  if (rule.endMode === "on" && !rule.endDate) rule.endMode = "never";
+  return normalizeRepeatRule(rule);
+}
+
+function repeatFormValue(rule) {
+  var normalized = normalizeRepeatRule(rule);
+  if (normalized.frequency === "none") return "none";
+  if (normalized.frequency === "weekly" && normalized.interval === 2) return "biweekly";
+  if (normalized.frequency === "custom") return "custom";
+  return normalized.frequency;
+}
+
+function applyRepeatRuleToForm(rule) {
+  if (!els.eventRepeat) return;
+  var normalized = normalizeRepeatRule(rule);
+  els.eventRepeat.value = repeatFormValue(normalized);
+  els.eventRepeatCustomNumber.value = normalized.interval || 1;
+  els.eventRepeatCustomUnit.value = normalized.unit || "week";
+  els.eventRepeatEnd.value = normalized.endMode || "never";
+  els.eventRepeatEndDate.value = normalized.endDate || "";
+  syncRepeatControls();
+}
+
+function syncRepeatControls() {
+  if (!els.eventRepeat) return;
+  var repeat = els.eventRepeat.value || "none";
+  var showRepeatMeta = repeat !== "none";
+  var showCustom = repeat === "custom";
+  var showEndDate = showRepeatMeta && els.eventRepeatEnd.value === "on";
+  els.eventRepeatCustomNumberLabel.hidden = !showCustom;
+  els.eventRepeatCustomUnitLabel.hidden = !showCustom;
+  els.eventRepeatEndLabel.hidden = !showRepeatMeta;
+  els.eventRepeatEndDateLabel.hidden = !showEndDate;
+  if (els.eventDate.value) els.eventRepeatEndDate.min = els.eventDate.value;
+}
+
+function eventColor(key) {
+  return EVENT_COLORS.find(function (color) { return color.key === key; }) || EVENT_COLORS[0];
+}
+
+function renderColorPalette(container, selectedKey, onSelect) {
+  if (!container) return;
+  var activeKey = eventColor(selectedKey).key;
+  container.innerHTML = "";
+  EVENT_COLORS.forEach(function (color) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "color-swatch" + (color.key === activeKey ? " active" : "");
+    button.style.setProperty("--swatch", color.value);
+    button.title = color.name;
+    button.setAttribute("aria-label", color.name + " event color");
+    button.addEventListener("click", function () {
+      onSelect(color.key);
+      renderColorPalette(container, color.key, onSelect);
+    });
+    container.appendChild(button);
+  });
+}
+
+function seedState() {
+  var today = new Date();
+  var sermonDate = toISO(addDays(today, 13));
+  var bibleStudyDate = toISO(addDays(today, 3));
+  return {
+    settings: { preferredName: "", timeFormat: "24", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
+    events: [
+      createEvent({ type: "Sermon", passage: "Jn 3:16", title: "Sermon: Jn 3:16", start: sermonDate, end: sermonDate, timeSlot: "Morning", source: "dashboard" }),
+      createEvent({ type: "Bible Study", passage: "Rom 8:1-11", title: "Bible Study: Rom 8:1-11", start: bibleStudyDate, end: bibleStudyDate, timeSlot: "Evening", source: "dashboard" })
+    ],
+    plans: [],
+    tasks: [],
+    templates: [],
+    activeTemplateId: null,
+    rssFeeds: [],
+    activeRssSource: "",
+    rssReadMoreUrl: ""
+  };
+}
+
+function createEvent(values) {
+  return {
+    id: values.id || id(values.draft ? "plan" : "event"),
+    googleEventId: values.googleEventId || "",
+    googleCalendarId: values.googleCalendarId || "",
+    type: values.type || "General Event",
+    passage: values.passage || "",
+    title: values.title || "",
+    start: values.start || toISO(new Date()),
+    end: values.end || values.start || toISO(new Date()),
+    timeSlot: values.timeSlot || "Morning",
+    timeStart: values.timeStart || "",
+    timeEnd: values.timeEnd || "",
+    allDay: !!values.allDay,
+    location: values.location || "",
+    notes: values.notes || "",
+    image: values.image || "",
+    checklist: values.checklist || [],
+    source: values.source || "dashboard",
+    readOnly: !!values.readOnly,
+    syncStatus: values.syncStatus || "",
+    lastSyncedAt: values.lastSyncedAt || "",
+    htmlLink: values.htmlLink || "",
+    updatedAt: values.updatedAt || "",
+    scheduleId: values.scheduleId || "",
+    scheduleCategory: values.scheduleCategory || "",
+    colorKey: values.colorKey || "",
+    repeatRule: normalizeRepeatRule(values.repeatRule),
+    recurrence: values.recurrence || [],
+    googleRecurringEventId: values.googleRecurringEventId || "",
+    recurrenceInstance: !!values.recurrenceInstance,
+    occurrenceOf: values.occurrenceOf || "",
+    occurrenceDate: values.occurrenceDate || "",
+    recurring: !!values.recurring,
+    draft: !!values.draft
+  };
+}
+
+function normalizeEvent(event) {
+  return createEvent(event || {});
+}
+
+function loadState() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return seedState();
+    var loaded = JSON.parse(raw);
+    loaded.settings = loaded.settings || {};
+    loaded.settings.preferredName = loaded.settings.preferredName || "";
+    loaded.settings.timeFormat = loaded.settings.timeFormat || "24";
+    loaded.settings.headlineCarouselPaused = !!loaded.settings.headlineCarouselPaused;
+    loaded.settings.readerSplit = loaded.settings.readerSplit || 50;
+    loaded.settings.mainReaderSplit = loaded.settings.mainReaderSplit || 62;
+    loaded.settings.hideBirthdaysFromCalendar = !!loaded.settings.hideBirthdaysFromCalendar;
+    loaded.settings.eventTypes = Array.from(new Set(DEFAULT_EVENT_TYPES.concat(loaded.settings.eventTypes || [])));
+    loaded.settings.newsSources = loaded.settings.newsSources || { world: [], philippines: [], theology: [] };
+    loaded.settings.customNewsSources = loaded.settings.customNewsSources || { world: [], philippines: [], theology: [] };
+    loaded.settings.newsSourceOrder = loaded.settings.newsSourceOrder || { world: [], philippines: [], theology: [] };
+    ["world", "philippines", "theology"].forEach(function (section) {
+      loaded.settings.newsSources[section] = (loaded.settings.newsSources[section] || []).filter(function (source) { return source !== "Vatican News"; });
+      loaded.settings.customNewsSources[section] = (loaded.settings.customNewsSources[section] || []).filter(function (source) {
+        return source && source.source && /^https?:\/\//i.test(source.url || "");
+      }).map(function (source) {
+        source.custom = true;
+        return source;
+      }).slice(0, 20);
+    loaded.settings.newsSourceOrder[section] = (loaded.settings.newsSourceOrder[section] || []).filter(function (source) { return source !== "Vatican News"; });
+    });
+    loaded.events = (loaded.events || []).map(normalizeEvent);
+    loaded.events = loaded.events.filter(function (event) {
+      return !(event.source === "google" && event.title === "Google Calendar sync placeholder" && !event.googleEventId);
+    });
+    loaded.plans = (loaded.plans || []).map(function (plan) {
+      plan.draft = true;
+      return normalizeEvent(plan);
+    });
+    loaded.tasks = loaded.tasks || [];
+    loaded.templates = loaded.templates || [];
+    loaded.activeTemplateId = loaded.activeTemplateId || null;
+    loaded.rssFeeds = (loaded.rssFeeds || []).slice(0, 10);
+    loaded.activeRssSource = loaded.activeRssSource || "";
+    loaded.rssReadMoreUrl = loaded.rssReadMoreUrl || "";
+    return loaded;
+  } catch (error) {
+    console.warn(error);
+    return seedState();
+  }
+}
+
+var state = loadState();
+headlineCarouselPaused = !!state.settings.headlineCarouselPaused;
+var viewDate = new Date();
+var scheduleWeekStart = startOfWeek(new Date());
+var calendarMode = "normal";
+var planningMode = false;
+var selectedDate = toISO(new Date());
+var eventModalMode = "create";
+var editingEventId = null;
+var viewingEventId = null;
+var modalChecklist = [];
+var selectingPlan = false;
+var selectionStart = null;
+var selectionEnd = null;
+var editingScheduleId = null;
+var editingScheduleFromDate = "";
+var currentSport = "mlb";
+var priorityScope = "week";
+var lastEventStartDate = "";
+var lastEventRangeDays = 0;
+var lastEventStartTime = "";
+var lastEventDurationMinutes = 60;
+var lastScheduleStartDate = "";
+var lastScheduleRangeDays = 0;
+var lastScheduleStartTime = "";
+var lastScheduleDurationMinutes = 60;
+var selectedEventColorKey = "plum";
+var selectedScheduleColorKey = "green";
+var generatedOccurrenceMap = {};
+var openBirthdayMonthIndex = new Date().getMonth();
+var newsData = null;
+var headlineIndex = 0;
+var activeHeadlineItem = null;
+var headlineTimer = null;
+var headlineCarouselPaused = false;
+var sportsData = {};
+var standingSelection = {};
+var gamesDaySelection = {};
+var worldWatchData = null;
+var missionsData = null;
+var activeMission = "operation";
+var languageData = null;
+var activeLanguageView = "vocabulary";
+var activeVerse = null;
+var verseTextCache = {};
+var verseFetches = {};
+var newsSourceOptions = null;
+var rssData = { items: [], errors: [] };
+var activeDeleteMenu = null;
+var activeReaderItem = null;
+var readerHistory = [];
+var readerHistoryIndex = -1;
+var splitDragging = false;
+var mainSplitDragging = false;
+var googleCalendarStatus = { configured: false, connected: false, redirectUri: "" };
+var googleCalendarLoading = false;
+
+var DAILY_VERSES = [
+  {
+    reference: "John 3:16",
+    passage: "John 3:16",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "For this is the way God loved the world: He gave his one and only Son, so that everyone who believes in him will not perish but have eternal life.",
+    original: "Οὕτως γὰρ ἠγάπησεν ὁ θεὸς τὸν κόσμον, ὥστε τὸν υἱὸν τὸν μονογενῆ ἔδωκεν, ἵνα πᾶς ὁ πιστεύων εἰς αὐτὸν μὴ ἀπόληται ἀλλ’ ἔχῃ ζωὴν αἰώνιον.",
+    parses: [["ἠγάπησεν", "aorist active indicative, 3rd singular"], ["ἔδωκεν", "aorist active indicative, 3rd singular"], ["πιστεύων", "present active participle, nominative masculine singular"], ["ἀπόληται", "aorist middle subjunctive, 3rd singular"], ["ἔχῃ", "present active subjunctive, 3rd singular"]]
+  },
+  {
+    reference: "Genesis 1:1",
+    passage: "Genesis 1:1",
+    language: "hebrew",
+    originalSource: "WLC",
+    netFallback: "In the beginning God created the heavens and the earth.",
+    original: "בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ.",
+    parses: [["בָּרָא", "Qal perfect, 3rd masculine singular"]]
+  },
+  {
+    reference: "Philippians 1:6",
+    passage: "Philippians 1:6",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "For I am sure of this very thing, that the one who began a good work in you will perfect it until the day of Christ Jesus.",
+    original: "πεποιθὼς αὐτὸ τοῦτο, ὅτι ὁ ἐναρξάμενος ἐν ὑμῖν ἔργον ἀγαθὸν ἐπιτελέσει ἄχρι ἡμέρας Χριστοῦ Ἰησοῦ.",
+    parses: [["πεποιθὼς", "perfect active participle, nominative masculine singular"], ["ἐναρξάμενος", "aorist middle participle, nominative masculine singular"], ["ἐπιτελέσει", "future active indicative, 3rd singular"]]
+  }
+];
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function showToast(message) {
+  var existing = document.querySelector(".toast");
+  if (existing) existing.remove();
+  var toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = message;
+  var host = [els.eventModal, els.scheduleModal, els.settingsModal, els.sourceModal, els.readerModal, els.splitReaderModal, els.languageVideoModal].find(function (dialog) {
+    return dialog && dialog.open;
+  }) || document.body;
+  host.appendChild(toast);
+  window.setTimeout(function () { toast.remove(); }, 3200);
+}
+
+function renderGreeting() {
+  var now = new Date();
+  var hour = now.getHours();
+  var greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
+  var name = state.settings.preferredName.trim();
+  els.greeting.textContent = name ? greeting + ", " + name : greeting;
+  els.todayLabel.textContent = now.toLocaleDateString(undefined, { weekday: "long" });
+  els.dateLine.textContent = now.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  els.timeLine.textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: state.settings.timeFormat === "12" });
+}
+
+function renderVerseOfDay() {
+  var start = parseISO("2026-01-01").getTime();
+  var today = parseISO(toISO(new Date())).getTime();
+  var index = Math.floor((today - start) / 86400000) % DAILY_VERSES.length;
+  if (index < 0) index = 0;
+  var verse = DAILY_VERSES[index];
+  activeVerse = verse;
+  els.verseReference.textContent = verse.reference;
+  els.verseText.textContent = verseTextCache[verse.passage] || verse.netFallback;
+  els.verseText.title = verseTextCache[verse.passage] ? "NET Bible" : "NET fallback text";
+  els.originalLine.innerHTML = highlightedOriginalText(verse);
+  els.originalLine.classList.toggle("hebrew-text", verse.language === "hebrew");
+  els.originalLine.classList.toggle("greek-text", verse.language !== "hebrew");
+  els.verseDetails.classList.toggle("hebrew-text", verse.language === "hebrew");
+  els.verseDetails.classList.toggle("greek-text", verse.language !== "hebrew");
+  els.verseSource.textContent = "English: NET. " + (verse.language === "hebrew" ? "Hebrew: " : "Greek: ") + verse.originalSource + ". Verb parsing shown below.";
+  var dl = els.verseDetails.querySelector("dl");
+  dl.innerHTML = "";
+  verse.parses.forEach(function (parse) {
+    var row = document.createElement("div");
+    var term = document.createElement("dt");
+    var detail = document.createElement("dd");
+    term.textContent = parse[0];
+    detail.textContent = parse[1];
+    row.append(term, detail);
+    dl.appendChild(row);
+  });
+  loadNetVerse(verse);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightedOriginalText(verse) {
+  var html = escapeHTML(verse.original || "");
+  (verse.parses || []).forEach(function (parse) {
+    var word = parse && parse[0];
+    if (!word) return;
+    html = html.replace(new RegExp(escapeRegExp(escapeHTML(word)), "g"), "<strong class='verse-verb'>" + escapeHTML(word) + "</strong>");
+  });
+  return html;
+}
+
+function loadNetVerse(verse) {
+  if (!verse || verseTextCache[verse.passage] || verseFetches[verse.passage]) return;
+  verseFetches[verse.passage] = fetch("/api/bible/net?passage=" + encodeURIComponent(verse.passage))
+    .then(function (response) {
+      if (!response.ok) throw new Error("NET request failed");
+      return response.json();
+    })
+    .then(function (data) {
+      if (data && data.text) verseTextCache[verse.passage] = data.text;
+      if (activeVerse && activeVerse.passage === verse.passage && verseTextCache[verse.passage]) {
+        els.verseText.textContent = verseTextCache[verse.passage];
+        els.verseText.title = "NET Bible";
+      }
+    })
+    .catch(function () {
+      if (activeVerse && activeVerse.passage === verse.passage) els.verseText.title = "NET fallback text";
+    })
+    .finally(function () {
+      delete verseFetches[verse.passage];
+    });
+}
+
+function openSettings() {
+  els.preferredName.value = state.settings.preferredName || "";
+  els.timeFormat.value = state.settings.timeFormat || "24";
+  els.apiSportsKey.value = "";
+  if (typeof els.settingsModal.showModal === "function") els.settingsModal.showModal();
+  loadGoogleCalendarStatus();
+}
+
+function openVaultPlaceholder() {
+  showToast("Obsidian vault settings were removed for now. We can reconnect this later.");
+}
+
+function calendarVisibleRange() {
+  if (calendarMode === "birthdays") {
+    var birthdayStart = new Date(viewDate.getFullYear(), 0, 1);
+    var birthdayEnd = new Date(viewDate.getFullYear() + 1, 11, 31);
+    return {
+      timeMin: new Date(birthdayStart.getFullYear(), birthdayStart.getMonth(), birthdayStart.getDate()).toISOString(),
+      timeMax: new Date(birthdayEnd.getFullYear(), birthdayEnd.getMonth(), birthdayEnd.getDate(), 23, 59, 59).toISOString()
+    };
+  }
+  var base = calendarMode === "schedule" ? scheduleWeekStart : new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  var start = calendarMode === "schedule" ? startOfWeek(base) : addDays(base, -base.getDay());
+  var end = calendarMode === "schedule" ? addDays(start, 7) : addDays(start, 42);
+  return {
+    timeMin: new Date(start.getFullYear(), start.getMonth(), start.getDate()).toISOString(),
+    timeMax: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59).toISOString()
+  };
+}
+
+function updateGoogleCalendarControls() {
+  if (!els.googleCalendarButton) return;
+  els.googleCalendarButton.disabled = googleCalendarLoading;
+  if (els.googleCalendarSyncButton) {
+    els.googleCalendarSyncButton.disabled = googleCalendarLoading || !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect;
+    els.googleCalendarSyncButton.hidden = true;
+  }
+  if (!googleCalendarStatus.configured) {
+    els.googleCalendarButton.textContent = "Connect Google Calendar";
+    els.googleCalendarButton.title = "Google Calendar is not configured on this device yet.";
+  } else if (googleCalendarStatus.connected) {
+    els.googleCalendarButton.textContent = googleCalendarLoading ? "Syncing..." : googleCalendarStatus.needsReconnect ? "Reconnect Google" : "Google Connected";
+    els.googleCalendarButton.title = googleCalendarStatus.needsReconnect ? "Reconnect Google Calendar to approve the latest permissions." : googleCalendarAccountLabel() || "Google Calendar is connected.";
+  } else {
+    els.googleCalendarButton.textContent = "Connect Google Calendar";
+    els.googleCalendarButton.title = "Connect Google Calendar.";
+  }
+}
+
+function googleCalendarAccountLabel() {
+  if (!googleCalendarStatus.connected) return "";
+  return googleCalendarStatus.account && googleCalendarStatus.account.email ? googleCalendarStatus.account.email : "Google Calendar";
+}
+
+function recurrenceStep(rule) {
+  var normalized = normalizeRepeatRule(rule);
+  if (normalized.frequency === "daily") return { unit: "day", amount: normalized.interval || 1 };
+  if (normalized.frequency === "weekly") return { unit: "week", amount: normalized.interval || 1 };
+  if (normalized.frequency === "monthly") return { unit: "month", amount: normalized.interval || 1 };
+  if (normalized.frequency === "yearly") return { unit: "year", amount: normalized.interval || 1 };
+  if (normalized.frequency === "custom") return { unit: normalized.unit || "week", amount: normalized.interval || 1 };
+  return null;
+}
+
+function advanceRecurrenceDate(date, step) {
+  if (!step) return null;
+  if (step.unit === "day") return addDays(date, step.amount);
+  if (step.unit === "week") return addDays(date, step.amount * 7);
+  if (step.unit === "month") return addMonths(date, step.amount);
+  if (step.unit === "year") return addYears(date, step.amount);
+  return null;
+}
+
+function isRecurringEvent(item) {
+  return item && normalizeRepeatRule(item.repeatRule).frequency !== "none";
+}
+
+function generatedOccurrence(base, occurrenceStartISO) {
+  var duration = dayDiff(base.start, base.end || base.start);
+  var occurrence = createEvent(Object.assign({}, base, {
+    id: base.id + "::occ::" + occurrenceStartISO,
+    start: occurrenceStartISO,
+    end: toISO(addDays(parseISO(occurrenceStartISO), duration)),
+    recurrenceInstance: true,
+    occurrenceOf: base.id,
+    occurrenceDate: occurrenceStartISO
+  }));
+  generatedOccurrenceMap[occurrence.id] = occurrence;
+  return occurrence;
+}
+
+function recurringOccurrencesForRange(event, startISO, endISO) {
+  var rule = normalizeRepeatRule(event.repeatRule);
+  var step = recurrenceStep(rule);
+  if (!step || !event.start) return [];
+  var rangeEnd = parseISO(endISO);
+  var stopDate = rule.endMode === "on" && rule.endDate ? parseISO(rule.endDate) : null;
+  var date = parseISO(event.start);
+  var items = [];
+  var guard = 0;
+  while (date <= rangeEnd && guard < 1000) {
+    var iso = toISO(date);
+    if ((!stopDate || date <= stopDate) && isWithinRange({ start: iso, end: iso }, startISO, endISO)) {
+      items.push(generatedOccurrence(event, iso));
+    }
+    date = advanceRecurrenceDate(date, step);
+    guard += 1;
+    if (!date) break;
+  }
+  return items;
+}
+
+function isWithinRange(item, startISO, endISO) {
+  var itemStart = parseISO(item.start).getTime();
+  var itemEnd = parseISO(item.end || item.start).getTime();
+  var rangeStart = parseISO(startISO).getTime();
+  var rangeEnd = parseISO(endISO).getTime();
+  return itemStart <= rangeEnd && itemEnd >= rangeStart;
+}
+
+function eventIsBirthday(item) {
+  if (!item) return false;
+  var title = String(item.title || "").toLowerCase();
+  var hasBirthdayText = title.indexOf("birthday") > -1 || title.indexOf("bday") > -1;
+  var yearlyRule = normalizeRepeatRule(item.repeatRule).frequency === "yearly";
+  var googleYearly = (item.recurrence || []).some(function (rule) { return /FREQ=YEARLY/i.test(rule); });
+  var googleRecurringBirthday = !!item.googleRecurringEventId && hasBirthdayText;
+  return hasBirthdayText && (yearlyRule || googleYearly || googleRecurringBirthday);
+}
+
+function visibleCalendarEvents(startISO, endISO, options) {
+  var settings = options || {};
+  var items = [];
+  state.events.forEach(function (item) {
+    if (state.settings.hideBirthdaysFromCalendar && !settings.includeBirthdays && eventIsBirthday(item)) return;
+    if (settings.onlyBirthdays && !eventIsBirthday(item)) return;
+    if (isRecurringEvent(item)) {
+      items = items.concat(recurringOccurrencesForRange(item, startISO, endISO));
+    } else if (isWithinRange(item, startISO, endISO)) {
+      items.push(item);
+    }
+  });
+  return items;
+}
+
+function findEventForView(eventId) {
+  return state.events.find(function (item) { return item.id === eventId; }) || generatedOccurrenceMap[eventId] || null;
+}
+
+async function loadGoogleCalendarStatus() {
+  try {
+    var response = await fetch("/api/google-calendar/status", { cache: "no-store" });
+    if (!response.ok) throw new Error("Status request failed");
+    googleCalendarStatus = await response.json();
+  } catch (error) {
+    googleCalendarStatus = { configured: false, connected: false, redirectUri: "" };
+  }
+  updateGoogleCalendarControls();
+  return googleCalendarStatus;
+}
+
+async function loadGoogleCalendarEvents(showNotice) {
+  if (!googleCalendarStatus.connected || googleCalendarStatus.needsReconnect || googleCalendarLoading) return;
+  googleCalendarLoading = true;
+  updateGoogleCalendarControls();
+  try {
+    var range = calendarVisibleRange();
+    var response = await fetch("/api/google-calendar/events?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax), { cache: "no-store" });
+    if (response.status === 401) {
+      googleCalendarStatus.connected = false;
+      updateGoogleCalendarControls();
+      return;
+    }
+    if (!response.ok) throw new Error("Google Calendar request failed");
+    var data = await response.json();
+    if (!data.ok) return;
+    var syncedIds = state.events.reduce(function (ids, event) {
+      if (event.source !== "google" && event.googleEventId) ids[event.googleEventId] = true;
+      return ids;
+    }, {});
+    var googleEvents = (data.events || []).map(normalizeEvent).filter(function (event) {
+      return !syncedIds[event.googleEventId];
+    });
+    state.events = state.events.filter(function (event) { return event.source !== "google"; }).concat(googleEvents);
+    saveState();
+    renderAll();
+    if (showNotice) showToast("Google Calendar synced.");
+  } catch (error) {
+    if (showNotice) showToast("Google Calendar could not be synced.");
+  } finally {
+    googleCalendarLoading = false;
+    updateGoogleCalendarControls();
+  }
+}
+
+function isGoogleReadOnlyEvent(item) {
+  return item && item.source === "google";
+}
+
+function canSyncToGoogle(item) {
+  return item && !item.draft && !item.taskDeadline && !isGoogleReadOnlyEvent(item);
+}
+
+function applyGoogleSyncResult(localEvent, googleEvent) {
+  if (!localEvent || !googleEvent) return;
+  localEvent.googleEventId = googleEvent.googleEventId || googleEvent.id || localEvent.googleEventId || "";
+  localEvent.googleCalendarId = googleEvent.googleCalendarId || "primary";
+  localEvent.htmlLink = googleEvent.htmlLink || localEvent.htmlLink || "";
+  localEvent.updatedAt = googleEvent.updatedAt || googleEvent.updated || localEvent.updatedAt || "";
+  localEvent.syncStatus = "synced";
+  localEvent.lastSyncedAt = new Date().toISOString();
+}
+
+async function syncDashboardEventToGoogle(localEvent, showNotice) {
+  if (!canSyncToGoogle(localEvent)) return false;
+  if (!googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) return false;
+  localEvent.syncStatus = "syncing";
+  saveState();
+  try {
+    var response = await fetch("/api/google-calendar/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event: localEvent })
+    });
+    if (response.status === 401) {
+      googleCalendarStatus.connected = false;
+      updateGoogleCalendarControls();
+      localEvent.syncStatus = "pending";
+      return false;
+    }
+    if (!response.ok) throw new Error("Google event save failed");
+    var data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Google event save failed");
+    applyGoogleSyncResult(localEvent, data.event);
+    if (showNotice) showToast("Event synced to Google Calendar.");
+    return true;
+  } catch (error) {
+    localEvent.syncStatus = "pending";
+    if (showNotice) showToast("Event saved locally. Google sync will need another try.");
+    return false;
+  } finally {
+    saveState();
+    renderCalendar();
+    updateGoogleCalendarControls();
+  }
+}
+
+async function deleteGoogleCalendarEvent(localEvent) {
+  if (!localEvent || !localEvent.googleEventId || !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) return false;
+  try {
+    var response = await fetch("/api/google-calendar/events/" + encodeURIComponent(localEvent.googleEventId), { method: "DELETE" });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function refreshGoogleCalendar(showNotice) {
+  await loadGoogleCalendarStatus();
+  if (googleCalendarStatus.connected) await loadGoogleCalendarEvents(showNotice);
+  else if (showNotice && googleCalendarStatus.configured) showToast("Connect Google Calendar first.");
+}
+
+function handleGoogleCalendarReturnMessage() {
+  var params = new URLSearchParams(window.location.search);
+  var result = params.get("googleCalendar");
+  if (!result) return;
+  if (result === "connected") showToast("Google Calendar connected.");
+  else if (result === "denied") showToast("Google Calendar connection was canceled.");
+  else showToast("Google Calendar connection could not be completed.");
+  params.delete("googleCalendar");
+  var clean = window.location.pathname + (params.toString() ? "?" + params.toString() : "") + window.location.hash;
+  window.history.replaceState({}, "", clean);
+}
+
+function getTaskDeadlineItems() {
+  return state.tasks
+    .filter(function (task) { return !!task.dueDate; })
+    .map(function (task) {
+      return {
+        id: task.id,
+        title: "Task: " + task.title,
+        start: task.dueDate,
+        end: task.dueDate,
+        taskDeadline: true,
+        task: task
+      };
+    });
+}
+
+function eventTitle(item) {
+  if (item.title) return item.title;
+  if ((item.type === "Sermon" || item.type === "Bible Study" || item.type.indexOf("Prep") > -1) && item.passage) return item.type + ": " + item.passage;
+  return item.type || "Event";
+}
+
+function eventTimingLabel(item) {
+  if (item.allDay || item.timeSlot === "All Day") return "All Day";
+  if (item.timeStart && item.timeEnd) return item.timeStart + "-" + item.timeEnd;
+  if (item.timeStart) return item.timeStart;
+  return item.timeSlot;
+}
+
+function eventDateRangeLabel(item) {
+  return displayDate(item.start) + (item.end && item.end !== item.start ? " to " + displayDate(item.end) : "");
+}
+
+function viewEvent(eventId) {
+  var item = findEventForView(eventId);
+  if (!item) return;
+  viewingEventId = eventId;
+  els.eventDetailType.textContent = item.type || "Event";
+  els.eventDetailTitle.textContent = eventTitle(item);
+  els.eventDetailHero.style.backgroundImage = item.image
+    ? "linear-gradient(145deg, rgba(73, 53, 72, 0.2), rgba(31, 30, 30, 0.22)), url('" + item.image + "')"
+    : "";
+  els.eventDetailHero.classList.toggle("has-image", !!item.image);
+
+  var meta = [
+    ["Date", eventDateRangeLabel(item)],
+    ["Time", eventTimingLabel(item)],
+    ["Location", item.location || "Not listed"]
+  ];
+  if (item.passage) meta.splice(2, 0, ["Passage", item.passage]);
+  if (item.source === "google") meta.push(["Source", "Google Calendar"]);
+  else if (item.googleEventId) meta.push(["Sync", "Google Calendar"]);
+  els.eventDetailMeta.classList.toggle("no-passage", !item.passage);
+  els.eventDetailMeta.innerHTML = meta.map(function (entry) {
+    return "<div><span>" + escapeHTML(entry[0]) + "</span><strong>" + escapeHTML(entry[1]) + "</strong></div>";
+  }).join("");
+  els.eventDetailNotes.innerHTML = "<h3>Notes</h3><p>" + escapeHTML(item.notes || "No notes yet.") + "</p>";
+  if (item.checklist && item.checklist.length) {
+    els.eventDetailChecklist.innerHTML = "<h3>Checklist</h3><ul>" + item.checklist.map(function (check) {
+      return "<li" + (check.done ? " class='done'" : "") + ">" + escapeHTML(check.title) + (check.dueDate ? " <span>Due " + escapeHTML(displayDate(check.dueDate)) + "</span>" : "") + "</li>";
+    }).join("") + "</ul>";
+  } else {
+    els.eventDetailChecklist.innerHTML = "<h3>Checklist</h3><p>No checklist items yet.</p>";
+  }
+  var readOnly = isGoogleReadOnlyEvent(item);
+  els.eventDetailEdit.hidden = readOnly;
+  els.eventDetailDelete.hidden = readOnly;
+  if (readOnly && item.htmlLink) {
+    els.eventDetailNotes.innerHTML += "<p><a href='" + escapeHTML(item.htmlLink) + "' target='_blank' rel='noopener'>Open in Google Calendar</a></p>";
+  }
+  if (!els.eventDetailModal.open) els.eventDetailModal.showModal();
+}
+
+function isMinistryPriority(item) {
+  return item.type === "Sermon" || item.type === "Bible Study";
+}
+
+function hasGoogleItem(iso) {
+  return visibleCalendarEvents(iso, iso).some(function (event) { return event.source === "google" && isWithin(iso, event.start, event.end); });
+}
+
+function isInSelection(iso) {
+  if (!selectionStart || !selectionEnd) return false;
+  var range = normalizeRange(selectionStart, selectionEnd);
+  return isWithin(iso, range.start, range.end);
+}
+
+function renderCalendar() {
+  els.calendarGrid.innerHTML = "";
+  generatedOccurrenceMap = {};
+  els.calendarPanel.classList.toggle("planning-mode", planningMode);
+  els.calendarPanel.classList.toggle("schedule-mode", calendarMode === "schedule");
+  els.calendarPanel.classList.toggle("birthday-mode", calendarMode === "birthdays");
+  if (calendarMode === "schedule") {
+    renderScheduleView();
+    return;
+  }
+  if (calendarMode === "birthdays") {
+    renderBirthdayView();
+    return;
+  }
+  renderMonthCalendar();
+}
+
+function birthdayName(item) {
+  var title = String(eventTitle(item));
+  return title
+    .replace(/[’']s\s+birthday/ig, "")
+    .replace(/[’']s\b/ig, "")
+    .replace(/\bbirthday\b/ig, "")
+    .replace(/\bbday\b/ig, "")
+    .replace(/\s+/g, " ")
+    .trim() || eventTitle(item);
+}
+
+function nextBirthdayOccurrence(item) {
+  var today = parseISO(toISO(new Date()));
+  var sourceDate = parseISO(item.start);
+  var candidate = new Date(today.getFullYear(), sourceDate.getMonth(), sourceDate.getDate());
+  if (candidate < today) candidate.setFullYear(candidate.getFullYear() + 1);
+  var iso = toISO(candidate);
+  var duration = dayDiff(item.start, item.end || item.start);
+  var occurrence = createEvent(Object.assign({}, item, {
+    id: item.id + "::birthday::" + iso,
+    start: iso,
+    end: toISO(addDays(parseISO(iso), duration)),
+    recurrenceInstance: true,
+    occurrenceOf: item.id,
+    occurrenceDate: iso
+  }));
+  generatedOccurrenceMap[occurrence.id] = occurrence;
+  return occurrence;
+}
+
+function renderBirthdayView() {
+  els.monthLabel.textContent = viewDate.getFullYear() + " Birthdays";
+  els.monthLabel.classList.toggle("current-month", viewDate.getFullYear() === new Date().getFullYear());
+  var wrapper = document.createElement("section");
+  wrapper.className = "birthday-view";
+  var tools = document.createElement("div");
+  tools.className = "birthday-view-tools";
+  tools.appendChild(document.createTextNode("Recurring yearly birthdays"));
+  wrapper.appendChild(tools);
+
+  var birthdayEvents = state.events.filter(eventIsBirthday);
+  var seen = {};
+  var birthdays = birthdayEvents.filter(function (item) {
+    var key = birthdayName(item).toLowerCase() + "|" + item.start.slice(5);
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  }).sort(function (a, b) {
+    var dateA = parseISO(a.start);
+    var dateB = parseISO(b.start);
+    return dateA.getMonth() - dateB.getMonth() || dateA.getDate() - dateB.getDate();
+  });
+
+  if (!birthdays.length) {
+    wrapper.innerHTML += "<p class='empty-state'>No recurring yearly birthdays found yet.</p>";
+    els.calendarGrid.appendChild(wrapper);
+    return;
+  }
+
+  var grouped = Array.from({ length: 12 }, function () { return []; });
+  birthdays.forEach(function (item) {
+    grouped[parseISO(item.start).getMonth()].push(item);
+  });
+
+  grouped.forEach(function (monthItems, monthIndex) {
+    var section = document.createElement("section");
+    section.className = "birthday-month" + (monthIndex === openBirthdayMonthIndex ? " open" : "");
+    var heading = document.createElement("button");
+    heading.type = "button";
+    heading.className = "birthday-month-heading";
+    heading.innerHTML = "<span>" + new Date(viewDate.getFullYear(), monthIndex, 1).toLocaleDateString(undefined, { month: "long" }) + "</span><small>" + monthItems.length + "</small>";
+    heading.addEventListener("click", function () {
+      openBirthdayMonthIndex = monthIndex;
+      renderCalendar();
+    });
+    section.appendChild(heading);
+    var list = document.createElement("div");
+    list.className = "birthday-list";
+    monthItems.forEach(function (item) {
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "birthday-card";
+      var date = parseISO(item.start);
+      card.innerHTML = "<strong>" + date.getDate() + "</strong><span>" + escapeHTML(birthdayName(item)) + "</span>";
+      card.addEventListener("click", function () {
+        var occurrence = nextBirthdayOccurrence(item);
+        viewEvent(occurrence.id);
+      });
+      list.appendChild(card);
+    });
+    if (!monthItems.length) list.innerHTML = "<p class='empty-state'>No birthdays listed.</p>";
+    section.appendChild(list);
+    wrapper.appendChild(section);
+  });
+  els.calendarGrid.appendChild(wrapper);
+}
+
+function renderMonthCalendar() {
+  WEEKDAYS.forEach(function (day, weekdayIndex) {
+    var label = document.createElement("div");
+    label.className = "weekday";
+    if (weekdayIndex === 0) label.classList.add("sunday");
+    label.textContent = day;
+    els.calendarGrid.appendChild(label);
+  });
+
+  var firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  var gridStart = addDays(firstOfMonth, -firstOfMonth.getDay());
+  els.monthLabel.textContent = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  var now = new Date();
+  els.monthLabel.classList.toggle("current-month", viewDate.getFullYear() === now.getFullYear() && viewDate.getMonth() === now.getMonth());
+
+  var todayISO = toISO(new Date());
+  var gridEnd = addDays(gridStart, 41);
+  var allItems = visibleCalendarEvents(toISO(gridStart), toISO(gridEnd)).concat(getTaskDeadlineItems());
+  if (planningMode) allItems = allItems.concat(state.plans);
+
+  for (var index = 0; index < 42; index += 1) {
+    var date = addDays(gridStart, index);
+    var iso = toISO(date);
+    var cell = document.createElement("div");
+    cell.className = "day-cell";
+    cell.setAttribute("role", "button");
+    cell.tabIndex = 0;
+    if (date.getDay() === 0) cell.classList.add("sunday");
+    if (date.getMonth() !== viewDate.getMonth()) cell.classList.add("outside");
+    if (iso === todayISO) cell.classList.add("today");
+    if (els.dayDrawer.classList.contains("open") && selectedDate === iso) cell.classList.add("selected-day");
+    if (planningMode) cell.classList.add("planning-surface");
+    if (isInSelection(iso)) cell.classList.add("selected-plan-day");
+    if (state.plans.some(function (plan) { return isWithin(iso, plan.start, plan.end); })) cell.classList.add("has-plan");
+    cell.dataset.date = iso;
+
+    cell.addEventListener("click", function (event) {
+      if (event.target.closest(".event-pill")) return;
+      if (planningMode) {
+        selectionStart = event.currentTarget.dataset.date;
+        selectionEnd = selectionStart;
+        openPlanningModal();
+        return;
+      }
+      toggleDayDrawer(event.currentTarget.dataset.date);
+    });
+
+    cell.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.currentTarget.click();
+      }
+    });
+
+    cell.addEventListener("mousedown", function (event) {
+      if (!planningMode || event.button !== 0 || event.target.closest(".event-pill")) return;
+      selectingPlan = true;
+      selectionStart = event.currentTarget.dataset.date;
+      selectionEnd = selectionStart;
+      renderCalendar();
+    });
+
+    cell.addEventListener("mouseenter", function (event) {
+      if (!planningMode || !selectingPlan) return;
+      selectionEnd = event.currentTarget.dataset.date;
+      renderCalendar();
+    });
+
+    cell.addEventListener("mouseup", function (event) {
+      if (!planningMode || !selectingPlan) return;
+      event.preventDefault();
+      selectingPlan = false;
+      selectionEnd = event.currentTarget.dataset.date;
+      renderCalendar();
+      openPlanningModal();
+    });
+
+    var dayNumber = document.createElement("div");
+    dayNumber.className = "day-number";
+    dayNumber.innerHTML = "<span>" + date.getDate() + "</span>" + (hasGoogleItem(iso) ? "<span class='google-pill'>GCal</span>" : "");
+    cell.appendChild(dayNumber);
+
+    var visibleItems = allItems.filter(function (item) { return isWithin(iso, item.start, item.end); });
+    visibleItems.slice(0, 2).forEach(function (item) { cell.appendChild(renderCalendarPill(item)); });
+    if (visibleItems.length > 2) {
+      var more = document.createElement("div");
+      more.className = "more-pill";
+      more.textContent = "+" + (visibleItems.length - 2) + " more";
+      cell.appendChild(more);
+    }
+
+    els.calendarGrid.appendChild(cell);
+  }
+}
+
+function slotOrder(slot) {
+  var index = TIME_SLOTS.indexOf(slot);
+  return index === -1 ? 99 : index;
+}
+
+function scheduledCategoryClass(item) {
+  if (!item.scheduleCategory) return "";
+  return "schedule-" + item.scheduleCategory.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function eventsForDate(dateISO) {
+  return visibleCalendarEvents(dateISO, dateISO).filter(function (item) { return isWithin(dateISO, item.start, item.end); }).sort(function (a, b) {
+    var slotDelta = slotOrder(a.timeSlot) - slotOrder(b.timeSlot);
+    if (slotDelta) return slotDelta;
+    return (a.timeStart || "99:99").localeCompare(b.timeStart || "99:99");
+  });
+}
+
+function renderScheduleView() {
+  els.monthLabel.textContent = weekOfYearLabel(scheduleWeekStart);
+  var nowWeek = startOfWeek(new Date());
+  els.monthLabel.classList.toggle("current-month", toISO(nowWeek) === toISO(scheduleWeekStart));
+  WEEKDAYS.forEach(function (day, weekdayIndex) {
+    var label = document.createElement("div");
+    label.className = "schedule-weekday";
+    if (weekdayIndex === 0) label.classList.add("sunday");
+    label.textContent = day;
+    els.calendarGrid.appendChild(label);
+  });
+
+  for (var dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+    var date = addDays(scheduleWeekStart, dayIndex);
+    var iso = toISO(date);
+    var column = document.createElement("section");
+    column.className = "schedule-day";
+    if (date.getDay() === 0) column.classList.add("sunday");
+    if (iso === toISO(new Date())) column.classList.add("today");
+    column.dataset.date = iso;
+
+    var dateBadge = document.createElement("button");
+    dateBadge.type = "button";
+    dateBadge.className = "schedule-date-badge";
+    dateBadge.textContent = displayDate(iso);
+    dateBadge.addEventListener("click", function (event) {
+      selectedDate = event.currentTarget.closest(".schedule-day").dataset.date;
+      toggleDayDrawer(selectedDate);
+    });
+    column.appendChild(dateBadge);
+
+    ["Morning", "Afternoon", "Evening"].forEach(function (slot) {
+      var row = document.createElement("div");
+      row.className = "schedule-slot";
+      var label = document.createElement("span");
+      label.className = "schedule-slot-label";
+      label.textContent = slot;
+      row.appendChild(label);
+
+      var slotEvents = eventsForDate(iso).filter(function (item) {
+        return item.timeSlot === slot || (slot === "Morning" && item.timeSlot === "All Day");
+      });
+      if (!slotEvents.length) {
+        var empty = document.createElement("span");
+        empty.className = "schedule-empty-line";
+        row.appendChild(empty);
+      } else {
+        slotEvents.forEach(function (item) {
+          var pill = renderCalendarPill(item);
+          pill.classList.add("schedule-view-pill");
+          row.appendChild(pill);
+        });
+      }
+      column.appendChild(row);
+    });
+
+    els.calendarGrid.appendChild(column);
+  }
+}
+
+function renderCalendarPill(item) {
+  var pill = document.createElement("button");
+  pill.type = "button";
+  pill.className = "event-pill";
+  if (isMinistryPriority(item)) pill.classList.add("priority");
+  if (eventIsBirthday(item)) pill.classList.add("birthday-event");
+  if (item.recurring || item.scheduleId) {
+    pill.classList.add("scheduled-event");
+    var categoryClass = scheduledCategoryClass(item);
+    if (categoryClass) pill.classList.add(categoryClass);
+  }
+  if (item.draft) pill.classList.add("plan");
+  if (item.colorKey) {
+    var color = eventColor(item.colorKey);
+    pill.classList.add("colored-event");
+    pill.style.setProperty("--event-color", color.value);
+    pill.style.setProperty("--event-bg", color.bg);
+  }
+  if (item.source === "google-ready") pill.classList.add("finalized-plan");
+  if (item.source === "google") pill.classList.add("google-event");
+  if (item.googleEventId && item.source !== "google") pill.classList.add("synced-event");
+  if (item.taskDeadline) pill.classList.add("task-deadline");
+  pill.textContent = item.taskDeadline ? item.title : eventTitle(item);
+  pill.title = pill.textContent;
+  if (item.taskDeadline) {
+    pill.addEventListener("click", function () { showToast("Task due: " + item.task.title); });
+  } else if (!item.draft) {
+    pill.addEventListener("click", function () { viewEvent(item.id); });
+    bindEventCardKeyboard(pill, item.id);
+  }
+  return pill;
+}
+
+function bindEventCardKeyboard(element, eventId) {
+  element.dataset.eventId = eventId;
+  element.addEventListener("keydown", function (event) {
+    if (event.key !== "Delete") return;
+    event.preventDefault();
+    event.stopPropagation();
+    confirmDeleteEvent(eventId, event.currentTarget);
+  });
+}
+
+function deleteFocusedEventCard(event) {
+  if (event.key !== "Delete" || isTypingTarget(event.target)) return false;
+  var target = event.target && event.target.closest ? event.target.closest("[data-event-id]") : null;
+  if (!target) return false;
+  var eventId = target.dataset.eventId;
+  if (!eventId) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  confirmDeleteEvent(eventId, target);
+  return true;
+}
+
+function toggleDayDrawer(dateISO) {
+  if (els.dayDrawer.classList.contains("open") && selectedDate === dateISO) {
+    closeDayDrawer();
+    return;
+  }
+  openDayDrawer(dateISO);
+}
+
+function openDayDrawer(dateISO) {
+  selectedDate = dateISO;
+  els.drawerDate.textContent = displayLongDate(dateISO);
+  renderDayDrawer();
+  els.dayDrawer.classList.add("open");
+  els.dayDrawer.setAttribute("aria-hidden", "false");
+  renderCalendar();
+}
+
+function closeDayDrawer() {
+  els.dayDrawer.classList.remove("open");
+  els.dayDrawer.setAttribute("aria-hidden", "true");
+  renderCalendar();
+}
+
+function renderDayDrawer() {
+  els.drawerGroups.innerHTML = "";
+  TIME_SLOTS.forEach(function (slot) {
+    var group = document.createElement("section");
+    group.className = "drawer-group";
+    var title = document.createElement("h3");
+    title.textContent = slot;
+    group.appendChild(title);
+
+    var events = document.createElement("div");
+    events.className = "drawer-events";
+    var items = eventsForDate(selectedDate).filter(function (item) {
+      return item.timeSlot === slot && isWithin(selectedDate, item.start, item.end);
+    });
+
+    if (!items.length) {
+      events.innerHTML = "<p class='empty-state'>No events.</p>";
+    } else {
+      items.forEach(function (item) {
+        var card = document.createElement("div");
+        card.className = "drawer-event";
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "drawer-event-button";
+        button.innerHTML = "<strong>" + eventTitle(item) + "</strong><span>" + eventTimingLabel(item) + (item.location ? " / " + item.location : "") + (item.passage ? " / " + item.passage : "") + "</span>";
+        button.addEventListener("click", function () { viewEvent(item.id); });
+        bindEventCardKeyboard(button, item.id);
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "delete-button trash-button event-card-delete";
+        remove.innerHTML = trashIcon();
+        remove.setAttribute("aria-label", "Delete event");
+        remove.addEventListener("click", function (event) {
+          event.stopPropagation();
+          confirmDeleteEvent(item.id, event.currentTarget);
+        });
+        card.append(button, remove);
+        events.appendChild(card);
+      });
+    }
+
+    group.appendChild(events);
+    els.drawerGroups.appendChild(group);
+  });
+
+  var taskGroup = document.createElement("section");
+  taskGroup.className = "drawer-group";
+  taskGroup.innerHTML = "<h3>Tasks Due</h3>";
+  var taskEvents = document.createElement("div");
+  taskEvents.className = "drawer-events";
+  var dueTasks = state.tasks.filter(function (task) { return task.dueDate === selectedDate; });
+  if (!dueTasks.length) {
+    taskEvents.innerHTML = "<p class='empty-state'>No task deadlines.</p>";
+  } else {
+    dueTasks.forEach(function (task) {
+      var card = document.createElement("div");
+      card.className = "drawer-event";
+      card.innerHTML = "<strong>" + task.title + "</strong><span>" + (task.eventTitle ? task.eventTitle + " / " : "") + "Due " + displayDate(task.dueDate) + "</span>";
+      taskEvents.appendChild(card);
+    });
+  }
+  taskGroup.appendChild(taskEvents);
+  els.drawerGroups.appendChild(taskGroup);
+}
+
+function openEventModal(options) {
+  var settings = options || {};
+  eventModalMode = settings.mode || "create";
+  editingEventId = settings.eventId || null;
+  var event = editingEventId ? state.events.find(function (item) { return item.id === editingEventId; }) : null;
+  if (isGoogleReadOnlyEvent(event)) {
+    viewingEventId = event.id;
+    viewEvent(event.id);
+    showToast("Google Calendar events are read-only here for now.");
+    return;
+  }
+  var source = event || createEvent({
+    type: settings.type || (eventModalMode === "plan" ? "Sermon Prep" : "General Event"),
+    start: settings.start || selectedDate,
+    end: settings.end || settings.start || selectedDate,
+    timeSlot: settings.timeSlot || "Morning",
+    timeStart: settings.timeStart || "08:00",
+    timeEnd: settings.timeEnd || "09:00",
+    allDay: !!settings.allDay,
+    draft: eventModalMode === "plan"
+  });
+
+  modalChecklist = (source.checklist || []).map(function (item) {
+    return {
+      id: item.id || id("check"),
+      title: item.title || "",
+      dueDate: item.dueDate || "",
+      done: !!item.done,
+      promoted: !!item.promoted,
+      taskId: item.taskId || null
+    };
+  });
+
+  els.eventModalEyebrow.textContent = eventModalMode === "plan" ? "Planning Block" : event ? "Edit Event" : "Add Event";
+  els.eventModalTitle.textContent = eventModalMode === "plan" ? "Draft Calendar Block" : event ? eventTitle(event) : displayLongDate(source.start);
+  populateTimeSelects();
+  renderEventTypes(source.type);
+  els.eventTimeSlot.value = source.timeSlot;
+  els.eventDate.value = source.start;
+  els.eventEndDate.value = source.end;
+  els.eventTimeStart.value = source.timeStart || (source.allDay || source.timeSlot === "All Day" ? "" : defaultTimeForSlot(source.timeSlot));
+  els.eventTimeEnd.value = source.timeEnd || "";
+  els.eventAllDay.checked = !!source.allDay || source.timeSlot === "All Day";
+  els.eventLocation.value = source.location || "";
+  els.eventPassage.value = source.passage || "";
+  els.eventTitle.value = source.title || "";
+  els.eventNotes.value = source.notes || "";
+  selectedEventColorKey = source.colorKey || (eventModalMode === "plan" ? "gold" : "plum");
+  renderColorPalette(els.eventColorPalette, selectedEventColorKey, function (key) { selectedEventColorKey = key; });
+  els.eventRepeatRow.hidden = eventModalMode === "plan";
+  applyRepeatRuleToForm(source.repeatRule);
+  syncEventTimeControls();
+  els.deleteEventButton.hidden = !event;
+  els.eventForm.querySelector(".form-button").textContent = eventModalMode === "plan" ? "Create Draft" : event ? "Save Event" : "Add Event";
+  rememberEventDateRange();
+  rememberEventTimeRange();
+  renderEventTemplateSelect();
+  renderModalChecklist();
+  if (typeof els.eventModal.showModal === "function") els.eventModal.showModal();
+}
+
+function openPlanningModal() {
+  if (!selectionStart || !selectionEnd) return;
+  var range = normalizeRange(selectionStart, selectionEnd);
+  openEventModal({ mode: "plan", type: "Sermon Prep", start: range.start, end: range.end, timeSlot: "Morning" });
+}
+
+function openContextCreateModal() {
+  if (calendarMode === "schedule") {
+    openScheduleModal();
+    return;
+  }
+  if (planningMode) {
+    openEventModal({ mode: "plan", type: "Sermon Prep", start: selectedDate, end: selectedDate, timeSlot: "Morning", timeStart: "08:00", timeEnd: "09:00" });
+    return;
+  }
+  openEventModal({ mode: "create", start: selectedDate, end: selectedDate, timeStart: "08:00", timeEnd: "09:00" });
+}
+
+function renderEventTemplateSelect() {
+  els.eventTemplateSelect.innerHTML = "<option value=''>Add template...</option>";
+  state.templates.forEach(function (template) {
+    var option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = template.name;
+    els.eventTemplateSelect.appendChild(option);
+  });
+}
+
+function renderModalChecklist() {
+  els.eventChecklist.innerHTML = "";
+  if (!modalChecklist.length) {
+    els.eventChecklist.innerHTML = "<p class='empty-state'>No checklist items yet. Add a template or create one item. Items are added to the Main Task List when the event is saved.</p>";
+    return;
+  }
+  modalChecklist.forEach(function (item) {
+    var row = document.createElement("div");
+    row.className = "event-checklist-row" + (item.done ? " done" : "");
+
+    var title = document.createElement("button");
+    title.type = "button";
+    title.className = "template-name-button event-checklist-title";
+    title.textContent = item.title;
+    title.addEventListener("click", function () {
+      item.done = !item.done;
+      renderModalChecklist();
+    });
+
+    var due = document.createElement("input");
+    due.type = "date";
+    due.value = item.dueDate || "";
+    due.addEventListener("change", function () {
+      item.dueDate = due.value;
+      if (item.taskId) syncTaskFromChecklist(item);
+    });
+
+    var remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "delete-button trash-button";
+    remove.innerHTML = trashIcon();
+    remove.setAttribute("aria-label", "Delete checklist item");
+    remove.addEventListener("click", function () {
+      if (item.taskId) state.tasks = state.tasks.filter(function (task) { return task.id !== item.taskId; });
+      modalChecklist = modalChecklist.filter(function (check) { return check.id !== item.id; });
+      renderModalChecklist();
+      renderTasks();
+      renderCalendar();
+    });
+
+    row.append(title, due, remove);
+    els.eventChecklist.appendChild(row);
+  });
+}
+
+function ensureChecklistTask(item, eventItem) {
+  var title = item.title.trim();
+  if (!title) return null;
+  var task = item.taskId ? state.tasks.find(function (taskItem) { return taskItem.id === item.taskId; }) : null;
+  if (!task) {
+    task = {
+      id: id("task"),
+      title: title,
+      dueDate: item.dueDate || eventItem.start,
+      done: !!item.done,
+      source: "event",
+      eventId: eventItem.id,
+      eventTitle: eventTitle(eventItem)
+    };
+    state.tasks.unshift(task);
+  } else {
+    task.title = title;
+    task.dueDate = item.dueDate || eventItem.start;
+    task.done = item.done;
+    task.eventId = eventItem.id;
+    task.eventTitle = eventTitle(eventItem);
+  }
+  item.promoted = true;
+  item.taskId = task.id;
+  return task;
+}
+
+function ensureEventChecklistTasks(eventItem) {
+  eventItem.checklist.forEach(function (item) {
+    ensureChecklistTask(item, eventItem);
+  });
+}
+
+function syncTaskFromChecklist(item) {
+  var task = state.tasks.find(function (taskItem) { return taskItem.id === item.taskId; });
+  if (!task) return;
+  task.title = item.title;
+  task.dueDate = item.dueDate;
+  task.done = item.done;
+  task.eventTitle = els.eventTitle.value.trim() || task.eventTitle;
+  saveState();
+}
+
+function addTemplateToModalEvent() {
+  var template = state.templates.find(function (item) { return item.id === els.eventTemplateSelect.value; });
+  if (!template) {
+    showToast("Choose a template first.");
+    return;
+  }
+  template.items.forEach(function (item) {
+    modalChecklist.push({ id: id("check"), title: item.title, dueDate: "", done: false, promoted: false, taskId: null });
+  });
+  renderModalChecklist();
+  showToast("Template copied into this event.");
+}
+
+function populateScheduleTimeSelects() {
+  [els.scheduleStartTime, els.scheduleEndTime].forEach(function (select) {
+    var current = select.value || (select === els.scheduleStartTime ? "08:00" : "09:00");
+    select.innerHTML = "";
+    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
+      var hour = String(Math.floor(minutes / 60)).padStart(2, "0");
+      var minute = String(minutes % 60).padStart(2, "0");
+      var value = hour + ":" + minute;
+      var option = document.createElement("option");
+      option.value = value;
+      option.textContent = formatTimeOption(value);
+      select.appendChild(option);
+    }
+    select.value = current;
+  });
+}
+
+function getScheduleSeriesDefaults(scheduleId, fromDate) {
+  var seriesEvents = state.events
+    .filter(function (item) { return item.scheduleId === scheduleId && (!fromDate || item.start >= fromDate); })
+    .sort(function (a, b) { return a.start.localeCompare(b.start); });
+  if (!seriesEvents.length) return null;
+  var first = seriesEvents[0];
+  return {
+    scheduleId: scheduleId,
+    category: first.scheduleCategory || first.type || "Class",
+    title: first.title || eventTitle(first),
+    location: first.location || "",
+    startDate: seriesEvents[0].start,
+    endDate: seriesEvents[seriesEvents.length - 1].start,
+    startTime: first.timeStart || "08:00",
+    endTime: first.timeEnd || "09:00",
+    colorKey: first.colorKey || scheduleCategoryDefaultColor(first.scheduleCategory || first.type),
+    days: Array.from(new Set(seriesEvents.map(function (item) { return parseISO(item.start).getDay(); })))
+  };
+}
+
+function scheduleCategoryDefaultColor(category) {
+  var key = String(category || "").toLowerCase();
+  if (key === "class") return "blue";
+  if (key === "ministry") return "green";
+  return "sage";
+}
+
+function openScheduleModal(options) {
+  var settings = options || {};
+  populateScheduleTimeSelects();
+  var today = toISO(new Date());
+  var weekEnd = toISO(addDays(scheduleWeekStart, 6));
+  var series = settings.scheduleId ? getScheduleSeriesDefaults(settings.scheduleId, settings.fromDate) : null;
+  editingScheduleId = series ? series.scheduleId : null;
+  editingScheduleFromDate = series && settings.fromDate ? settings.fromDate : "";
+  els.scheduleCategory.value = series ? series.category : "Class";
+  els.scheduleTitle.value = series ? series.title : "";
+  els.scheduleLocation.value = series ? series.location : "";
+  els.scheduleStartDate.value = series ? series.startDate : toISO(scheduleWeekStart);
+  els.scheduleEndDate.value = series ? series.endDate : weekEnd < today ? today : weekEnd;
+  els.scheduleEndDate.min = els.scheduleStartDate.value;
+  els.scheduleStartTime.value = series ? series.startTime : "08:00";
+  els.scheduleEndTime.value = series ? series.endTime : "09:00";
+  selectedScheduleColorKey = series ? series.colorKey : scheduleCategoryDefaultColor(els.scheduleCategory.value);
+  renderColorPalette(els.scheduleColorPalette, selectedScheduleColorKey, function (key) { selectedScheduleColorKey = key; });
+  updateScheduleEndTimeOptions();
+  rememberScheduleDateRange();
+  rememberScheduleTimeRange();
+  Array.from(els.scheduleForm.querySelectorAll("input[name='scheduleDay']")).forEach(function (input) {
+    input.checked = series ? series.days.indexOf(Number(input.value)) > -1 : false;
+  });
+  var heading = els.scheduleForm.querySelector("h2");
+  var submit = els.scheduleForm.querySelector(".accent-button[value='default']");
+  if (heading) heading.textContent = series ? "Edit Schedule" : "Add Schedule";
+  if (submit) submit.textContent = series ? "Save Schedule" : "Create Schedule";
+  if (typeof els.scheduleModal.showModal === "function") els.scheduleModal.showModal();
+}
+
+function scheduleCategoryClass(category) {
+  return "schedule-" + String(category || "Others").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function saveSchedule(event) {
+  event.preventDefault();
+  if (event.submitter && event.submitter.value === "cancel") {
+    editingScheduleId = null;
+    editingScheduleFromDate = "";
+    els.scheduleModal.close();
+    return;
+  }
+  var category = els.scheduleCategory.value;
+  var title = els.scheduleTitle.value.trim();
+  var location = els.scheduleLocation.value.trim();
+  var startDate = els.scheduleStartDate.value;
+  var endDate = els.scheduleEndDate.value || startDate;
+  if (!title) {
+    showToast("Add a title before saving.");
+    return;
+  }
+  if (!startDate) return;
+  if (parseISO(endDate) < parseISO(startDate)) endDate = startDate;
+
+  var selectedDays = Array.from(els.scheduleForm.querySelectorAll("input[name='scheduleDay']:checked")).map(function (input) {
+    return Number(input.value);
+  });
+  if (!selectedDays.length) {
+    showToast("Choose at least one weekday.");
+    return;
+  }
+
+  var wasEditing = !!editingScheduleId;
+  var isFutureEdit = wasEditing && !!editingScheduleFromDate;
+  var oldScheduleId = editingScheduleId;
+  var scheduleId = isFutureEdit ? id("schedule") : editingScheduleId || id("schedule");
+  var nextEvents = [];
+  for (var date = parseISO(startDate); date <= parseISO(endDate); date = addDays(date, 1)) {
+    if (selectedDays.indexOf(date.getDay()) === -1) continue;
+    var iso = toISO(date);
+    nextEvents.push(createEvent({
+      type: category,
+      title: title,
+      start: iso,
+      end: iso,
+      timeSlot: getTimeSlotFromTime(els.scheduleStartTime.value),
+      timeStart: els.scheduleStartTime.value,
+      timeEnd: els.scheduleEndTime.value,
+      location: location,
+      colorKey: selectedScheduleColorKey,
+      source: "schedule",
+      scheduleId: scheduleId,
+      scheduleCategory: category,
+      recurring: true
+    }));
+  }
+
+  if (!nextEvents.length) {
+    showToast("No dates matched that schedule.");
+    return;
+  }
+  if (isFutureEdit) removeScheduleEventsFrom(oldScheduleId, editingScheduleFromDate);
+  else if (wasEditing) removeEventSeries(scheduleId);
+  state.events = state.events.concat(nextEvents);
+  editingScheduleId = null;
+  editingScheduleFromDate = "";
+  els.scheduleModal.close();
+  saveState();
+  renderAll();
+  showToast(nextEvents.length + " scheduled event" + (nextEvents.length === 1 ? "" : "s") + (wasEditing ? " saved." : " created."));
+}
+
+async function addEventOrPlan(event) {
+  event.preventDefault();
+  if (event.submitter && event.submitter.value === "cancel") {
+    closeEventModal();
+    return;
+  }
+  var start = els.eventDate.value;
+  if (!start) return;
+  var title = els.eventTitle.value.trim();
+  if (!title) {
+    showToast("Add a title before saving.");
+    return;
+  }
+  var end = els.eventEndDate.value || start;
+  if (parseISO(end) < parseISO(start)) end = start;
+  var allDay = els.eventAllDay.checked || start !== end;
+  var timeStart = allDay ? "" : els.eventTimeStart.value;
+  var timeEnd = allDay ? "" : els.eventTimeEnd.value;
+  var timeSlot = allDay ? "All Day" : getTimeSlotFromTime(timeStart);
+  var previousEvent = editingEventId ? state.events.find(function (eventItem) { return eventItem.id === editingEventId; }) : null;
+  var nextRepeatRule = eventModalMode === "plan" ? defaultRepeatRule() : repeatRuleFromForm();
+  var item = createEvent({
+    id: editingEventId || id(eventModalMode === "plan" ? "plan" : "event"),
+    type: els.eventType.value,
+    passage: els.eventPassage.value.trim(),
+    title: title,
+    start: start,
+    end: end,
+    timeSlot: timeSlot,
+    timeStart: timeStart,
+    timeEnd: timeEnd,
+    allDay: allDay,
+    location: els.eventLocation.value.trim(),
+    notes: els.eventNotes.value.trim(),
+    image: previousEvent ? previousEvent.image : "",
+    checklist: modalChecklist,
+    colorKey: selectedEventColorKey,
+    repeatRule: nextRepeatRule,
+    source: eventModalMode === "plan" ? "draft" : "dashboard",
+    googleEventId: previousEvent ? previousEvent.googleEventId : "",
+    googleCalendarId: previousEvent ? previousEvent.googleCalendarId : "",
+    htmlLink: previousEvent ? previousEvent.htmlLink : "",
+    syncStatus: previousEvent ? previousEvent.syncStatus : "",
+    lastSyncedAt: previousEvent ? previousEvent.lastSyncedAt : "",
+    scheduleId: previousEvent ? previousEvent.scheduleId : "",
+    scheduleCategory: previousEvent ? previousEvent.scheduleCategory : "",
+    recurring: !!(previousEvent && previousEvent.scheduleId) || nextRepeatRule.frequency !== "none",
+    draft: eventModalMode === "plan"
+  });
+
+  if (eventModalMode === "plan") {
+    state.plans.push(item);
+    showToast("Grey striped planning block created.");
+  } else if (editingEventId) {
+    var index = state.events.findIndex(function (eventItem) { return eventItem.id === editingEventId; });
+    if (index > -1) {
+      state.events[index] = item;
+    }
+    selectedDate = start;
+    ensureEventChecklistTasks(item);
+    syncEventTasks(item);
+    showToast("Event saved.");
+  } else {
+    ensureEventChecklistTasks(item);
+    state.events.push(item);
+    selectedDate = start;
+    showToast("Event added.");
+  }
+
+  closeEventModal();
+  saveState();
+  if (eventModalMode !== "plan") {
+    if (!googleCalendarStatus.connected && googleCalendarStatus.configured) await loadGoogleCalendarStatus();
+    if (googleCalendarStatus.connected) await syncDashboardEventToGoogle(item, false);
+  }
+  renderAll();
+  if (eventModalMode !== "plan") openDayDrawer(selectedDate);
+}
+
+function syncEventTasks(event) {
+  event.checklist.forEach(function (item) {
+    if (!item.taskId) return;
+    var task = state.tasks.find(function (taskItem) { return taskItem.id === item.taskId; });
+    if (!task) return;
+    task.title = item.title;
+    task.dueDate = item.dueDate;
+    task.done = item.done;
+    task.eventId = event.id;
+    task.eventTitle = eventTitle(event);
+  });
+}
+
+function defaultEventTitle(type, passage) {
+  if ((type === "Sermon" || type === "Bible Study" || type.indexOf("Prep") > -1) && passage) return type + ": " + passage;
+  return type;
+}
+
+function eventTypes() {
+  state.settings.eventTypes = Array.from(new Set(DEFAULT_EVENT_TYPES.concat(state.settings.eventTypes || [])));
+  return state.settings.eventTypes;
+}
+
+function renderEventTypes(selected) {
+  if (!els.eventType) return;
+  var current = selected || els.eventType.value || "General Event";
+  if (eventTypes().indexOf(current) < 0) {
+    state.settings.eventTypes.push(current);
+    saveState();
+  }
+  els.eventType.innerHTML = "";
+  eventTypes().forEach(function (type) {
+    var option = document.createElement("option");
+    option.value = type;
+    option.textContent = type;
+    els.eventType.appendChild(option);
+  });
+  els.eventType.value = current;
+  renderEventTypeList();
+}
+
+function renderEventTypeList() {
+  if (!els.eventTypeList) return;
+  var customTypes = eventTypes().filter(function (type) { return DEFAULT_EVENT_TYPES.indexOf(type) < 0; });
+  els.eventTypeList.innerHTML = "";
+  if (!customTypes.length) {
+    els.eventTypeList.innerHTML = "<p class='empty-state'>Custom event types will appear here.</p>";
+    return;
+  }
+  customTypes.forEach(function (type) {
+    var row = document.createElement("div");
+    row.className = "event-type-chip";
+    row.innerHTML = "<span>" + escapeHTML(type) + "</span><button class='trash-button' type='button' aria-label='Delete " + escapeHTML(type) + "'>x</button>";
+    row.querySelector("button").addEventListener("click", function () {
+      state.settings.eventTypes = eventTypes().filter(function (item) { return item !== type; });
+      if (els.eventType.value === type) els.eventType.value = "General Event";
+      saveState();
+      renderEventTypes(els.eventType.value);
+    });
+    els.eventTypeList.appendChild(row);
+  });
+}
+
+function closeEventModal() {
+  closeDeleteScopeMenu();
+  if (document.activeElement && els.eventModal.contains(document.activeElement)) document.activeElement.blur();
+  els.eventModal.close();
+  clearSelection();
+  editingEventId = null;
+  modalChecklist = [];
+  renderCalendar();
+}
+
+function deleteEditingEvent(event) {
+  if (!editingEventId) return;
+  confirmDeleteEvent(editingEventId, event.currentTarget, closeEventModal);
+}
+
+function removeEventById(eventId) {
+  var removed = state.events.find(function (event) { return event.id === eventId; });
+  if (removed && removed.googleEventId && removed.source !== "google") deleteGoogleCalendarEvent(removed);
+  state.events = state.events.filter(function (event) { return event.id !== eventId; });
+  state.tasks = state.tasks.filter(function (task) { return task.eventId !== eventId; });
+  saveState();
+}
+
+function removeEventSeries(scheduleId) {
+  if (!scheduleId) return;
+  var removedEvents = state.events.filter(function (event) { return event.scheduleId === scheduleId; });
+  removedEvents.forEach(function (event) {
+    if (event.googleEventId && event.source !== "google") deleteGoogleCalendarEvent(event);
+  });
+  var removedIds = removedEvents.map(function (event) { return event.id; });
+  state.events = state.events.filter(function (event) { return event.scheduleId !== scheduleId; });
+  state.tasks = state.tasks.filter(function (task) { return removedIds.indexOf(task.eventId) === -1; });
+  saveState();
+}
+
+function removeScheduleEventsFrom(scheduleId, fromDate) {
+  if (!scheduleId || !fromDate) return;
+  var removedEvents = state.events.filter(function (event) { return event.scheduleId === scheduleId && event.start >= fromDate; });
+  removedEvents.forEach(function (event) {
+    if (event.googleEventId && event.source !== "google") deleteGoogleCalendarEvent(event);
+  });
+  var removedIds = removedEvents.map(function (event) { return event.id; });
+  state.events = state.events.filter(function (event) {
+    return !(event.scheduleId === scheduleId && event.start >= fromDate);
+  });
+  state.tasks = state.tasks.filter(function (task) { return removedIds.indexOf(task.eventId) === -1; });
+  saveState();
+}
+
+function closeDeleteScopeMenu() {
+  if (activeDeleteMenu) {
+    activeDeleteMenu.remove();
+    activeDeleteMenu = null;
+  }
+}
+
+function deleteEventWithScope(eventId, scope, onComplete) {
+  var item = state.events.find(function (event) { return event.id === eventId; });
+  if (!item) return;
+  var isSeries = scope === "series";
+  var label = isSeries ? "the whole series" : eventTitle(item);
+  if (!window.confirm("Delete " + label + "?")) {
+    closeDeleteScopeMenu();
+    return;
+  }
+  if (isSeries) removeEventSeries(item.scheduleId);
+  else removeEventById(eventId);
+  closeDeleteScopeMenu();
+  if (typeof onComplete === "function") onComplete();
+  renderAll();
+  if (els.dayDrawer.classList.contains("open")) renderDayDrawer();
+  showToast("Event deleted.");
+}
+
+function openScheduledDeleteMenu(eventId, anchor, onComplete) {
+  closeDeleteScopeMenu();
+  var rect = anchor.getBoundingClientRect();
+  var menu = document.createElement("div");
+  menu.className = "delete-scope-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML =
+    "<button type='button' role='menuitem'>Single Event</button>" +
+    "<button type='button' role='menuitem'>Series</button>";
+  var host = els.eventModal.open ? els.eventModal : els.eventDetailModal.open ? els.eventDetailModal : document.body;
+  host.appendChild(menu);
+  var left = Math.min(rect.left, window.innerWidth - 168);
+  var top = rect.bottom + 6;
+  if (top + 92 > window.innerHeight) top = Math.max(8, rect.top - 92);
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+  var buttons = menu.querySelectorAll("button");
+  buttons[0].addEventListener("click", function (event) {
+    event.stopPropagation();
+    deleteEventWithScope(eventId, "single", onComplete);
+  });
+  buttons[1].addEventListener("click", function (event) {
+    event.stopPropagation();
+    deleteEventWithScope(eventId, "series", onComplete);
+  });
+  menu.addEventListener("click", function (event) { event.stopPropagation(); });
+  activeDeleteMenu = menu;
+}
+
+function openScheduledEditMenu(eventId, anchor) {
+  closeDeleteScopeMenu();
+  var item = state.events.find(function (event) { return event.id === eventId; });
+  if (!item) return;
+  var rect = anchor.getBoundingClientRect();
+  var menu = document.createElement("div");
+  menu.className = "delete-scope-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML =
+    "<button type='button' role='menuitem'>Single Event</button>" +
+    "<button type='button' role='menuitem'>Series</button>";
+  var host = els.eventDetailModal.open ? els.eventDetailModal : document.body;
+  host.appendChild(menu);
+  var left = Math.min(rect.left, window.innerWidth - 168);
+  var top = rect.bottom + 6;
+  if (top + 92 > window.innerHeight) top = Math.max(8, rect.top - 92);
+  menu.style.left = Math.max(8, left) + "px";
+  menu.style.top = Math.max(8, top) + "px";
+  var buttons = menu.querySelectorAll("button");
+  buttons[0].addEventListener("click", function (event) {
+    event.stopPropagation();
+    closeDeleteScopeMenu();
+    els.eventDetailModal.close();
+    openEventModal({ mode: "edit", eventId: eventId });
+  });
+  buttons[1].addEventListener("click", function (event) {
+    event.stopPropagation();
+    closeDeleteScopeMenu();
+    els.eventDetailModal.close();
+    openScheduleModal({ scheduleId: item.scheduleId, fromDate: item.start });
+  });
+  menu.addEventListener("click", function (event) { event.stopPropagation(); });
+  activeDeleteMenu = menu;
+}
+
+function confirmDeleteEvent(eventId, anchor, onComplete) {
+  var item = state.events.find(function (event) { return event.id === eventId; });
+  if (!item) return;
+  if (isGoogleReadOnlyEvent(item)) {
+    showToast("Google Calendar events are read-only here for now.");
+    return;
+  }
+  if (item.scheduleId) {
+    if (anchor) openScheduledDeleteMenu(eventId, anchor, onComplete);
+    else deleteEventWithScope(eventId, "single", onComplete);
+    return;
+  }
+  deleteEventWithScope(eventId, "single", onComplete);
+}
+
+function clearSelection() {
+  selectingPlan = false;
+  selectionStart = null;
+  selectionEnd = null;
+}
+
+function finalizePlans() {
+  if (!state.plans.length) return;
+  var count = state.plans.length;
+  var finalizedEvents = [];
+  state.plans.forEach(function (plan) {
+    var finalizedEvent = createEvent({
+      type: plan.type,
+      passage: plan.passage,
+      title: plan.title,
+      start: plan.start,
+      end: plan.end,
+      timeSlot: plan.timeSlot,
+      timeStart: plan.timeStart,
+      timeEnd: plan.timeEnd,
+      allDay: plan.allDay,
+      location: plan.location,
+      notes: plan.notes,
+      checklist: plan.checklist,
+      colorKey: plan.colorKey,
+      source: "google-ready"
+    });
+    ensureEventChecklistTasks(finalizedEvent);
+    state.events.push(finalizedEvent);
+    finalizedEvents.push(finalizedEvent);
+  });
+  state.plans = [];
+  saveState();
+  setMode("normal");
+  if (googleCalendarStatus.connected) {
+    finalizedEvents.forEach(function (item) { syncDashboardEventToGoogle(item, false); });
+  }
+  showToast(count + " planning block" + (count === 1 ? "" : "s") + " finalized as calendar events.");
+}
+
+function cancelPlans() {
+  if (!state.plans.length) return;
+  var count = state.plans.length;
+  state.plans = [];
+  clearSelection();
+  saveState();
+  renderAll();
+  showToast(count + " planning draft" + (count === 1 ? "" : "s") + " canceled.");
+}
+
+function undoPlan() {
+  if (!planningMode || !state.plans.length) return;
+  var removed = state.plans.pop();
+  saveState();
+  renderAll();
+  showToast("Undid " + eventTitle(removed) + ".");
+}
+
+function setMode(nextMode) {
+  calendarMode = nextMode === "schedule" ? "schedule" : nextMode === "planning" ? "planning" : nextMode === "birthdays" ? "birthdays" : "normal";
+  planningMode = calendarMode === "planning";
+  clearSelection();
+  closeDayDrawer();
+  els.normalModeButton.classList.toggle("active", calendarMode === "normal");
+  els.scheduleModeButton.classList.toggle("active", calendarMode === "schedule");
+  els.planningModeButton.classList.toggle("active", planningMode);
+  if (els.birthdayModeButton) els.birthdayModeButton.classList.toggle("active", calendarMode === "birthdays");
+  els.planningHint.hidden = !planningMode;
+  els.addScheduleButton.hidden = calendarMode !== "schedule";
+  if (els.birthdayHideToggle) els.birthdayHideToggle.hidden = calendarMode !== "birthdays";
+  if (els.hideBirthdaysFromCalendar) els.hideBirthdaysFromCalendar.checked = !!state.settings.hideBirthdaysFromCalendar;
+  renderAll();
+  loadGoogleCalendarEvents(false);
+}
+
+function updatePlanButtons() {
+  var show = planningMode && state.plans.length > 0;
+  els.finalizePlansButton.hidden = !show;
+  els.cancelPlansButton.disabled = !show;
+  els.undoPlanButton.disabled = !show;
+  els.addScheduleButton.hidden = calendarMode !== "schedule";
+  if (els.birthdayHideToggle) els.birthdayHideToggle.hidden = calendarMode !== "birthdays";
+}
+
+function goToCurrentCalendarPeriod() {
+  if (calendarMode === "schedule") {
+    scheduleWeekStart = startOfWeek(new Date());
+  } else if (calendarMode === "birthdays") {
+    viewDate = new Date();
+  } else {
+    viewDate = new Date();
+  }
+  renderCalendar();
+}
+
+function goToPreviousCalendarPeriod() {
+  if (calendarMode === "schedule") {
+    scheduleWeekStart = addDays(scheduleWeekStart, -7);
+  } else if (calendarMode === "birthdays") {
+    viewDate = new Date(viewDate.getFullYear() - 1, viewDate.getMonth(), 1);
+  } else {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
+  }
+  renderCalendar();
+}
+
+function goToNextCalendarPeriod() {
+  if (calendarMode === "schedule") {
+    scheduleWeekStart = addDays(scheduleWeekStart, 7);
+  } else if (calendarMode === "birthdays") {
+    viewDate = new Date(viewDate.getFullYear() + 1, viewDate.getMonth(), 1);
+  } else {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+  }
+  renderCalendar();
+}
+
+function isWithinNextDays(item, days) {
+  var today = parseISO(toISO(new Date())).getTime();
+  var target = parseISO(item.start).getTime();
+  var diff = Math.round((target - today) / 86400000);
+  return diff >= 0 && diff <= days;
+}
+
+function isInCurrentCalendarMonth(item) {
+  var now = new Date();
+  var start = parseISO(item.start);
+  return start.getFullYear() === now.getFullYear() && start.getMonth() === now.getMonth() && start >= parseISO(toISO(now));
+}
+
+function renderPriorityList() {
+  els.priorityList.innerHTML = "";
+  var days = priorityScope === "month" ? 30 : 7;
+  els.priorityTitle.textContent = priorityScope === "month"
+    ? "Upcoming Teachings for " + new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    : "This Week";
+  els.priorityScopeToggle.textContent = priorityScope === "month" ? "Week" : "Month";
+  var items;
+  var birthdayItems = [];
+  if (priorityScope === "month") {
+    var monthStart = toISO(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    var monthEnd = toISO(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0));
+    items = visibleCalendarEvents(monthStart, monthEnd).filter(function (item) {
+      return isMinistryPriority(item) && isInCurrentCalendarMonth(item);
+    });
+  } else {
+    var rangeStart = toISO(new Date());
+    var rangeEnd = toISO(addDays(new Date(), 30));
+    var visible = visibleCalendarEvents(rangeStart, rangeEnd);
+    var ministry = visible.filter(function (item) { return isMinistryPriority(item) && isWithinNextDays(item, 30); });
+    var scoped = visible.filter(function (item) { return !isMinistryPriority(item) && !eventIsBirthday(item) && isWithinNextDays(item, days); });
+    items = ministry.concat(scoped);
+    birthdayItems = visibleCalendarEvents(rangeStart, toISO(addDays(new Date(), days)), { includeBirthdays: true, onlyBirthdays: true })
+      .filter(function (item) { return isWithinNextDays(item, days); })
+      .sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
+  }
+  items = items.sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
+  if (!items.length && !birthdayItems.length) {
+    var message = priorityScope === "month"
+      ? "No upcoming teachings this month."
+      : "No events due for this week.";
+    els.priorityList.innerHTML = "<p class='empty-state'>" + message + "</p>";
+    return;
+  }
+  function appendPriorityItem(item, birthday) {
+    var div = document.createElement("div");
+    div.className = "priority-item" + (isMinistryPriority(item) ? " ministry" : "") + (birthday ? " birthday-priority" : "");
+    var details = document.createElement("button");
+    details.type = "button";
+    details.className = "priority-event-button";
+    details.innerHTML = "<strong>" + (birthday ? escapeHTML(birthdayName(item)) : eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + (birthday ? "" : " / " + eventTimingLabel(item)) + "</span>";
+    details.addEventListener("click", function () { viewEvent(item.id); });
+    bindEventCardKeyboard(details, item.id);
+    div.appendChild(details);
+    if (!birthday) {
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "delete-button trash-button event-card-delete";
+      remove.innerHTML = trashIcon();
+      remove.setAttribute("aria-label", "Delete event");
+      remove.addEventListener("click", function (event) {
+        event.stopPropagation();
+        confirmDeleteEvent(item.id, event.currentTarget);
+      });
+      div.appendChild(remove);
+    }
+    els.priorityList.appendChild(div);
+  }
+  items.slice(0, priorityScope === "month" ? 12 : 8).forEach(function (item) {
+    appendPriorityItem(item, false);
+  });
+  if (birthdayItems.length) {
+    var heading = document.createElement("h3");
+    heading.className = "priority-subheading";
+    heading.textContent = "Birthdays";
+    els.priorityList.appendChild(heading);
+    birthdayItems.slice(0, 8).forEach(function (item) {
+      appendPriorityItem(item, true);
+    });
+  }
+}
+
+function addTask(title, dueDate, source, eventId, eventTitleValue) {
+  var cleanTitle = title.trim();
+  if (!cleanTitle) return;
+  state.tasks.unshift({
+    id: id("task"),
+    title: cleanTitle,
+    dueDate: dueDate || "",
+    done: false,
+    source: source || "dashboard",
+    eventId: eventId || null,
+    eventTitle: eventTitleValue || ""
+  });
+  saveState();
+  renderTasks();
+  renderCalendar();
+}
+
+function renderTasks() {
+  els.taskList.innerHTML = "";
+  if (!state.tasks.length) {
+    els.taskList.innerHTML = "<li><span></span><span class='empty-state'>No saved tasks yet.</span><span></span></li>";
+    return;
+  }
+  state.tasks.slice(0, 8).forEach(function (task) {
+    var li = document.createElement("li");
+    if (task.done) li.classList.add("done");
+
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = task.done;
+    checkbox.setAttribute("aria-label", "Mark task complete");
+    checkbox.addEventListener("change", function () {
+      task.done = checkbox.checked;
+      saveState();
+      renderTasks();
+    });
+
+    var titleWrap = document.createElement("span");
+    titleWrap.className = "task-title";
+    titleWrap.innerHTML = (task.eventTitle ? "<strong>" + task.eventTitle + "</strong>" : "") + "<span>" + task.title + "</span>" + (task.dueDate ? "<small>Due " + displayDate(task.dueDate) + "</small>" : "<small>No due date</small>");
+
+    var remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "delete-button trash-button";
+    remove.innerHTML = trashIcon();
+    remove.setAttribute("aria-label", "Delete task");
+    remove.addEventListener("click", function () {
+      state.tasks = state.tasks.filter(function (item) { return item.id !== task.id; });
+      state.events.forEach(function (event) {
+        event.checklist.forEach(function (item) {
+          if (item.taskId === task.id) {
+            item.promoted = false;
+            item.taskId = null;
+          }
+        });
+      });
+      saveState();
+      renderAll();
+    });
+
+    li.append(checkbox, titleWrap, remove);
+    els.taskList.appendChild(li);
+  });
+}
+
+function renderTemplates() {
+  els.templateList.innerHTML = "";
+  if (!state.templates.length) {
+    els.templateList.innerHTML = "<p class='empty-state'>Create your first workflow template.</p>";
+  } else {
+    state.templates.forEach(function (template) {
+      var row = document.createElement("div");
+      row.className = "template-row" + (template.id === state.activeTemplateId ? " active" : "");
+
+      var name = document.createElement("button");
+      name.type = "button";
+      name.className = "template-name-button";
+      name.textContent = template.name;
+      name.addEventListener("click", function () {
+        state.activeTemplateId = state.activeTemplateId === template.id ? null : template.id;
+        saveState();
+        renderTemplates();
+        renderActiveTemplate();
+      });
+
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "delete-button trash-button";
+      remove.innerHTML = trashIcon();
+      remove.setAttribute("aria-label", "Delete template");
+      remove.addEventListener("click", function () {
+        state.templates = state.templates.filter(function (item) { return item.id !== template.id; });
+        if (state.activeTemplateId === template.id) state.activeTemplateId = null;
+        saveState();
+        renderTemplates();
+        renderActiveTemplate();
+      });
+
+      row.append(name, remove);
+      els.templateList.appendChild(row);
+    });
+  }
+  renderEventTemplateSelect();
+}
+
+function renderActiveTemplate() {
+  var template = state.templates.find(function (item) { return item.id === state.activeTemplateId; });
+  els.activeWorkflow.innerHTML = "";
+  if (!template) {
+    els.activeWorkflow.innerHTML = "<p class='empty-state'>Click a template name to edit its checklist.</p>";
+    return;
+  }
+
+  var title = document.createElement("h3");
+  title.textContent = template.name;
+  els.activeWorkflow.appendChild(title);
+
+  var list = document.createElement("div");
+  list.className = "workflow-items";
+  if (!template.items.length) {
+    list.innerHTML = "<p class='empty-state'>No checklist items yet.</p>";
+  } else {
+    template.items.forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "workflow-item";
+      row.addEventListener("click", function () { row.classList.toggle("show-actions"); });
+      var label = document.createElement("span");
+      label.textContent = item.title;
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "delete-button trash-button";
+      remove.innerHTML = trashIcon();
+      remove.setAttribute("aria-label", "Delete checklist item");
+      remove.addEventListener("click", function () {
+        template.items = template.items.filter(function (check) { return check.id !== item.id; });
+        saveState();
+        renderActiveTemplate();
+      });
+      row.append(label, remove);
+      list.appendChild(row);
+    });
+  }
+  els.activeWorkflow.appendChild(list);
+
+  var extra = document.createElement("form");
+  extra.className = "workflow-extra";
+  extra.innerHTML = "<input type='text' placeholder='Add checklist item'><button class='text-button small-control' type='submit'>Add</button>";
+  extra.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var input = extra.querySelector("input");
+    var value = input.value.trim();
+    if (!value) return;
+    template.items.push({ id: id("template-item"), title: value });
+    input.value = "";
+    saveState();
+    renderActiveTemplate();
+  });
+  els.activeWorkflow.appendChild(extra);
+}
+
+function createTemplate(event) {
+  event.preventDefault();
+  var name = els.templateName.value.trim();
+  if (!name) {
+    showToast("Name the template first.");
+    return;
+  }
+  var template = { id: id("template"), name: name, items: [] };
+  state.templates.unshift(template);
+  state.activeTemplateId = template.id;
+  els.templateName.value = "";
+  saveState();
+  renderTemplates();
+  renderActiveTemplate();
+}
+
+function openLink(url) {
+  if (!url || url === "#") return;
+  window.open(url, "_blank", "noopener");
+}
+
+function newsItems(section) {
+  if (!newsData || !newsData[section]) return [];
+  var top = newsData.top && newsData.top[section];
+  return newsData[section].filter(function (item) {
+    if (!top) return true;
+    return item.url !== top.url && item.title !== top.title;
+  });
+}
+
+function renderNewsList(list, items) {
+  list.innerHTML = "";
+  if (!items.length) {
+    list.innerHTML = "<li class='news-card-empty'><span class='empty-state'>No feed items loaded yet.</span></li>";
+    return;
+  }
+  items.slice(0, 5).forEach(function (item) {
+    var li = document.createElement("li");
+    li.className = "news-card-item";
+    var link = document.createElement("a");
+    link.className = "news-card-link";
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.addEventListener("click", function (event) {
+      event.preventDefault();
+      openReader(newsReaderItem(item));
+    });
+    var media = document.createElement("span");
+    media.className = "news-card-thumb";
+    if (item.image) media.style.backgroundImage = "url('" + item.image.replace(/'/g, "%27") + "')";
+    var copy = document.createElement("span");
+    copy.className = "news-card-copy";
+    var title = document.createElement("strong");
+    title.textContent = item.title;
+    var source = document.createElement("span");
+    source.textContent = item.source;
+    copy.append(title, source);
+    link.append(media, copy);
+    li.appendChild(link);
+    list.appendChild(li);
+  });
+}
+
+function pauseIcon() {
+  return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M7 5h4v14H7V5Zm6 0h4v14h-4V5Z'/></svg>";
+}
+
+function playIcon() {
+  return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M8 5v14l11-7L8 5Z'/></svg>";
+}
+
+function renderHeadlinePauseButton() {
+  var button = document.createElement("button");
+  button.type = "button";
+  button.className = "headline-pause-button";
+  button.innerHTML = headlineCarouselPaused ? playIcon() : pauseIcon();
+  button.title = headlineCarouselPaused ? "Play carousel" : "Pause carousel";
+  button.setAttribute("aria-label", headlineCarouselPaused ? "Play carousel" : "Pause carousel");
+  button.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setHeadlinePaused(!headlineCarouselPaused);
+  });
+  return button;
+}
+
+function renderHeadlineMedia(item) {
+  els.headlineMedia.innerHTML = "";
+  if (item.video) {
+    var video = document.createElement("video");
+    video.controls = true;
+    video.preload = "metadata";
+    video.poster = item.image || "";
+    video.src = item.video;
+    video.className = "headline-video";
+    video.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    els.headlineMedia.appendChild(video);
+    els.headlineMedia.appendChild(renderHeadlinePauseButton());
+    return;
+  }
+  var image = document.createElement("div");
+  image.className = "headline-image";
+  if (item.image) image.style.backgroundImage = "linear-gradient(145deg, rgba(73, 53, 72, 0.22), rgba(31, 30, 30, 0.28)), url('" + item.image.replace(/'/g, "%27") + "')";
+  if (item.isVideo && !item.video) {
+    var badge = document.createElement("span");
+    badge.className = "video-badge";
+    badge.textContent = "Watch video";
+    image.appendChild(badge);
+  }
+  els.headlineMedia.appendChild(image);
+  els.headlineMedia.appendChild(renderHeadlinePauseButton());
+}
+
+function renderHeadline() {
+  var topItems = [];
+  if (newsData && newsData.top && newsData.top.world) topItems.push({ label: "World", item: newsData.top.world });
+  if (newsData && newsData.top && newsData.top.philippines) topItems.push({ label: "Philippines", item: newsData.top.philippines });
+  if (newsData && newsData.top && newsData.top.theology) topItems.push({ label: "Theology", item: newsData.top.theology });
+  if (!topItems.length) {
+    activeHeadlineItem = null;
+    els.headlineStory.href = "#";
+    els.headlineMedia.innerHTML = "<div class='headline-image'></div>";
+    els.headlineKicker.textContent = "Top Headline";
+    els.headlineTitle.textContent = "News feeds are loading.";
+    els.headlineSummary.textContent = "If a source blocks its feed, the dashboard will use the other available sources.";
+    return;
+  }
+  if (headlineIndex >= topItems.length) headlineIndex = 0;
+  var active = topItems[headlineIndex];
+  var item = active.item;
+  activeHeadlineItem = item;
+  els.headlineStory.href = item.url;
+  els.headlineKicker.textContent = active.label + " / " + item.source;
+  els.headlineTitle.textContent = item.title;
+  els.headlineSummary.textContent = item.summary || "Click to open the full story.";
+  renderHeadlineMedia(item);
+  document.querySelectorAll(".headline-dot").forEach(function (button, index) {
+    button.classList.toggle("active", index === headlineIndex);
+  });
+}
+
+function newsReaderItem(item) {
+  return {
+    source: item.source || "News",
+    title: item.title || "Article",
+    summary: item.summary || "",
+    contentHtml: item.contentHtml || "",
+    url: item.url || "#",
+    image: item.image || "",
+    isVideo: item.isVideo,
+    video: item.video,
+    articleKind: "news",
+    fullArticleLoaded: false
+  };
+}
+
+function renderNews() {
+  renderHeadline();
+  renderNewsList(els.worldNewsList, newsItems("world"));
+  renderNewsList(els.philippinesNewsList, newsItems("philippines"));
+  renderNewsList(els.theologyNewsList, newsItems("theology"));
+}
+
+function selectedNewsQuery() {
+  var params = new URLSearchParams();
+  var selected = state.settings.newsSources || {};
+  ["world", "philippines", "theology"].forEach(function (section) {
+    var sources = (selected[section] || []);
+    if (!sources.length) sources = orderedNewsSources(section).slice(0, 10).map(function (source) { return source.source; });
+    if (sources.length) params.set(section + "Sources", sources.join("|"));
+  });
+  var custom = state.settings.customNewsSources || {};
+  var cleanCustom = { world: [], philippines: [], theology: [] };
+  ["world", "philippines", "theology"].forEach(function (section) {
+    cleanCustom[section] = (custom[section] || []).filter(function (source) {
+      return source && source.source && /^https?:\/\//i.test(source.url || "");
+    });
+  });
+  if (cleanCustom.world.length || cleanCustom.philippines.length || cleanCustom.theology.length) {
+    params.set("customSources", JSON.stringify(cleanCustom));
+  }
+  var query = params.toString();
+  return query ? "?" + query : "";
+}
+
+function orderedNewsSources(section) {
+  var options = newsSourceOptions || { world: [], philippines: [], theology: [] };
+  var custom = state.settings.customNewsSources || { world: [], philippines: [], theology: [] };
+  var sources = (options[section] || []).concat(custom[section] || []).filter(function (source) {
+    return source.source !== "Vatican News";
+  });
+  var order = state.settings.newsSourceOrder && state.settings.newsSourceOrder[section] ? state.settings.newsSourceOrder[section] : [];
+  if (!order.length) return sources;
+  var byName = {};
+  sources.forEach(function (source) { byName[source.source] = source; });
+  var ordered = order.map(function (name) { return byName[name]; }).filter(Boolean);
+  sources.forEach(function (source) {
+    if (order.indexOf(source.source) < 0) ordered.push(source);
+  });
+  return ordered;
+}
+
+function saveSourceOrder(section, names) {
+  state.settings.newsSourceOrder = state.settings.newsSourceOrder || { world: [], philippines: [], theology: [] };
+  state.settings.newsSourceOrder[section] = names;
+  saveState();
+}
+
+async function loadNews() {
+  try {
+    var response = await fetch("/api/news" + selectedNewsQuery());
+    if (!response.ok) throw new Error("News request failed.");
+    newsData = await response.json();
+  } catch (error) {
+    newsData = { world: [], philippines: [], top: {} };
+    showToast("News feeds could not be loaded yet.");
+  }
+  renderNews();
+}
+
+async function loadNewsSources() {
+  if (newsSourceOptions) return newsSourceOptions;
+  try {
+    var response = await fetch("/api/news-sources");
+    if (!response.ok) throw new Error("Source request failed.");
+    newsSourceOptions = await response.json();
+  } catch (error) {
+    newsSourceOptions = { world: [], philippines: [], theology: [] };
+    showToast("News source choices could not be loaded yet.");
+  }
+  return newsSourceOptions;
+}
+
+function renderSourceModal() {
+  if (!els.sourceGrid) return;
+  var options = newsSourceOptions || { world: [], philippines: [], theology: [] };
+  var labels = { world: "World", philippines: "Philippines", theology: "Theology" };
+  var selected = state.settings.newsSources || {};
+  var custom = state.settings.customNewsSources || { world: [], philippines: [], theology: [] };
+  els.sourceGrid.innerHTML = "";
+  ["world", "philippines", "theology"].forEach(function (section) {
+    var sources = orderedNewsSources(section);
+    var chosen = selected[section] || [];
+    var block = document.createElement("section");
+    block.className = "source-section";
+    block.innerHTML =
+      "<div class='source-section-head'><h3>" + labels[section] + "</h3><label class='check-all-source'><input type='checkbox' data-check-all='" + section + "'" + (chosen.length && chosen.length === sources.length ? " checked" : "") + "> Check all</label><span class='source-count'>" + chosen.length + "/10</span></div>" +
+      "<div class='source-add-row'><input data-custom-name='" + section + "' type='text' placeholder='Source name'><input data-custom-url='" + section + "' type='url' placeholder='RSS / Atom URL'><button class='text-button small-control' data-add-source='" + section + "' type='button'>Add</button></div>" +
+      "<div class='source-options'></div>";
+    var list = block.querySelector(".source-options");
+    sources.forEach(function (source) {
+      var idValue = "source-" + section + "-" + source.source.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+      var row = document.createElement("label");
+      row.className = "source-option" + (source.custom ? " custom-source-option" : "");
+      row.htmlFor = idValue;
+      row.dataset.section = section;
+      row.dataset.sourceName = source.source;
+      row.innerHTML =
+        "<input id='" + idValue + "' type='checkbox' data-section='" + section + "' value='" + escapeHTML(source.source) + "'" + (chosen.indexOf(source.source) >= 0 ? " checked" : "") + ">" +
+        "<span>" + escapeHTML(source.source) + "</span>" +
+        (source.custom ? "<button class='trash-button' data-remove-source='" + section + "' data-source-name='" + escapeHTML(source.source) + "' type='button' aria-label='Remove custom source'>" + trashIcon() + "</button>" : "");
+      addSourceOptionDrag(row);
+      list.appendChild(row);
+    });
+    updateSourceCount(block);
+    els.sourceGrid.appendChild(block);
+  });
+}
+
+function updateSourceCount(block) {
+  var count = block.querySelectorAll("input[data-section]:checked").length;
+  var countEl = block.querySelector(".source-count");
+  if (!countEl) return;
+  countEl.textContent = count + "/10";
+  countEl.classList.toggle("over-limit", count > 10);
+  countEl.classList.toggle("within-limit", count <= 10);
+}
+
+function addSourceOptionDrag(row) {
+  var startX = 0;
+  var startY = 0;
+  var dragging = false;
+  row.addEventListener("pointerdown", function (event) {
+    if (event.target.closest("input, button")) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    dragging = false;
+    row.setPointerCapture(event.pointerId);
+  });
+  row.addEventListener("pointermove", function (event) {
+    if (!row.hasPointerCapture(event.pointerId)) return;
+    var moved = Math.abs(event.clientX - startX) + Math.abs(event.clientY - startY);
+    if (moved < 8) return;
+    dragging = true;
+    row.classList.add("dragging");
+    event.preventDefault();
+  });
+  row.addEventListener("pointerup", function (event) {
+    if (!row.hasPointerCapture(event.pointerId)) return;
+    row.releasePointerCapture(event.pointerId);
+    row.classList.remove("dragging");
+    if (!dragging) return;
+    var target = document.elementFromPoint(event.clientX, event.clientY);
+    var targetRow = target && target.closest ? target.closest(".source-option") : null;
+    if (!targetRow || targetRow.dataset.section !== row.dataset.section || targetRow === row) return;
+    state.settings.newsSources = collectSelectedSources();
+    var section = row.dataset.section;
+    var rows = Array.from(row.closest(".source-options").querySelectorAll(".source-option"));
+    var names = rows.map(function (item) { return item.dataset.sourceName; });
+    var fromIndex = names.indexOf(row.dataset.sourceName);
+    var toIndex = names.indexOf(targetRow.dataset.sourceName);
+    if (fromIndex < 0 || toIndex < 0) return;
+    var movedName = names.splice(fromIndex, 1)[0];
+    names.splice(toIndex, 0, movedName);
+    saveSourceOrder(section, names);
+    renderSourceModal();
+  });
+  row.addEventListener("pointercancel", function () {
+    row.classList.remove("dragging");
+  });
+}
+
+async function openSourceModal() {
+  await loadNewsSources();
+  renderSourceModal();
+  els.sourceModal.showModal();
+}
+
+function collectSelectedSources() {
+  var next = { world: [], philippines: [], theology: [] };
+  els.sourceGrid.querySelectorAll("input[type='checkbox']:checked").forEach(function (input) {
+    var section = input.dataset.section;
+    if (next[section]) next[section].push(input.value);
+  });
+  return next;
+}
+
+function sourceSelectionOverLimit() {
+  return ["world", "philippines", "theology"].some(function (section) {
+    return els.sourceGrid.querySelectorAll("input[data-section='" + section + "']:checked").length > 10;
+  });
+}
+
+function plainTextFromHtml(html) {
+  var div = document.createElement("div");
+  div.innerHTML = html || "";
+  return div.textContent || div.innerText || "";
+}
+
+function sanitizeArticleHtml(html) {
+  var template = document.createElement("template");
+  template.innerHTML = html || "";
+  template.content.querySelectorAll("script,style,iframe,object,embed,form,input,button").forEach(function (node) {
+    node.remove();
+  });
+  template.content.querySelectorAll("*").forEach(function (node) {
+    Array.from(node.attributes).forEach(function (attribute) {
+      var name = attribute.name.toLowerCase();
+      var value = attribute.value || "";
+      if (name.indexOf("on") === 0 || /javascript:/i.test(value)) node.removeAttribute(attribute.name);
+    });
+    if (node.tagName === "A") {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noopener");
+    }
+  });
+  return template.innerHTML;
+}
+
+function renderRssFeeds() {
+  if (!els.rssFeedList) return;
+  var feeds = state.rssFeeds || [];
+  els.rssReadMoreUrl.value = state.rssReadMoreUrl || "";
+  if (!feeds.length) {
+    els.rssFeedList.innerHTML = "<p class='empty-state'>No RSS sources yet.</p>";
+    return;
+  }
+  els.rssFeedList.innerHTML = "";
+  feeds.forEach(function (feed, index) {
+    var row = document.createElement("div");
+    var sourceName = feed.name || feed.url;
+    var sourceKey = feed.url || sourceName;
+    var isActive = state.activeRssSource === sourceKey || state.activeRssSource === sourceName;
+    row.className = "rss-feed-chip" + (isActive ? " active" : "");
+    row.dataset.index = String(index);
+    row.innerHTML = "<button class='rss-source-button' type='button'><span>" + escapeHTML(sourceName) + "</span></button><button class='trash-button' type='button' aria-label='Remove RSS feed'>" + trashIcon() + "</button>";
+    addRssChipDrag(row, index);
+    row.addEventListener("click", function (event) {
+      if (event.target.closest(".trash-button")) return;
+      if (row.dataset.dragMoved === "true") {
+        row.dataset.dragMoved = "";
+        return;
+      }
+      state.activeRssSource = isActive ? "" : sourceKey;
+      saveState();
+      renderRssFeeds();
+      renderRssCards();
+    });
+    row.querySelector(".trash-button").addEventListener("click", function () {
+      state.rssFeeds.splice(index, 1);
+      if (state.activeRssSource === sourceName || state.activeRssSource === sourceKey) state.activeRssSource = "";
+      saveState();
+      renderRssFeeds();
+      loadRssFeeds();
+    });
+    els.rssFeedList.appendChild(row);
+  });
+}
+
+function addRssChipDrag(row, index) {
+  var startX = 0;
+  var startY = 0;
+  var dragging = false;
+  row.addEventListener("pointerdown", function (event) {
+    if (event.target.closest(".trash-button")) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    dragging = false;
+    row.dataset.dragMoved = "";
+    row.setPointerCapture(event.pointerId);
+  });
+  row.addEventListener("pointermove", function (event) {
+    if (!row.hasPointerCapture(event.pointerId)) return;
+    var moved = Math.abs(event.clientX - startX) + Math.abs(event.clientY - startY);
+    if (moved < 8) return;
+    dragging = true;
+    row.dataset.dragMoved = "true";
+    row.classList.add("dragging");
+    event.preventDefault();
+  });
+  row.addEventListener("pointerup", function (event) {
+    if (!row.hasPointerCapture(event.pointerId)) return;
+    row.releasePointerCapture(event.pointerId);
+    row.classList.remove("dragging");
+    if (!dragging) return;
+    var target = document.elementFromPoint(event.clientX, event.clientY);
+    var targetChip = target && target.closest ? target.closest(".rss-feed-chip") : null;
+    var toIndex = targetChip ? Number(targetChip.dataset.index) : -1;
+    if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex === index || !state.rssFeeds[index]) return;
+    var moved = state.rssFeeds.splice(index, 1)[0];
+    state.rssFeeds.splice(toIndex, 0, moved);
+    saveState();
+    renderRssFeeds();
+    loadRssFeeds();
+  });
+  row.addEventListener("pointercancel", function () {
+    row.classList.remove("dragging");
+    row.dataset.dragMoved = "";
+  });
+}
+
+function selectRssItems(items) {
+  var sorted = items.slice().sort(function (a, b) {
+    return (b.publishedTime || Date.parse(b.publishedAt) || 0) - (a.publishedTime || Date.parse(a.publishedAt) || 0);
+  });
+  if (!sorted.length) return [];
+  var first = sorted[0];
+  var remaining = sorted.slice(1).sort(function () { return Math.random() - 0.5; }).slice(0, 4);
+  return [first].concat(remaining);
+}
+
+function readerArticleBody(item) {
+  var body = item.contentHtml || item.summary || "";
+  var image = item.image ? "<figure class='reader-hero-image'><img src='" + escapeHTML(item.image) + "' alt=''></figure>" : "";
+  var videoNote = item.isVideo && !item.video ? "<p><strong>Video article:</strong> open the original story to watch the embedded video.</p>" : "";
+  var loading = item.articleKind === "news" && !item.fullArticleLoaded ? "<p class='reader-loading-note'>Loading full article text...</p>" : "";
+  return image + videoNote + loading + (sanitizeArticleHtml(body) || "<p>" + escapeHTML(plainTextFromHtml(body) || "This feed only provided a short preview.") + "</p>");
+}
+
+async function enrichReaderArticle(item) {
+  if (!item || item.articleKind !== "news" || item.fullArticleLoaded || !/^https?:\/\//i.test(item.url || "")) return;
+  try {
+    var response = await fetch("/api/article?url=" + encodeURIComponent(item.url));
+    if (!response.ok) throw new Error("Article request failed");
+    var article = await response.json();
+    if (article.title && (!item.title || item.title === "Article")) item.title = article.title;
+    if (article.image && !item.image) item.image = article.image;
+    if (article.contentHtml) item.contentHtml = article.contentHtml;
+    item.fullArticleLoaded = true;
+    if (activeReaderItem && activeReaderItem.url === item.url) {
+      activeReaderItem = item;
+      if (document.body.classList.contains("main-reader-active")) renderDockReader(item);
+      else if (els.readerModal.open) {
+        els.readerTitle.textContent = item.title || "Article";
+        els.readerBody.innerHTML = readerArticleBody(item);
+      }
+    }
+  } catch (error) {
+    item.fullArticleLoaded = true;
+    if (activeReaderItem && activeReaderItem.url === item.url) {
+      if (document.body.classList.contains("main-reader-active")) renderDockReader(item);
+      else if (els.readerModal.open) els.readerBody.innerHTML = readerArticleBody(item);
+    }
+  }
+}
+
+function pushReaderHistory(item) {
+  if (!item) return;
+  var last = readerHistory[readerHistoryIndex];
+  if (last && last.url === item.url && last.title === item.title) return;
+  readerHistory = readerHistory.slice(0, readerHistoryIndex + 1);
+  readerHistory.push(item);
+  readerHistoryIndex = readerHistory.length - 1;
+}
+
+function updateReaderHistoryButtons() {
+  if (!els.dockReaderBack || !els.dockReaderForward) return;
+  els.dockReaderBack.disabled = readerHistoryIndex <= 0;
+  els.dockReaderForward.disabled = readerHistoryIndex >= readerHistory.length - 1;
+}
+
+function renderDockReader(item) {
+  if (!item) return;
+  els.dockReaderSource.textContent = item.source || "RSS";
+  els.dockReaderTitle.textContent = item.title || "Article";
+  els.dockReaderBody.innerHTML =
+    "<h1>" + escapeHTML(item.title || "Article") + "</h1>" +
+    readerArticleBody(item);
+  els.dockReaderOriginalLink.href = item.url || "#";
+  updateReaderHistoryButtons();
+}
+
+function loadReaderItem(item, options) {
+  if (!item) return;
+  activeReaderItem = item;
+  if (!options || options.record !== false) pushReaderHistory(item);
+  if (document.body.classList.contains("main-reader-active")) {
+    renderDockReader(item);
+    enrichReaderArticle(item);
+    return;
+  }
+  els.readerSource.textContent = item.source || "RSS";
+  els.readerTitle.textContent = item.title || "Article";
+  els.readerBody.innerHTML = readerArticleBody(item);
+  els.readerOriginalLink.href = item.url || "#";
+  els.readerModal.showModal();
+  updateReaderHistoryButtons();
+  enrichReaderArticle(item);
+}
+
+function openReader(item) {
+  loadReaderItem(item);
+}
+
+function applySplitRatio(ratio) {
+  var clean = Math.min(78, Math.max(28, Number(ratio) || 50));
+  els.splitReaderLayout.style.setProperty("--split-left", clean + "%");
+  state.settings.readerSplit = clean;
+  saveState();
+}
+
+function openSplitReader() {
+  if (!activeReaderItem) return;
+  els.splitReaderSource.textContent = activeReaderItem.source || "RSS";
+  els.splitReaderTitle.textContent = activeReaderItem.title || "Article";
+  els.splitReaderArticle.innerHTML = readerArticleBody(activeReaderItem);
+  els.splitReaderOriginalLink.href = activeReaderItem.url || "#";
+  els.splitReaderFallback.hidden = true;
+  els.splitReaderFrame.hidden = false;
+  els.splitReaderFrame.src = activeReaderItem.url || "about:blank";
+  applySplitRatio(state.settings.readerSplit || 50);
+  els.splitReaderFallbackLink.href = activeReaderItem.url || "#";
+  els.splitReaderModal.showModal();
+}
+
+function updateSplitFromPointer(clientX) {
+  var rect = els.splitReaderLayout.getBoundingClientRect();
+  if (!rect.width) return;
+  applySplitRatio(((clientX - rect.left) / rect.width) * 100);
+}
+
+function applyMainSplitRatio(ratio) {
+  var clean = Math.min(78, Math.max(38, Number(ratio) || 62));
+  document.body.style.setProperty("--main-left", clean + "%");
+  state.settings.mainReaderSplit = clean;
+  saveState();
+}
+
+function openMainSplitReader() {
+  if (!activeReaderItem) return;
+  els.readerModal.close();
+  renderDockReader(activeReaderItem);
+  applyMainSplitRatio(state.settings.mainReaderSplit || 62);
+  document.body.classList.add("main-reader-active");
+  els.splitReaderDock.setAttribute("aria-hidden", "false");
+  els.mainSplitDivider.hidden = false;
+  var shell = document.querySelector(".app-shell");
+  var rssPanel = document.querySelector(".rss-panel");
+  if (shell && rssPanel) shell.scrollTop = Math.max(0, rssPanel.offsetTop - 24);
+}
+
+function closeMainSplitReader() {
+  document.body.classList.remove("main-reader-active");
+  els.splitReaderDock.setAttribute("aria-hidden", "true");
+  els.mainSplitDivider.hidden = true;
+  els.dockReaderBody.innerHTML = "";
+  mainSplitDragging = false;
+}
+
+function updateMainSplitFromPointer(clientX) {
+  var width = window.innerWidth || document.documentElement.clientWidth;
+  if (!width) return;
+  applyMainSplitRatio((clientX / width) * 100);
+}
+
+function scrollSegmentTargets() {
+  var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  var watch = document.querySelector(".tools-prayer-grid");
+  var news = document.querySelector(".news-sports-grid");
+  return [
+    0,
+    watch ? Math.min(max, Math.max(0, watch.offsetTop - 8)) : Math.round(max * 0.35),
+    news ? Math.min(max, Math.max(0, news.offsetTop - 8)) : Math.round(max * 0.7),
+    max
+  ];
+}
+
+function currentScrollSegment() {
+  var y = window.scrollY || document.documentElement.scrollTop || 0;
+  var targets = scrollSegmentTargets();
+  var closest = 0;
+  var distance = Infinity;
+  targets.forEach(function (target, index) {
+    var nextDistance = Math.abs(y - target);
+    if (nextDistance < distance) {
+      closest = index;
+      distance = nextDistance;
+    }
+  });
+  return closest;
+}
+
+function updateScrollDots() {
+  if (!els.scrollDots) return;
+  var active = currentScrollSegment();
+  els.scrollDots.querySelectorAll("[data-scroll-target]").forEach(function (button) {
+    button.classList.toggle("active", Number(button.dataset.scrollTarget) === active);
+  });
+}
+
+function scrollToSegment(index) {
+  var targets = scrollSegmentTargets();
+  var clean = Math.max(0, Math.min(targets.length - 1, index));
+  window.scrollTo({ top: targets[clean], behavior: "smooth" });
+  window.setTimeout(updateScrollDots, 360);
+}
+
+function renderRssCards() {
+  if (!els.rssCardGrid) return;
+  var activeFeed = (state.rssFeeds || []).find(function (feed) {
+    var sourceName = feed.name || feed.url;
+    var sourceKey = feed.url || sourceName;
+    return state.activeRssSource === sourceKey || state.activeRssSource === sourceName;
+  });
+  var candidates = (rssData.items || []).filter(function (item) {
+    if (!state.activeRssSource) return true;
+    if (activeFeed) {
+      var sourceName = activeFeed.name || activeFeed.url;
+      return item.feedUrl === activeFeed.url || item.source === sourceName || item.source === activeFeed.url;
+    }
+    return item.source === state.activeRssSource || item.feedUrl === state.activeRssSource;
+  });
+  var items = selectRssItems(candidates);
+  els.rssCardGrid.innerHTML = "";
+  if (!items.length) {
+    els.rssCardGrid.innerHTML = "<p class='empty-state'>" + (state.activeRssSource ? "No posts found for this RSS source yet." : "Add an RSS feed to read latest posts here.") + "</p>";
+  } else {
+    items.forEach(function (item) {
+      var button = document.createElement("button");
+      button.className = "rss-card";
+      button.type = "button";
+      button.innerHTML =
+        "<span class='rss-card-meta'>" + escapeHTML(item.source || "RSS") + "</span>" +
+        "<h3>" + escapeHTML(item.title || "Untitled") + "</h3>" +
+        "<p>" + escapeHTML(item.summary || plainTextFromHtml(item.contentHtml).slice(0, 150) || "Open to read from the dashboard.") + "</p>";
+      button.addEventListener("click", function () { openReader(item); });
+      els.rssCardGrid.appendChild(button);
+    });
+  }
+  if (state.rssReadMoreUrl) {
+    els.rssReadMoreLink.hidden = false;
+    els.rssReadMoreLink.href = state.rssReadMoreUrl;
+  } else {
+    els.rssReadMoreLink.hidden = true;
+  }
+}
+
+async function loadRssFeeds() {
+  renderRssFeeds();
+  if (!(state.rssFeeds || []).length) {
+    rssData = { items: [], errors: [] };
+    renderRssCards();
+    return;
+  }
+  try {
+    var response = await fetch("/api/rss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feeds: state.rssFeeds })
+    });
+    if (!response.ok) throw new Error("RSS request failed.");
+    rssData = await response.json();
+  } catch (error) {
+    rssData = { items: [], errors: [error.message] };
+    showToast("RSS feeds could not be loaded yet.");
+  }
+  renderRssCards();
+}
+
+function startHeadlineCarousel() {
+  if (headlineTimer) window.clearInterval(headlineTimer);
+  headlineTimer = null;
+  if (headlineCarouselPaused) return;
+  headlineTimer = window.setInterval(function () {
+    var total = [newsData && newsData.top && newsData.top.world, newsData && newsData.top && newsData.top.philippines, newsData && newsData.top && newsData.top.theology].filter(Boolean).length || 1;
+    headlineIndex = (headlineIndex + 1) % total;
+    renderHeadline();
+  }, 20000);
+}
+
+function setHeadlinePaused(paused) {
+  headlineCarouselPaused = !!paused;
+  state.settings.headlineCarouselPaused = headlineCarouselPaused;
+  saveState();
+  renderHeadline();
+  startHeadlineCarousel();
+}
+
+function renderScoreboard() {
+  document.querySelectorAll(".sport-tab").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.sport === currentSport);
+  });
+  els.scoreboard.className = "scoreboard " + currentSport + "-scoreboard";
+  els.scoreboard.innerHTML = "";
+  var data = sportsData[currentSport];
+  if (!data) {
+    els.scoreboard.innerHTML = "<div class='score-card featured'><strong>Loading " + currentSport.toUpperCase() + "</strong><span>Connecting to free scoreboard data.</span></div>";
+    return;
+  }
+  renderLeagueScoreboard(data);
+}
+
+function teamLogo(team) {
+  var abbreviation = teamAbbreviation(team);
+  var logo = team && team.logo ? team.logo : "";
+  if (currentSport === "nba") logo = nbaLogoFallback(team) || logo;
+  return logo
+    ? "<img src='" + escapeHTML(logo) + "' alt='' onerror=\"this.replaceWith(Object.assign(document.createElement('span'),{className:'team-logo-fallback',textContent:'" + escapeHTML(abbreviation) + "'}))\">"
+    : "<span class='team-logo-fallback'>" + escapeHTML(abbreviation) + "</span>";
+}
+
+function statValue(value) {
+  return value === 0 || value ? value : "-";
+}
+
+function isFinishedStatus(status) {
+  return /final|finished|full time|game finished|completed/i.test(status || "");
+}
+
+function isScheduledStatus(status) {
+  return /scheduled|not started|pre-game|preview|time tbd/i.test(status || "");
+}
+
+function liveGameMarker(game) {
+  if (!game) return "";
+  var status = game.status || "";
+  if (isFinishedStatus(status) || isScheduledStatus(status)) return status || "Scheduled";
+  var detail = game.statusDetail || game.period || "";
+  if (detail && !/in progress|live/i.test(detail)) return detail + (game.clock ? " / " + game.clock : "");
+  if (game.clock) return game.clock;
+  return status || "Live";
+}
+
+function shortMonthDay(value) {
+  var date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) date = new Date();
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function todayLongDate() {
+  return new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+}
+
+function teamAbbreviation(team) {
+  var value = team && team.name ? team.name : "";
+  var existing = team && team.abbreviation ? String(team.abbreviation).trim() : "";
+  if (existing && existing.length <= 4 && !/\s/.test(existing)) return existing.toUpperCase();
+  var known = {
+    "Atlanta Hawks": "ATL",
+    "Boston Celtics": "BOS",
+    "Brooklyn Nets": "BKN",
+    "Charlotte Hornets": "CHA",
+    "Chicago Bulls": "CHI",
+    "Cleveland Cavaliers": "CLE",
+    "Dallas Mavericks": "DAL",
+    "Denver Nuggets": "DEN",
+    "Detroit Pistons": "DET",
+    "Golden State Warriors": "GSW",
+    "Houston Rockets": "HOU",
+    "Indiana Pacers": "IND",
+    "LA Clippers": "LAC",
+    "Los Angeles Clippers": "LAC",
+    "Los Angeles Lakers": "LAL",
+    "Memphis Grizzlies": "MEM",
+    "Miami Heat": "MIA",
+    "Milwaukee Bucks": "MIL",
+    "Minnesota Timberwolves": "MIN",
+    "New Orleans Pelicans": "NOP",
+    "New York Knicks": "NYK",
+    "Oklahoma City Thunder": "OKC",
+    "Orlando Magic": "ORL",
+    "Philadelphia 76ers": "PHI",
+    "Phoenix Suns": "PHX",
+    "Portland Trail Blazers": "POR",
+    "Sacramento Kings": "SAC",
+    "San Antonio Spurs": "SAS",
+    "Toronto Raptors": "TOR",
+    "Utah Jazz": "UTA",
+    "Washington Wizards": "WAS",
+    "New York Yankees": "NYY",
+    "Los Angeles Dodgers": "LAD",
+    "New York Mets": "NYM",
+    "Chicago White Sox": "CWS",
+    "Boston Red Sox": "BOS",
+    "Toronto Blue Jays": "TOR",
+    "New England Patriots": "NE",
+    "Los Angeles Rams": "LAR",
+    "Los Angeles Chargers": "LAC",
+    "New York Giants": "NYG",
+    "New York Jets": "NYJ"
+  };
+  if (known[value]) return known[value];
+  return (existing || value || "?").slice(0, 3).toUpperCase();
+}
+
+function nbaLogoFallback(team) {
+  var code = teamAbbreviation(team).toLowerCase();
+  var espnCodes = { phx: "phx", por: "por", sac: "sac", uta: "utah" };
+  var codeForUrl = espnCodes[code] || code;
+  return codeForUrl && codeForUrl !== "?" ? "https://a.espncdn.com/i/teamlogos/nba/500/" + codeForUrl + ".png" : "";
+}
+
+function shortTeamName(team) {
+  var value = team && team.name ? team.name : "";
+  if (!value) return "";
+  var known = {
+    "Los Angeles Lakers": "Lakers",
+    "New England Patriots": "Patriots",
+    "New York Yankees": "Yankees",
+    "Los Angeles Dodgers": "Dodgers",
+    "Boston Red Sox": "Red Sox",
+    "Chicago White Sox": "White Sox",
+    "Toronto Blue Jays": "Blue Jays"
+  };
+  if (known[value]) return known[value];
+  var parts = value.split(" ");
+  if (parts.length > 2 && /^(New|Los|San|St\.|St|Kansas|Las|Oklahoma|Golden|Tampa|Green)$/i.test(parts[0])) return parts.slice(-2).join(" ");
+  return parts[parts.length - 1] || value;
+}
+
+function gameScoreLine(game) {
+  var teams = game.competitors || [];
+  if (teams.length < 2) return game.shortName || game.name || "";
+  return teams.map(function (team) {
+    return teamAbbreviation(team) + (team.score && team.score !== "-" ? " " + team.score : "");
+  }).join(" - ");
+}
+
+function leagueScoreboardUrl() {
+  if (currentSport === "mlb") return "https://www.mlb.com/scores";
+  if (currentSport === "nfl") return "https://www.nfl.com/scores/";
+  return "https://www.nba.com/games";
+}
+
+function gameLink(game) {
+  return (game && game.url) || leagueScoreboardUrl();
+}
+
+function renderGameCard(game, label, meta) {
+  var card = document.createElement("a");
+  card.className = "priority-matchup";
+  card.href = gameLink(game);
+  card.target = "_blank";
+  card.rel = "noopener";
+  card.setAttribute("aria-label", "Open " + label + " game page");
+  if (!game) {
+    card.innerHTML = "<strong>" + escapeHTML(label) + "</strong><span>No current game for your favorite team.</span>";
+    return card;
+  }
+  var teams = game.competitors || [];
+  var scores = teams.map(function (team) { return Number(team.score); });
+  var maxScore = Math.max.apply(Math, scores.filter(function (score) { return Number.isFinite(score); }));
+  var hasWinner = Number.isFinite(maxScore) && scores.filter(function (score) { return score === maxScore; }).length === 1;
+  var nextLine = meta && meta.nextLabel ? "<span class='next-game-line'>" + escapeHTML(meta.nextLabel) + "</span>" : "";
+  card.innerHTML =
+    "<div class='favorite-card-head'><div><strong class='favorite-team-label'>" + escapeHTML(label) + "</strong><span>" + escapeHTML(shortMonthDay(game.date)) + " Game</span></div><span class='score-status'>" + escapeHTML(liveGameMarker(game)) + "</span></div>" +
+    "<div class='matchup-teams'>" + teams.map(function (team) {
+      var score = Number(team.score);
+      var winner = hasWinner && score === maxScore;
+      return "<div class='matchup-team'>" + teamLogo(team) + "<span>" + escapeHTML(team.name) + "</span><strong class='" + (winner ? "winning-score" : "") + "'>" + escapeHTML(team.score) + "</strong></div>";
+    }).join("") + "</div>" + nextLine;
+  return card;
+}
+
+function renderPriorityGames(data) {
+  var games = data.priorityGames && data.priorityGames.length
+    ? data.priorityGames
+    : [{ label: data.priorityTeamLabel || data.priorityTeam, game: data.priorityGame }];
+  var wrap = document.createElement("div");
+  wrap.className = "priority-matchups";
+  games.forEach(function (item) {
+    wrap.appendChild(renderGameCard(item.game, item.label, item));
+  });
+  return wrap;
+}
+
+function renderLeagueNews(data) {
+  var section = document.createElement("section");
+  section.className = "scoreboard-section league-news-section";
+  section.innerHTML = "<h3>League News</h3>";
+  var items = (data.leagueNews || []).slice(0, 3);
+  if (!items.length) {
+    section.innerHTML += "<p class='empty-state'>League headlines are not loaded yet.</p>";
+    return section;
+  }
+  var list = document.createElement("div");
+  list.className = "league-news-list";
+  items.forEach(function (item) {
+    var link = document.createElement("a");
+    link.className = "league-news-item";
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    var media = document.createElement("span");
+    media.className = "league-news-thumb";
+    if (item.image) media.style.backgroundImage = "url('" + item.image.replace(/'/g, "%27") + "')";
+    var copy = document.createElement("span");
+    copy.className = "league-news-copy";
+    var title = document.createElement("strong");
+    title.textContent = item.title;
+    var source = document.createElement("span");
+    source.textContent = item.source;
+    copy.append(title, source);
+    link.append(media, copy);
+    list.appendChild(link);
+  });
+  section.appendChild(list);
+  return section;
+}
+
+function renderLeagueScoreboard(data) {
+  els.scoreboard.appendChild(renderPriorityGames(data));
+  var board = document.createElement("div");
+  board.className = "scoreboard-columns";
+  var scores = document.createElement("section");
+  scores.className = "scoreboard-section";
+  var selectedDay = gamesDaySelection[currentSport] || "today";
+  var dayLabels = {
+    yesterday: shortMonthDay(addDays(new Date(), -1)),
+    today: shortMonthDay(new Date()),
+    tomorrow: shortMonthDay(addDays(new Date(), 1))
+  };
+  var scoreGames = data.gamesByDay && data.gamesByDay[selectedDay] ? data.gamesByDay[selectedDay] : (selectedDay === "today" ? data.games || [] : []);
+  scores.innerHTML = "<div class='scoreboard-section-head'><h3>Games and Scores</h3><div class='games-tabs'></div></div>";
+  var tabs = scores.querySelector(".games-tabs");
+  ["yesterday", "today", "tomorrow"].forEach(function (day) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "games-tab" + (selectedDay === day ? " active" : "");
+    button.textContent = dayLabels[day];
+    button.addEventListener("click", function () {
+      gamesDaySelection[currentSport] = day;
+      renderScoreboard();
+    });
+    tabs.appendChild(button);
+  });
+  scoreGames.slice(0, 8).forEach(function (game) {
+    var item = document.createElement("div");
+    item.className = "mini-score";
+    item.innerHTML = "<strong>" + escapeHTML(gameScoreLine(game)) + "</strong><span>" + escapeHTML(liveGameMarker(game)) + "</span>";
+    scores.appendChild(item);
+  });
+  if (!scoreGames.length) {
+    var empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No games on " + dayLabels[selectedDay] + ".";
+    scores.appendChild(empty);
+  }
+
+  var standings = document.createElement("section");
+  standings.className = "scoreboard-section standings-section";
+  standings.innerHTML = "<h3>Standings</h3>";
+  var groups = data.standings || [];
+  var selected = standingSelection[currentSport] || 0;
+  if (selected >= groups.length) selected = 0;
+  if (groups.length) {
+    var controls = document.createElement("div");
+    controls.className = "standing-tabs";
+    if (currentSport === "mlb") controls.classList.add("mlb-division-tabs");
+    groups.slice(0, 6).forEach(function (group, index) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "standing-tab" + (index === selected ? " active" : "");
+      button.textContent = group.name;
+      button.addEventListener("click", function () {
+        standingSelection[currentSport] = index;
+        renderScoreboard();
+      });
+      controls.appendChild(button);
+    });
+    standings.appendChild(controls);
+    standings.appendChild(renderStandingsTable(groups[selected].entries || []));
+  } else {
+    standings.innerHTML += "<p class='empty-state'>Standings data is unavailable from the free feed.</p>";
+  }
+  board.append(scores, standings);
+  els.scoreboard.appendChild(board);
+  els.scoreboard.appendChild(renderLeagueNews(data));
+}
+
+function escapeHTML(value) {
+  return String(value || "").replace(/[&<>"']/g, function (char) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char];
+  });
+}
+
+function renderWorldWatch() {
+  if (!worldWatchData) {
+    els.worldWatchCard.innerHTML = "<p class='empty-state'>Loading prayer country...</p>";
+    return;
+  }
+  var points = (worldWatchData.prayerPoints || []).length
+    ? worldWatchData.prayerPoints.map(function (point) { return "<li>" + escapeHTML(point) + "</li>"; }).join("")
+    : "<li>Prayer points are not listed for this country.</li>";
+  var flag = worldWatchData.flagImage
+    ? "<img class='watch-flag-img' src='" + escapeHTML(worldWatchData.flagImage) + "' alt='" + escapeHTML(worldWatchData.name) + " flag'>"
+    : "<span class='watch-flag'>" + escapeHTML(worldWatchData.flag || "") + "</span>";
+  els.worldWatchCard.innerHTML =
+    "<div class='watch-hero'>" +
+      "<div><p class='watch-label'>World Watch Ranking</p><strong class='watch-rank'>#" + escapeHTML(worldWatchData.rank) + "</strong></div>" +
+      "<div class='watch-country'><h3>" + escapeHTML(worldWatchData.name) + "</h3>" + flag + "</div>" +
+    "</div>" +
+    "<dl class='watch-stats'>" +
+      "<div><dt>Christian population</dt><dd>" + escapeHTML(worldWatchData.christianPopulation || "Not listed") + "</dd></div>" +
+      "<div><dt>Population</dt><dd>" + escapeHTML(worldWatchData.population || "Not listed") + "</dd></div>" +
+      "<div><dt>Main religion</dt><dd>" + escapeHTML(worldWatchData.mainReligion || "Not listed") + "</dd></div>" +
+      "<div><dt>Government</dt><dd>" + escapeHTML(worldWatchData.government || "Not listed") + "</dd></div>" +
+      "<div><dt>Leader</dt><dd>" + escapeHTML(worldWatchData.leader || "Not listed") + "</dd></div>" +
+    "</dl>" +
+    "<section class='watch-prayer-section'><h4>Prayer Points</h4><ul class='watch-prayers'>" + points + "</ul></section>";
+}
+
+async function loadWorldWatch() {
+  try {
+    var response = await fetch("/api/world-watch");
+    if (!response.ok) throw new Error("World Watch request failed.");
+    worldWatchData = await response.json();
+  } catch (error) {
+    worldWatchData = { name: "Open Doors", rank: "-", prayerPoints: ["World Watch List could not be loaded yet."] };
+  }
+  renderWorldWatch();
+}
+
+function missionItemMarkup(item, fallbackTitle) {
+  if (!item) return "<p class='empty-state'>Loading " + escapeHTML(fallbackTitle) + "...</p>";
+  var flag = item.flagImage
+    ? "<img class='mission-flag-img' src='" + escapeHTML(item.flagImage) + "' alt='" + escapeHTML(item.country || item.name || fallbackTitle) + " flag'>"
+    : "";
+  var isJoshua = activeMission === "joshua";
+  var title = isJoshua ? (item.peopleGroup || item.name || fallbackTitle) : (item.country || item.name || fallbackTitle);
+  var subtitle = isJoshua ? item.country : item.peopleGroup;
+  var points = (item.prayerPoints || []).length
+    ? "<ul>" + item.prayerPoints.slice(0, 4).map(function (point) { return "<li>" + escapeHTML(point) + "</li>"; }).join("") + "</ul>"
+    : "<p>" + escapeHTML(item.summary || "Prayer details are not listed yet.") + "</p>";
+  return "<article class='mission-focus-card'>" +
+    "<div class='mission-head'>" +
+      "<div><p class='eyebrow'>" + escapeHTML(item.source || fallbackTitle) + "</p><h3>" + escapeHTML(title) + "</h3>" +
+      (subtitle ? "<p class='mission-subtitle'>" + escapeHTML(subtitle) + "</p>" : "") + "</div>" +
+      flag +
+    "</div>" +
+    points +
+    (item.url ? "<a class='text-button mission-link' href='" + escapeHTML(item.url) + "' target='_blank' rel='noopener'>Open full prayer page</a>" : "") +
+  "</article>";
+}
+
+function renderMissions() {
+  if (!els.missionsCard) return;
+  var item = missionsData && missionsData[activeMission];
+  els.missionsCard.innerHTML = missionItemMarkup(item, activeMission === "operation" ? "Operation World" : "Joshua Project");
+  if (els.missionsTabs) {
+    els.missionsTabs.querySelectorAll(".missions-tab").forEach(function (button) {
+      button.classList.toggle("active", button.dataset.mission === activeMission);
+    });
+  }
+}
+
+async function loadMissions() {
+  try {
+    var response = await fetch("/api/missions");
+    if (!response.ok) throw new Error("Missions request failed.");
+    missionsData = await response.json();
+  } catch (error) {
+    missionsData = {
+      operation: { source: "Operation World", country: "Prayer Calendar", summary: "Operation World prayer focus could not be loaded yet.", url: "https://operationworld.org/prayer-resources/today/" },
+      joshua: { source: "Joshua Project", name: "Unreached of the Day", summary: "Joshua Project prayer focus could not be loaded yet.", url: "https://joshuaproject.net/pray/unreachedoftheday" }
+    };
+  }
+  renderMissions();
+}
+
+function languageVocabularyCard(item, type) {
+  if (!item) return "";
+  var textClass = type === "hebrew" ? "hebrew-text" : "greek-text";
+  return "<article class='language-vocab-card " + type + "'>" +
+    "<p class='eyebrow'>" + (type === "hebrew" ? "Hebrew" : "Greek") + "</p>" +
+    "<h3 class='" + textClass + "'>" + escapeHTML(item.word) + "</h3>" +
+    "<p class='language-translit'>" + escapeHTML(item.transliteration) + "</p>" +
+    "<dl>" +
+      "<div><dt>Gloss</dt><dd>" + escapeHTML(item.gloss) + "</dd></div>" +
+      "<div><dt>Form</dt><dd>" + escapeHTML(item.parsing) + "</dd></div>" +
+      "<div><dt>Example</dt><dd>" + escapeHTML(item.example) + "</dd></div>" +
+      (item.source ? "<div><dt>Source</dt><dd>" + escapeHTML(item.source) + "</dd></div>" : "") +
+    "</dl>" +
+  "</article>";
+}
+
+function languageVideoButton(item, index) {
+  var uploaded = formatShortDate(item.publishedAt || item.publishedTime);
+  return "<button class='language-video-list-button' type='button' data-video-view='" + escapeHTML(activeLanguageView) + "' data-video-index='" + index + "'>" +
+    "<span>" + escapeHTML(item.title) + "</span>" +
+    (uploaded ? "<small>" + escapeHTML(uploaded) + "</small>" : "") +
+  "</button>";
+}
+
+function renderVocabularyView() {
+  var vocabulary = languageData && languageData.vocabulary ? languageData.vocabulary : {};
+  els.languageContent.innerHTML =
+    "<div class='language-vocab-grid'>" +
+      languageVocabularyCard(vocabulary.greek, "greek") +
+      languageVocabularyCard(vocabulary.hebrew, "hebrew") +
+    "</div>";
+}
+
+function renderDoseView(view) {
+  var feed = languageData && languageData.videos ? languageData.videos[view] : null;
+  var items = feed && Array.isArray(feed.items) ? feed.items : [];
+  if (!items.length) {
+    els.languageContent.innerHTML =
+      "<p class='empty-state'>Latest " + escapeHTML(feed && feed.source ? feed.source : "Daily Dose") + " videos are not loaded yet.</p>";
+    return;
+  }
+  var latest = items[0];
+  var list = items.slice(1, 7).map(function (item, index) {
+    return languageVideoButton(item, index + 1);
+  }).join("");
+  els.languageContent.innerHTML =
+    "<button class='language-feature-video' type='button' data-video-view='" + escapeHTML(view) + "' data-video-index='0'>" +
+      (latest.image ? "<img src='" + escapeHTML(latest.image) + "' alt=''>" : "<span class='language-video-placeholder'></span>") +
+      "<span class='language-play-pill'>Play latest</span>" +
+      "<strong>" + escapeHTML(latest.title) + "</strong>" +
+    "</button>" +
+    "<div class='language-video-list'>" +
+      "<h3>Recent Uploads</h3>" +
+      (list || "<p class='empty-state'>No more recent uploads are listed yet.</p>") +
+    "</div>";
+}
+
+function renderLanguagePanel() {
+  if (!els.languageContent) return;
+  if (!languageData) {
+    els.languageContent.innerHTML = "<p class='empty-state'>Loading language tools...</p>";
+    return;
+  }
+  if (els.languageTabs) {
+    els.languageTabs.querySelectorAll(".language-tab").forEach(function (button) {
+      button.classList.toggle("active", button.dataset.languageView === activeLanguageView);
+    });
+  }
+  if (activeLanguageView === "vocabulary") renderVocabularyView();
+  else renderDoseView(activeLanguageView);
+}
+
+async function loadLanguagePanel() {
+  try {
+    var response = await fetch("/api/languages");
+    if (!response.ok) throw new Error("Language tools request failed.");
+    languageData = await response.json();
+  } catch (error) {
+    languageData = {
+      vocabulary: {
+        greek: { word: "λόγος", transliteration: "logos", gloss: "word, message, reason", parsing: "Noun, masculine", example: "John 1:1" },
+        hebrew: { word: "חֶסֶד", transliteration: "hesed", gloss: "steadfast love, covenant loyalty", parsing: "Noun, masculine", example: "Psalm 136:1" }
+      },
+      videos: {}
+    };
+  }
+  renderLanguagePanel();
+}
+
+function openLanguageVideo(view, index) {
+  var feed = languageData && languageData.videos ? languageData.videos[view] : null;
+  var item = feed && feed.items ? feed.items[Number(index)] : null;
+  if (!item) return;
+  if (!item.embedUrl) {
+    window.open(item.url, "_blank", "noopener");
+    return;
+  }
+  els.languageVideoSource.textContent = feed.source || "Daily Dose";
+  els.languageVideoTitle.textContent = item.title || "Video";
+  els.languageVideoFrame.src = item.embedUrl;
+  els.languageVideoModal.showModal();
+}
+
+function closeModuleMenu() {
+  if (!els.moduleMenu || !els.moduleMenuButton) return;
+  els.moduleMenu.setAttribute("hidden", "");
+  els.moduleMenuButton.setAttribute("aria-expanded", "false");
+}
+
+function openModuleMenu() {
+  if (!els.moduleMenu || !els.moduleMenuButton) return;
+  els.moduleMenu.removeAttribute("hidden");
+  els.moduleMenuButton.setAttribute("aria-expanded", "true");
+}
+
+function renderStandingsTable(entries) {
+  var table = document.createElement("div");
+  table.className = "standings-table";
+  table.innerHTML = "<div class='standings-head'><span></span><span>Team</span><span>W</span><span>L</span><span>GB</span></div>";
+  entries.slice(0, 12).forEach(function (entry) {
+    var row = document.createElement("div");
+    row.className = "standings-row";
+    row.innerHTML = "<span class='standing-logo'>" + teamLogo(entry) + "</span><strong>" + entry.name + "</strong><span>" + statValue(entry.wins) + "</span><span>" + statValue(entry.losses) + "</span><span>" + statValue(entry.gb) + "</span>";
+    table.appendChild(row);
+  });
+  return table;
+}
+
+async function loadSport(sport) {
+  sportsData[sport] = null;
+  renderScoreboard();
+  try {
+    var response = await fetch("/api/sports/" + sport + "?ts=" + Date.now(), { cache: "no-store" });
+    if (!response.ok) throw new Error("Sports request failed.");
+    sportsData[sport] = await response.json();
+  } catch (error) {
+    sportsData[sport] = { sport: sport, games: [], standings: [], errors: [error.message] };
+    showToast("Scoreboard data could not be loaded yet.");
+  }
+  renderScoreboard();
+}
+
+function renderAll() {
+  renderGreeting();
+  renderVerseOfDay();
+  renderCalendar();
+  renderPriorityList();
+  renderTasks();
+  renderTemplates();
+  renderActiveTemplate();
+  renderScoreboard();
+  renderRssFeeds();
+  renderRssCards();
+  renderEventTypeList();
+  updatePlanButtons();
+  if (els.dayDrawer.classList.contains("open")) renderDayDrawer();
+  updateScrollDots();
+}
+
+function trashIcon() {
+  return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.8 11H7.8L7 9Zm3 2 .3 7h1.5l-.2-7H10Zm3.4 0-.2 7h1.5l.3-7h-1.6Z'/></svg>";
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+  var dialog = target.closest ? target.closest("dialog") : null;
+  if (dialog && !dialog.open) return false;
+  return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
+}
+
+function submitFormOnEnter(form, submitSelector) {
+  form.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.target && event.target.tagName === "TEXTAREA") return;
+    var submit = submitSelector ? form.querySelector(submitSelector) : form.querySelector("button[type='submit']");
+    if (!submit) return;
+    event.preventDefault();
+    if (form.requestSubmit) form.requestSubmit(submit);
+    else submit.click();
+  });
+}
+
+els.settingsButton.addEventListener("click", openSettings);
+els.closeSettingsButton.addEventListener("click", function () { els.settingsModal.close(); });
+els.obsidianButton.addEventListener("click", openVaultPlaceholder);
+els.settingsModal.addEventListener("click", function (event) {
+  if (event.target === els.settingsModal) els.settingsModal.close();
+});
+els.eventModal.addEventListener("click", function (event) {
+  if (event.target === els.eventModal) closeEventModal();
+});
+els.scheduleModal.addEventListener("click", function (event) {
+  if (event.target === els.scheduleModal) {
+    editingScheduleId = null;
+    editingScheduleFromDate = "";
+    els.scheduleModal.close();
+  }
+});
+els.eventDetailModal.addEventListener("click", function (event) {
+  if (event.target === els.eventDetailModal) {
+    closeDeleteScopeMenu();
+    els.eventDetailModal.close();
+  }
+});
+els.eventDetailClose.addEventListener("click", function () {
+  closeDeleteScopeMenu();
+  els.eventDetailModal.close();
+});
+els.eventDetailEdit.addEventListener("click", function (event) {
+  var eventId = viewingEventId;
+  var item = eventId ? findEventForView(eventId) : null;
+  var targetId = item && item.occurrenceOf ? item.occurrenceOf : eventId;
+  if (item && item.scheduleId) {
+    openScheduledEditMenu(targetId, event.currentTarget);
+    return;
+  }
+  els.eventDetailModal.close();
+  if (targetId) openEventModal({ mode: "edit", eventId: targetId });
+});
+els.eventDetailDelete.addEventListener("click", function (event) {
+  var eventId = viewingEventId;
+  if (!eventId) return;
+  var item = findEventForView(eventId);
+  var targetId = item && item.occurrenceOf ? item.occurrenceOf : eventId;
+  if (item && item.scheduleId) {
+    confirmDeleteEvent(targetId, event.currentTarget, function () { els.eventDetailModal.close(); });
+    return;
+  }
+  els.eventDetailModal.close();
+  confirmDeleteEvent(targetId, event.currentTarget);
+});
+els.eventImageButton.addEventListener("click", function () {
+  if (!viewingEventId) return;
+  els.eventImageInput.click();
+});
+els.eventImageInput.addEventListener("change", function () {
+  var file = els.eventImageInput.files && els.eventImageInput.files[0];
+  if (!file || !viewingEventId) return;
+  if (!file.type || file.type.indexOf("image/") !== 0) {
+    showToast("Choose an image file.");
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function () {
+    var visibleItem = findEventForView(viewingEventId);
+    var targetId = visibleItem && visibleItem.occurrenceOf ? visibleItem.occurrenceOf : viewingEventId;
+    var item = state.events.find(function (eventItem) { return eventItem.id === targetId; });
+    if (!item) return;
+    item.image = reader.result;
+    saveState();
+    viewEvent(item.id);
+  };
+  reader.readAsDataURL(file);
+  els.eventImageInput.value = "";
+});
+els.settingsForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+  if (event.submitter && event.submitter.value === "cancel") {
+    els.settingsModal.close();
+    return;
+  }
+  state.settings.preferredName = els.preferredName.value.trim();
+  state.settings.timeFormat = els.timeFormat.value || "24";
+  populateTimeSelects();
+  saveState();
+  renderGreeting();
+  var privateSettingsPayload = {
+    apiSportsKey: els.apiSportsKey.value.trim()
+  };
+  if (privateSettingsPayload.apiSportsKey) {
+    try {
+      var response = await fetch("/api/private-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(privateSettingsPayload)
+      });
+      if (!response.ok) throw new Error("Key save failed");
+      sportsData.nba = null;
+      sportsData.nfl = null;
+      if (currentSport === "nba" || currentSport === "nfl") loadSport(currentSport);
+    } catch (error) {
+      showToast("Private settings could not be saved.");
+    }
+  }
+  els.settingsModal.close();
+  showToast("Settings saved.");
+});
+
+document.addEventListener("keydown", function (event) {
+  if (deleteFocusedEventCard(event)) return;
+  if ((event.ctrlKey || event.metaKey) && event.key === ",") {
+    event.preventDefault();
+    openSettings();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && !isTypingTarget(event.target) && !els.eventModal.open && !els.scheduleModal.open && !els.settingsModal.open) {
+    if (event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      openContextCreateModal();
+    } else if (event.key.toLowerCase() === "m") {
+      event.preventDefault();
+      goToCurrentCalendarPeriod();
+    } else if (event.code === "BracketLeft" || event.key === "[" || event.key === "{") {
+      event.preventDefault();
+      goToPreviousCalendarPeriod();
+    } else if (event.code === "BracketRight" || event.key === "]" || event.key === "}") {
+      event.preventDefault();
+      goToNextCalendarPeriod();
+    }
+  }
+  if (event.altKey && !event.ctrlKey && !event.metaKey && !isTypingTarget(event.target) && !els.eventModal.open && !els.scheduleModal.open && !els.settingsModal.open) {
+    if (event.key === "1") {
+      event.preventDefault();
+      setMode("normal");
+    } else if (event.key === "2") {
+      event.preventDefault();
+      setMode("schedule");
+    } else if (event.key === "3") {
+      event.preventDefault();
+      setMode("planning");
+    } else if (event.key === "4") {
+      event.preventDefault();
+      setMode("birthdays");
+    }
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && planningMode && !els.eventModal.open && !els.scheduleModal.open) {
+    event.preventDefault();
+    undoPlan();
+  }
+  if (event.key === "Escape") {
+    if (activeDeleteMenu) closeDeleteScopeMenu();
+    else if (els.eventModal.open) closeEventModal();
+    else if (els.scheduleModal.open) {
+      editingScheduleId = null;
+      editingScheduleFromDate = "";
+      els.scheduleModal.close();
+    }
+    else closeDayDrawer();
+  }
+});
+
+document.addEventListener("pointerdown", function (event) {
+  if (els.moduleMenu && !els.moduleMenu.hasAttribute("hidden") && !event.target.closest(".mobile-module-menu")) closeModuleMenu();
+  if (activeDeleteMenu && !activeDeleteMenu.contains(event.target)) closeDeleteScopeMenu();
+  if (els.eventModal.open || els.scheduleModal.open || els.settingsModal.open) return;
+  if (!els.dayDrawer.classList.contains("open")) return;
+  if (els.dayDrawer.contains(event.target)) return;
+  if (event.target.closest(".day-cell")) return;
+  closeDayDrawer();
+});
+
+els.prevMonth.addEventListener("click", function () {
+  goToPreviousCalendarPeriod();
+  loadGoogleCalendarEvents(false);
+});
+els.nextMonth.addEventListener("click", function () {
+  goToNextCalendarPeriod();
+  loadGoogleCalendarEvents(false);
+});
+els.monthLabel.addEventListener("click", function () {
+  goToCurrentCalendarPeriod();
+  loadGoogleCalendarEvents(false);
+});
+els.googleCalendarButton.addEventListener("click", async function () {
+  await loadGoogleCalendarStatus();
+  if (!googleCalendarStatus.configured) {
+    showToast("Google Calendar is not configured on this device yet.");
+    return;
+  }
+  if (googleCalendarStatus.connected && !googleCalendarStatus.needsReconnect) {
+    loadGoogleCalendarEvents(true);
+    return;
+  }
+  window.location.href = "/api/google-calendar/connect";
+});
+if (els.googleCalendarSyncButton) {
+  els.googleCalendarSyncButton.addEventListener("click", function () {
+    loadGoogleCalendarEvents(true);
+  });
+}
+els.normalModeButton.addEventListener("click", function () { setMode("normal"); });
+els.scheduleModeButton.addEventListener("click", function () { setMode("schedule"); });
+els.planningModeButton.addEventListener("click", function () { setMode("planning"); });
+if (els.birthdayModeButton) els.birthdayModeButton.addEventListener("click", function () { setMode("birthdays"); });
+if (els.hideBirthdaysFromCalendar) {
+  els.hideBirthdaysFromCalendar.addEventListener("change", function () {
+    state.settings.hideBirthdaysFromCalendar = els.hideBirthdaysFromCalendar.checked;
+    saveState();
+    renderAll();
+  });
+}
+els.addScheduleButton.addEventListener("click", openScheduleModal);
+els.finalizePlansButton.addEventListener("click", finalizePlans);
+els.cancelPlansButton.addEventListener("click", cancelPlans);
+els.undoPlanButton.addEventListener("click", undoPlan);
+els.eventForm.addEventListener("submit", addEventOrPlan);
+els.scheduleForm.addEventListener("submit", saveSchedule);
+if (els.eventRepeat) {
+  [els.eventRepeat, els.eventRepeatCustomNumber, els.eventRepeatCustomUnit, els.eventRepeatEnd, els.eventRepeatEndDate].forEach(function (control) {
+    control.addEventListener("change", syncRepeatControls);
+  });
+}
+els.scheduleCategory.addEventListener("change", function () {
+  selectedScheduleColorKey = scheduleCategoryDefaultColor(els.scheduleCategory.value);
+  renderColorPalette(els.scheduleColorPalette, selectedScheduleColorKey, function (key) { selectedScheduleColorKey = key; });
+});
+function addCustomEventType() {
+  var type = els.eventTypeInput.value.trim();
+  if (!type) return;
+  if (eventTypes().some(function (item) { return item.toLowerCase() === type.toLowerCase(); })) {
+    showToast("That event type already exists.");
+    return;
+  }
+  state.settings.eventTypes.push(type);
+  els.eventTypeInput.value = "";
+  saveState();
+  renderEventTypes(type);
+}
+els.eventTypeAddButton.addEventListener("click", addCustomEventType);
+els.eventTypeInput.addEventListener("keydown", function (event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addCustomEventType();
+});
+submitFormOnEnter(els.eventForm, ".form-button");
+submitFormOnEnter(els.scheduleForm, ".accent-button[value='default']");
+submitFormOnEnter(els.taskForm, "button[type='submit']");
+submitFormOnEnter(els.templateForm, "button[type='submit']");
+submitFormOnEnter(els.rssForm, "button[type='submit']");
+els.deleteEventButton.addEventListener("click", deleteEditingEvent);
+els.addTemplateToEvent.addEventListener("click", addTemplateToModalEvent);
+els.eventChecklistAddButton.addEventListener("click", function () {
+  var title = els.eventChecklistInput.value.trim();
+  if (!title) return;
+  modalChecklist.push({ id: id("check"), title: title, dueDate: els.eventChecklistDue.value, done: false, promoted: false, taskId: null });
+  els.eventChecklistInput.value = "";
+  els.eventChecklistDue.value = "";
+  renderModalChecklist();
+});
+els.eventDate.addEventListener("change", handleEventStartDateChange);
+els.eventEndDate.addEventListener("change", handleEventEndDateChange);
+els.eventTimeStart.addEventListener("change", handleEventStartTimeChange);
+els.eventTimeEnd.addEventListener("change", handleEventEndTimeChange);
+els.eventAllDay.addEventListener("change", syncEventTimeControls);
+els.scheduleStartDate.addEventListener("change", handleScheduleStartDateChange);
+els.scheduleEndDate.addEventListener("change", handleScheduleEndDateChange);
+els.scheduleStartTime.addEventListener("change", handleScheduleStartTimeChange);
+els.scheduleEndTime.addEventListener("change", handleScheduleEndTimeChange);
+els.drawerAddEvent.addEventListener("click", function () { openEventModal({ mode: "create", start: selectedDate, end: selectedDate, timeStart: "08:00", timeEnd: "09:00" }); });
+els.closeDayDrawer.addEventListener("click", closeDayDrawer);
+els.verseToggle.addEventListener("click", function () {
+  var expanded = els.verseToggle.getAttribute("aria-expanded") === "true";
+  els.verseToggle.setAttribute("aria-expanded", String(!expanded));
+  els.verseToggle.textContent = expanded ? "Expand" : "Hide";
+  els.verseDetails.hidden = expanded;
+});
+els.bibleReaderVerseButton.addEventListener("click", function () {
+  if (!activeVerse) renderVerseOfDay();
+  showToast("Bible Reader placeholder: " + (activeVerse ? activeVerse.reference : "today's verse") + " will open here once the Bible Reader app is connected.");
+});
+els.taskForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+  addTask(els.taskInput.value, els.taskDueDate.value, "dashboard");
+  els.taskInput.value = "";
+  els.taskDueDate.value = "";
+});
+els.templateForm.addEventListener("submit", createTemplate);
+els.priorityScopeToggle.addEventListener("click", function () {
+  priorityScope = priorityScope === "month" ? "week" : "month";
+  renderPriorityList();
+});
+document.querySelectorAll(".sport-tab").forEach(function (button) {
+  button.addEventListener("click", function () {
+    currentSport = button.dataset.sport;
+    if (sportsData[currentSport]) renderScoreboard();
+    else loadSport(currentSport);
+  });
+});
+document.querySelectorAll(".headline-dot").forEach(function (button) {
+  button.addEventListener("click", function () {
+    headlineIndex = Number(button.dataset.headlineIndex || 0);
+    renderHeadline();
+    startHeadlineCarousel();
+  });
+});
+els.headlineStory.addEventListener("click", function (event) {
+  event.preventDefault();
+  if (activeHeadlineItem) openReader(newsReaderItem(activeHeadlineItem));
+});
+if (els.missionsTabs) {
+  els.missionsTabs.querySelectorAll(".missions-tab").forEach(function (button) {
+    button.addEventListener("click", function () {
+      activeMission = button.dataset.mission || "operation";
+      renderMissions();
+    });
+  });
+}
+els.newsSourcesButton.addEventListener("click", openSourceModal);
+els.closeSourceButton.addEventListener("click", function () {
+  els.sourceModal.close();
+});
+els.sourceModal.addEventListener("click", function (event) {
+  if (event.target === els.sourceModal) els.sourceModal.close();
+});
+els.sourceGrid.addEventListener("change", function (event) {
+  if (event.target.matches("input[data-check-all]")) {
+    var checkSection = event.target.dataset.checkAll;
+    els.sourceGrid.querySelectorAll("input[data-section='" + checkSection + "']").forEach(function (input) {
+      input.checked = event.target.checked;
+    });
+    var checkParent = event.target.closest(".source-section");
+    if (checkParent) updateSourceCount(checkParent);
+    return;
+  }
+  if (!event.target.matches("input[type='checkbox']")) return;
+  var section = event.target.dataset.section;
+  var parent = event.target.closest(".source-section");
+  if (parent) updateSourceCount(parent);
+});
+els.sourceGrid.addEventListener("click", function (event) {
+  var addButton = event.target.closest("[data-add-source]");
+  if (addButton) {
+    var section = addButton.dataset.addSource;
+    var nameInput = els.sourceGrid.querySelector("input[data-custom-name='" + section + "']");
+    var urlInput = els.sourceGrid.querySelector("input[data-custom-url='" + section + "']");
+    var name = nameInput.value.trim();
+    var url = urlInput.value.trim();
+    if (!name || !/^https?:\/\//i.test(url)) {
+      showToast("Custom news source needs a name and an RSS/Atom URL.");
+      return;
+    }
+    state.settings.customNewsSources = state.settings.customNewsSources || { world: [], philippines: [], theology: [] };
+    state.settings.customNewsSources[section] = state.settings.customNewsSources[section] || [];
+    if (state.settings.customNewsSources[section].some(function (source) { return source.source === name || source.url === url; })) {
+      showToast("That custom source is already listed.");
+      return;
+    }
+    state.settings.customNewsSources[section].push({ source: name, url: url, custom: true });
+    saveState();
+    renderSourceModal();
+    return;
+  }
+  var removeButton = event.target.closest("[data-remove-source]");
+  if (removeButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    var removeSection = removeButton.dataset.removeSource;
+    var sourceName = removeButton.dataset.sourceName;
+    state.settings.customNewsSources[removeSection] = (state.settings.customNewsSources[removeSection] || []).filter(function (source) {
+      return source.source !== sourceName;
+    });
+    state.settings.newsSources[removeSection] = (state.settings.newsSources[removeSection] || []).filter(function (source) {
+      return source !== sourceName;
+    });
+    saveState();
+    renderSourceModal();
+  }
+});
+els.resetSourcesButton.addEventListener("click", function () {
+  state.settings.newsSources = { world: [], philippines: [], theology: [] };
+  saveState();
+  renderSourceModal();
+  loadNews();
+});
+els.sourceForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+  if (sourceSelectionOverLimit()) {
+    showToast("Reduce each category to 10 sources or fewer before saving.");
+    return;
+  }
+  state.settings.newsSources = collectSelectedSources();
+  saveState();
+  els.sourceModal.close();
+  headlineIndex = 0;
+  loadNews();
+});
+els.rssForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+  var name = els.rssName.value.trim();
+  var url = els.rssUrl.value.trim();
+  var readMore = els.rssReadMoreUrl.value.trim();
+  if (readMore) state.rssReadMoreUrl = readMore;
+  if (url) {
+    if (!/^https?:\/\//i.test(url)) {
+      showToast("RSS feed needs to start with http:// or https://.");
+      return;
+    }
+    if ((state.rssFeeds || []).length >= 10) {
+      showToast("RSS panel supports up to 10 feeds.");
+      return;
+    }
+    state.rssFeeds = state.rssFeeds || [];
+    state.rssFeeds.push({ name: name || url, url: url });
+    els.rssName.value = "";
+    els.rssUrl.value = "";
+  }
+  saveState();
+  renderRssFeeds();
+  loadRssFeeds();
+});
+els.closeReaderButton.addEventListener("click", function () { els.readerModal.close(); });
+els.readerDoneButton.addEventListener("click", function () { els.readerModal.close(); });
+els.readerModal.addEventListener("click", function (event) {
+  if (event.target === els.readerModal) els.readerModal.close();
+});
+els.splitReaderButton.addEventListener("click", openMainSplitReader);
+els.closeDockReaderButton.addEventListener("click", closeMainSplitReader);
+els.dockReaderBack.addEventListener("click", function () {
+  if (readerHistoryIndex <= 0) return;
+  readerHistoryIndex -= 1;
+  activeReaderItem = readerHistory[readerHistoryIndex];
+  renderDockReader(activeReaderItem);
+});
+els.dockReaderForward.addEventListener("click", function () {
+  if (readerHistoryIndex >= readerHistory.length - 1) return;
+  readerHistoryIndex += 1;
+  activeReaderItem = readerHistory[readerHistoryIndex];
+  renderDockReader(activeReaderItem);
+});
+els.mainSplitDivider.addEventListener("mousedown", function (event) {
+  mainSplitDragging = true;
+  event.preventDefault();
+});
+els.mainSplitDivider.addEventListener("keydown", function (event) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  applyMainSplitRatio(Number(state.settings.mainReaderSplit || 62) + (event.key === "ArrowRight" ? 3 : -3));
+});
+els.closeSplitReaderButton.addEventListener("click", function () {
+  els.splitReaderFrame.src = "about:blank";
+  els.splitReaderModal.close();
+});
+els.splitReaderModal.addEventListener("click", function (event) {
+  if (event.target === els.splitReaderModal) {
+    els.splitReaderFrame.src = "about:blank";
+    els.splitReaderModal.close();
+  }
+});
+if (els.scrollDots) {
+  els.scrollDots.addEventListener("click", function (event) {
+    var button = event.target.closest("button");
+    if (!button) return;
+    if (button.dataset.scrollTarget !== undefined) {
+      scrollToSegment(Number(button.dataset.scrollTarget));
+      return;
+    }
+    var step = Number(button.dataset.scrollStep || 0);
+    if (step) scrollToSegment(currentScrollSegment() + step);
+  });
+  window.addEventListener("scroll", updateScrollDots, { passive: true });
+  window.addEventListener("resize", updateScrollDots);
+}
+els.splitReaderFrame.addEventListener("error", function () {
+  els.splitReaderFrame.hidden = true;
+  els.splitReaderFallback.hidden = false;
+});
+els.splitReaderDivider.addEventListener("mousedown", function (event) {
+  splitDragging = true;
+  event.preventDefault();
+});
+els.splitReaderDivider.addEventListener("keydown", function (event) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  var current = Number(state.settings.readerSplit || 50);
+  applySplitRatio(current + (event.key === "ArrowRight" ? 3 : -3));
+});
+window.addEventListener("mousemove", function (event) {
+  if (!splitDragging) return;
+  updateSplitFromPointer(event.clientX);
+});
+window.addEventListener("mousemove", function (event) {
+  if (!mainSplitDragging) return;
+  updateMainSplitFromPointer(event.clientX);
+});
+window.addEventListener("mouseup", function () {
+  splitDragging = false;
+  mainSplitDragging = false;
+});
+window.addEventListener("scroll", closeModuleMenu, { passive: true });
+window.addEventListener("resize", closeModuleMenu);
+document.querySelectorAll(".study-launch-button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    closeModuleMenu();
+    showToast(button.dataset.app + " launcher placeholder. Add its local URL or GitHub repo in the next phase.");
+  });
+});
+if (els.moduleMenuButton) {
+  els.moduleMenuButton.addEventListener("click", function (event) {
+    event.stopPropagation();
+    if (els.moduleMenu.hasAttribute("hidden")) openModuleMenu();
+    else closeModuleMenu();
+  });
+}
+if (els.moduleMenu) {
+  els.moduleMenu.addEventListener("click", function (event) {
+    event.stopPropagation();
+  });
+}
+if (els.languageTabs) {
+  els.languageTabs.querySelectorAll(".language-tab").forEach(function (button) {
+    button.addEventListener("click", function () {
+      activeLanguageView = button.dataset.languageView || "vocabulary";
+      renderLanguagePanel();
+    });
+  });
+}
+if (els.languageContent) {
+  els.languageContent.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-video-view]");
+    if (!button) return;
+    openLanguageVideo(button.dataset.videoView, button.dataset.videoIndex);
+  });
+}
+function closeLanguageVideo() {
+  els.languageVideoFrame.src = "about:blank";
+  els.languageVideoModal.close();
+}
+els.closeLanguageVideoButton.addEventListener("click", closeLanguageVideo);
+els.languageVideoModal.addEventListener("click", function (event) {
+  if (event.target === els.languageVideoModal) closeLanguageVideo();
+});
+window.addEventListener("mouseup", function () {
+  if (selectingPlan) {
+    selectingPlan = false;
+    if (selectionStart && selectionEnd) openPlanningModal();
+  }
+});
+
+try {
+  renderAll();
+  handleGoogleCalendarReturnMessage();
+  refreshGoogleCalendar(false);
+  loadNewsSources().then(loadNews);
+  loadRssFeeds();
+  loadWorldWatch();
+  loadMissions();
+  loadLanguagePanel();
+  loadSport(currentSport);
+  startHeadlineCarousel();
+  setInterval(loadNews, 5 * 60 * 1000);
+  setInterval(loadRssFeeds, 30 * 60 * 1000);
+  setInterval(function () { refreshGoogleCalendar(false); }, 10 * 60 * 1000);
+  setInterval(renderGreeting, 1000);
+} catch (error) {
+  document.body.dataset.appError = error && error.stack ? error.stack : String(error);
+  console.error(error);
+}

@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ministry Dashboard</title>
+    <link rel="stylesheet" href="styles.css?v=17">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <section class="greeting-block" aria-live="polite">
+          <p class="eyebrow" id="todayLabel">Today</p>
+          <h1 id="greeting">Good Morning</h1>
+          <p class="time-line"><span id="dateLine"></span><span aria-hidden="true"> / </span><span id="timeLine"></span></p>
+        </section>
+
+        <nav class="top-actions" aria-label="Dashboard actions">
+          <button class="icon-button" id="obsidianButton" type="button" title="Obsidian integration" aria-label="Obsidian integration">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4.5 6.5 3 15l9 7 9-7-1.5-8.5L12 2Zm0 2.3 5.5 3.3L18.6 14 12 19.2 5.4 14l1.1-6.4L12 4.3Z"/><path d="m8.1 8.3 3.9-2 3.9 2-1.4 5.4L12 17l-2.5-3.3-1.4-5.4Z"/></svg>
+          </button>
+          <button class="icon-button" id="settingsButton" type="button" title="Settings (Ctrl + ,)" aria-label="Open settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.5-2.4 1a8.1 8.1 0 0 0-2.6-1.5L14 2.5h-4L9.6 5a8.1 8.1 0 0 0-2.6 1.5l-2.4-1-2 3.5 2 1.5c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2 1.5 2 3.5 2.4-1a8.1 8.1 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a8.1 8.1 0 0 0 2.6-1.5l2.4 1 2-3.5-2-1.5ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>
+          </button>
+          <div class="mobile-module-menu">
+            <button class="module-menu-button" id="moduleMenuButton" type="button" aria-expanded="false" aria-controls="moduleMenu" aria-label="Open study modules">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="module-menu-popover" id="moduleMenu" hidden>
+              <button class="study-launch-button" type="button" data-app="Exegesis">Exegesis</button>
+              <button class="study-launch-button" type="button" data-app="Bible">Bible</button>
+              <button class="study-launch-button" type="button" data-app="Mind Map">Mind Map</button>
+            </div>
+          </div>
+        </nav>
+      </header>
+
+      <nav class="study-launch-bar" aria-label="Study apps">
+        <button class="study-launch-button" type="button" data-app="Exegesis">Exegesis</button>
+        <button class="study-launch-button" type="button" data-app="Bible">Bible</button>
+        <button class="study-launch-button" type="button" data-app="Mind Map">Mind Map</button>
+      </nav>
+
+      <main>
+        <section class="dashboard-grid">
+          <article class="calendar-panel panel" id="calendarPanel">
+            <div class="panel-heading compact-heading">
+              <div>
+                <p class="eyebrow">Calendar</p>
+                <h2>Ministry Month</h2>
+              </div>
+              <div class="calendar-actions">
+                <button class="text-button small-control google-calendar-button" id="googleCalendarButton" type="button">Connect Google Calendar</button>
+                <button class="text-button icon-text" id="prevMonth" type="button" title="Previous Month (Ctrl+Shift+[)" aria-label="Previous month">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.7 5.3 9 12l6.7 6.7-1.4 1.4L6.2 12l8.1-8.1 1.4 1.4Z"/></svg>
+                </button>
+                <button class="month-button" id="monthLabel" type="button" title="Current Month (Ctrl+Shift+M)"></button>
+                <button class="text-button icon-text" id="nextMonth" type="button" title="Next Month (Ctrl+Shift+])" aria-label="Next month">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.3 18.7 6.7-6.7-6.7-6.7 1.4-1.4 8.1 8.1-8.1 8.1-1.4-1.4Z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="mode-bar">
+              <div class="mode-main-row">
+                <button class="mode-chip active" id="normalModeButton" type="button" title="Calendar Mode (Alt+1)">Calendar</button>
+                <button class="mode-chip" id="scheduleModeButton" type="button" title="Scheduler (Alt+2)">Scheduler</button>
+                <button class="mode-chip" id="planningModeButton" type="button" title="Planning Mode (Alt+3)">Planning Mode</button>
+                <button class="mode-chip birthday-mode-chip" id="birthdayModeButton" type="button" title="Birthdays" aria-label="Birthday view">&#127874;</button>
+              </div>
+              <div class="mode-action-row">
+                <button class="accent-button" id="finalizePlansButton" type="button" hidden>Finalize</button>
+                <button class="text-button small-control plan-action-button" id="cancelPlansButton" type="button" disabled>Cancel</button>
+                <button class="text-button small-control plan-action-button" id="undoPlanButton" type="button" disabled>Undo</button>
+                <span class="planning-hint" id="planningHint" hidden>Click a day or drag across days to draft a grey striped block.</span>
+                <label class="birthday-toggle" id="birthdayHideToggle" hidden>
+                  <input id="hideBirthdaysFromCalendar" type="checkbox">
+                  <span>Hide birthdays from calendar</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="calendar-grid" id="calendarGrid" aria-label="Sunday-start monthly calendar"></div>
+            <div class="schedule-footer">
+              <button class="accent-button" id="addScheduleButton" type="button" hidden>Add Schedule</button>
+            </div>
+          </article>
+
+          <aside class="first-view-stack">
+            <article class="verse-card panel compact-panel">
+              <div class="panel-heading tight-heading">
+                <div>
+                  <p class="eyebrow">Verse of the Day</p>
+                  <h2 id="verseReference">Jn 3:16</h2>
+                </div>
+                <div class="verse-actions">
+                  <button class="text-button small-control verse-reader-button" id="bibleReaderVerseButton" type="button">Reader</button>
+                  <button class="text-button small-control verse-toggle-button" id="verseToggle" type="button" aria-expanded="false">Expand</button>
+                </div>
+              </div>
+              <p class="verse-text" id="verseText">For God so loved the world, that he gave his only Son, that whoever believes in him should not perish but have eternal life.</p>
+              <p class="original-line greek-text" id="originalLine">Οὕτως γὰρ ἠγάπησεν ὁ θεὸς τὸν κόσμον, ὥστε τὸν υἱὸν τὸν μονογενῆ ἔδωκεν, ἵνα πᾶς ὁ πιστεύων εἰς αὐτὸν μὴ ἀπόληται ἀλλ’ ἔχῃ ζωὴν αἰώνιον.</p>
+              <div class="verse-details greek-text" id="verseDetails" hidden>
+                <p class="verse-source" id="verseSource">Greek text: SBLGNT. Verb parsing shown below.</p>
+                <dl>
+                  <div><dt>ἠγάπησεν</dt><dd>aorist active indicative, 3rd singular</dd></div>
+                  <div><dt>ἔδωκεν</dt><dd>aorist active indicative, 3rd singular</dd></div>
+                  <div><dt>πιστεύων</dt><dd>present active participle, nominative masculine singular</dd></div>
+                  <div><dt>ἀπόληται</dt><dd>aorist middle subjunctive, 3rd singular</dd></div>
+                  <div><dt>ἔχῃ</dt><dd>present active subjunctive, 3rd singular</dd></div>
+                </dl>
+              </div>
+            </article>
+
+            <article class="priority-card panel compact-panel">
+              <div class="panel-heading tight-heading">
+                <div>
+                  <p class="eyebrow">Pinned</p>
+                  <h2 id="priorityTitle">This Week</h2>
+                </div>
+                <button class="text-button small-control" id="priorityScopeToggle" type="button">Month</button>
+              </div>
+              <div id="priorityList" class="priority-list compact-list"></div>
+            </article>
+
+            <article class="panel tasks-panel compact-panel">
+              <div class="panel-heading tight-heading">
+                <div>
+                  <p class="eyebrow">Tasks</p>
+                  <h2>Main Task List</h2>
+                </div>
+              </div>
+              <form class="task-form" id="taskForm">
+                <input id="taskInput" type="text" placeholder="Add a dashboard task">
+                <input id="taskDueDate" type="date" aria-label="Task due date">
+                <button class="accent-button small-control" type="submit">Add</button>
+              </form>
+              <ul class="task-list compact-list" id="taskList"></ul>
+            </article>
+
+            <article class="panel workflow-panel compact-panel">
+              <div class="panel-heading tight-heading">
+                <div>
+                  <p class="eyebrow">Routines</p>
+                  <h2>Workflow Templates</h2>
+                </div>
+              </div>
+              <div class="template-builder">
+                <form class="template-create" id="templateForm">
+                  <input id="templateName" type="text" placeholder="New template name">
+                  <button class="accent-button small-control" type="submit">Create</button>
+                </form>
+                <div class="template-list" id="templateList"></div>
+                <div class="active-workflow" id="activeWorkflow"></div>
+              </div>
+            </article>
+          </aside>
+        </section>
+
+        <section class="tools-prayer-grid secondary-sections">
+          <article class="panel watch-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Open Doors</p>
+                <h2>World Watch List</h2>
+              </div>
+            </div>
+            <div id="worldWatchCard" class="world-watch-card">
+              <p class="empty-state">Loading prayer country...</p>
+            </div>
+          </article>
+          <article class="panel missions-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Missions</p>
+                <h2>Prayer Focus</h2>
+              </div>
+            </div>
+            <div class="missions-tabs" id="missionsTabs" aria-label="Choose missions feed">
+              <button class="missions-tab active" type="button" data-mission="operation">Operation World</button>
+              <button class="missions-tab" type="button" data-mission="joshua">Joshua Project</button>
+            </div>
+            <div id="missionsCard" class="missions-card">
+              <p class="empty-state">Loading missions prayer focus...</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="news-sports-grid secondary-sections">
+          <article class="panel news-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">News</p>
+                <h2>Daily Brief</h2>
+              </div>
+              <button class="text-button small-control" id="newsSourcesButton" type="button">Sources</button>
+            </div>
+            <div class="headline-controls" id="headlineControls">
+              <button class="headline-dot active" type="button" data-headline-index="0">World</button>
+              <button class="headline-dot" type="button" data-headline-index="1">Philippines</button>
+              <button class="headline-dot" type="button" data-headline-index="2">Theology</button>
+            </div>
+            <div class="headline-story">
+              <div class="headline-media" id="headlineMedia">
+                <div class="headline-image" id="headlineImage" aria-hidden="true"></div>
+              </div>
+              <a class="headline-copy" id="headlineStory" href="#" target="_blank" rel="noopener">
+                <p class="eyebrow" id="headlineKicker">Top Headline</p>
+                <h3 id="headlineTitle">Loading headlines...</h3>
+                <p id="headlineSummary">Connecting to Reuters, CNN, Al Jazeera, and Philippine news feeds.</p>
+              </a>
+            </div>
+            <div class="top-news-section">
+              <h3>Top 5 News</h3>
+              <div class="news-columns">
+                <div>
+                  <h4>World</h4>
+                  <ol id="worldNewsList"></ol>
+                </div>
+                <div>
+                  <h4>Philippines</h4>
+                  <ol id="philippinesNewsList"></ol>
+                </div>
+                <div>
+                  <h4>Theology</h4>
+                  <ol id="theologyNewsList"></ol>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel sports-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Sports</p>
+                <h2>Scoreboard</h2>
+              </div>
+            </div>
+            <div class="sport-selector" id="sportSelector" aria-label="Choose scoreboard">
+              <button class="sport-tab active" type="button" data-sport="mlb">MLB</button>
+              <button class="sport-tab" type="button" data-sport="nba">NBA</button>
+              <button class="sport-tab" type="button" data-sport="nfl">NFL</button>
+            </div>
+            <div id="scoreboard" class="scoreboard"></div>
+          </article>
+        </section>
+
+        <section class="secondary-sections">
+          <article class="panel rss-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Reading</p>
+                <h2>RSS Feeds</h2>
+              </div>
+            </div>
+            <form class="rss-form" id="rssForm">
+              <input id="rssName" type="text" placeholder="Feed name">
+              <input id="rssUrl" type="url" placeholder="https://example.substack.com/feed">
+              <input id="rssReadMoreUrl" type="url" placeholder="Read more URL">
+              <button class="accent-button small-control" type="submit">Add</button>
+            </form>
+            <div class="rss-feed-list" id="rssFeedList"></div>
+            <div class="rss-card-area">
+              <div class="rss-card-grid" id="rssCardGrid">
+                <p class="empty-state">Add an RSS feed to read latest posts here.</p>
+              </div>
+              <a class="rss-read-more" id="rssReadMoreLink" href="#" target="_blank" rel="noopener" hidden>Read more...</a>
+            </div>
+          </article>
+
+          <article class="panel language-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Ancient Biblical Language</p>
+                <h2>Language Lab</h2>
+              </div>
+              <div class="language-tabs" id="languageTabs" aria-label="Choose language view">
+                <button class="language-tab active" type="button" data-language-view="vocabulary">Vocabulary</button>
+                <button class="language-tab" type="button" data-language-view="greek">Hebrew</button>
+                <button class="language-tab" type="button" data-language-view="hebrew">Greek</button>
+                <button class="language-tab" type="button" data-language-view="septuagint">Septuagint</button>
+              </div>
+            </div>
+            <div class="language-content" id="languageContent">
+              <p class="empty-state">Loading language tools...</p>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <aside class="day-drawer" id="dayDrawer" aria-hidden="true" aria-label="Selected day schedule">
+      <div class="drawer-card">
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow">Selected Day</p>
+            <h2 id="drawerDate">Day</h2>
+          </div>
+          <button class="icon-button" id="closeDayDrawer" type="button" aria-label="Close day drawer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </div>
+        <div class="drawer-groups" id="drawerGroups"></div>
+        <button class="accent-button drawer-add" id="drawerAddEvent" type="button" title="Add Event (Ctrl+Shift+C)">Add Event</button>
+      </div>
+    </aside>
+
+    <aside class="split-reader-dock" id="splitReaderDock" aria-hidden="true">
+      <section class="split-reader-shell">
+        <header class="split-reader-header">
+          <div>
+            <p class="eyebrow" id="dockReaderSource">RSS</p>
+            <h2 id="dockReaderTitle">Article</h2>
+          </div>
+          <div class="reader-history-controls">
+            <button class="icon-button" id="dockReaderBack" type="button" aria-label="Previous article">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.7 5.3 9 12l6.7 6.7-1.4 1.4L6.2 12l8.1-8.1 1.4 1.4Z"/></svg>
+            </button>
+            <button class="icon-button" id="dockReaderForward" type="button" aria-label="Next article">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.3 18.7 6.7-6.7-6.7-6.7 1.4-1.4 8.1 8.1-8.1 8.1-1.4-1.4Z"/></svg>
+            </button>
+          </div>
+          <button class="icon-button" id="closeDockReaderButton" type="button" aria-label="Close split reader">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </header>
+        <div class="dock-reader-frame-wrap article-mode">
+          <article class="dock-reader-body" id="dockReaderBody"></article>
+          <a class="split-open-original" id="dockReaderOriginalLink" href="#" target="_blank" rel="noopener">Open original article</a>
+        </div>
+      </section>
+    </aside>
+
+    <div class="main-split-divider" id="mainSplitDivider" role="separator" aria-orientation="vertical" tabindex="0" hidden></div>
+
+    <nav class="scroll-dots" id="scrollDots" aria-label="Dashboard sections">
+      <button type="button" data-scroll-step="-1" aria-label="Previous section">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 7.4 7.1 7.1-1.4 1.4L12 10.2l-5.7 5.7-1.4-1.4L12 7.4Z"/></svg>
+      </button>
+      <button type="button" data-scroll-target="0" aria-label="Top section"></button>
+      <button type="button" data-scroll-target="1" aria-label="World Watch section"></button>
+      <button type="button" data-scroll-target="2" aria-label="Daily Brief section"></button>
+      <button type="button" data-scroll-target="3" aria-label="Bottom section"></button>
+      <button type="button" data-scroll-step="1" aria-label="Next section">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 16.6-7.1-7.1 1.4-1.4 5.7 5.7 5.7-5.7 1.4 1.4-7.1 7.1Z"/></svg>
+      </button>
+    </nav>
+
+    <dialog class="event-modal" id="eventModal">
+      <form method="dialog" class="modal-card event-card" id="eventForm" novalidate>
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow" id="eventModalEyebrow">Add Event</p>
+            <h2 id="eventModalTitle">Calendar Event</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close event form">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </div>
+
+        <div class="field-row modal-grid compact-event-grid event-type-row">
+          <label>Type
+            <select id="eventType"></select>
+          </label>
+          <label>Time Slot
+            <input id="eventTimeSlot" type="text" readonly>
+          </label>
+        </div>
+        <div class="event-type-manager">
+          <div class="inline-form event-type-form" id="eventTypeForm">
+            <input id="eventTypeInput" type="text" placeholder="Add event type">
+            <button class="text-button small-control" id="eventTypeAddButton" type="button">Save Type</button>
+          </div>
+          <div class="event-type-list" id="eventTypeList" aria-label="Custom event types"></div>
+        </div>
+        <section class="event-color-section">
+          <p class="eyebrow">Color</p>
+          <div class="color-palette" id="eventColorPalette" aria-label="Event color"></div>
+        </section>
+        <div class="field-row modal-grid compact-event-grid event-text-stack">
+          <label>Title
+            <input id="eventTitle" type="text" placeholder="Prayer meeting, sermon prep, visit">
+          </label>
+          <label>Passage
+            <input id="eventPassage" type="text" placeholder="Jn 3:16">
+          </label>
+          <label>Location
+            <input id="eventLocation" type="text" placeholder="Church, classroom, home, online">
+          </label>
+        </div>
+        <div class="field-row modal-grid compact-event-grid event-date-time-grid" id="eventTimeRow">
+          <label>Start Date
+            <input id="eventDate" type="date" required>
+          </label>
+          <label>Time Start
+            <select id="eventTimeStart"></select>
+          </label>
+          <label>End Date
+            <input id="eventEndDate" type="date">
+          </label>
+          <label>Time End
+            <select id="eventTimeEnd"></select>
+          </label>
+        </div>
+        <label class="check-label">
+          <input id="eventAllDay" type="checkbox">
+          <span>All Day Event</span>
+        </label>
+        <div class="field-row modal-grid compact-event-grid event-repeat-grid" id="eventRepeatRow">
+          <label>Repeat
+            <select id="eventRepeat">
+              <option value="none">None</option>
+              <option value="daily">Every Day</option>
+              <option value="weekly">Every Week</option>
+              <option value="biweekly">Every 2 Weeks</option>
+              <option value="monthly">Every Month</option>
+              <option value="yearly">Every Year</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label id="eventRepeatCustomNumberLabel" hidden>Every
+            <input id="eventRepeatCustomNumber" type="number" min="1" value="1">
+          </label>
+          <label id="eventRepeatCustomUnitLabel" hidden>Unit
+            <select id="eventRepeatCustomUnit">
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+            </select>
+          </label>
+          <label id="eventRepeatEndLabel" hidden>End Repeat
+            <select id="eventRepeatEnd">
+              <option value="never">Never</option>
+              <option value="on">On Date</option>
+            </select>
+          </label>
+          <label id="eventRepeatEndDateLabel" hidden>End Date
+            <input id="eventRepeatEndDate" type="date">
+          </label>
+        </div>
+        <label>Notes
+          <textarea id="eventNotes" rows="4" placeholder="Type event notes here"></textarea>
+        </label>
+
+        <section class="event-template-tools">
+          <div class="panel-heading tight-heading">
+            <div>
+              <p class="eyebrow">Checklist</p>
+              <h3>Event Details</h3>
+            </div>
+            <select id="eventTemplateSelect" aria-label="Choose template to add">
+              <option value="">Add template...</option>
+            </select>
+          </div>
+          <button class="text-button small-control" id="addTemplateToEvent" type="button">Add Template</button>
+          <div class="event-checklist" id="eventChecklist"></div>
+          <div class="event-checklist-add" id="eventChecklistForm">
+            <input id="eventChecklistInput" type="text" placeholder="Add checklist item">
+            <input id="eventChecklistDue" type="date" aria-label="Checklist due date">
+            <button class="text-button small-control" id="eventChecklistAddButton" type="button">Add Item</button>
+          </div>
+        </section>
+
+        <div class="modal-actions">
+          <button class="text-button danger-button" id="deleteEventButton" type="button" hidden>Delete Event</button>
+          <span class="modal-spacer"></span>
+          <button class="text-button" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button class="accent-button form-button" value="default" type="submit">Save Event</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="schedule-modal" id="scheduleModal">
+      <form method="dialog" class="modal-card schedule-card" id="scheduleForm" novalidate>
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow">Scheduler</p>
+            <h2>Add Schedule</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close schedule form">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </div>
+
+        <div class="field-row schedule-form-grid">
+          <label>Category
+            <select id="scheduleCategory">
+              <option>Class</option>
+              <option>Ministry</option>
+              <option>Others</option>
+            </select>
+          </label>
+          <label>Event Title
+            <input id="scheduleTitle" type="text" placeholder="Church history class" required>
+          </label>
+          <label>Location
+            <input id="scheduleLocation" type="text" placeholder="Classroom, church, online">
+          </label>
+        </div>
+
+        <fieldset class="schedule-days">
+          <legend>Days of the Week</legend>
+          <label><input type="checkbox" name="scheduleDay" value="0"> Sun</label>
+          <label><input type="checkbox" name="scheduleDay" value="1"> Mon</label>
+          <label><input type="checkbox" name="scheduleDay" value="2"> Tue</label>
+          <label><input type="checkbox" name="scheduleDay" value="3"> Wed</label>
+          <label><input type="checkbox" name="scheduleDay" value="4"> Thu</label>
+          <label><input type="checkbox" name="scheduleDay" value="5"> Fri</label>
+          <label><input type="checkbox" name="scheduleDay" value="6"> Sat</label>
+        </fieldset>
+
+        <section class="event-color-section">
+          <p class="eyebrow">Color</p>
+          <div class="color-palette" id="scheduleColorPalette" aria-label="Schedule color"></div>
+        </section>
+
+        <div class="field-row schedule-time-grid">
+          <label>Start Date
+            <input id="scheduleStartDate" type="date" required>
+          </label>
+          <label>End Date
+            <input id="scheduleEndDate" type="date" required>
+          </label>
+          <label>Start Time
+            <select id="scheduleStartTime"></select>
+          </label>
+          <label>End Time
+            <select id="scheduleEndTime"></select>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <span class="modal-spacer"></span>
+          <button class="text-button" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button class="accent-button" value="default" type="submit">Create Schedule</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="event-detail-modal" id="eventDetailModal">
+      <article class="modal-card event-detail-card">
+        <div class="event-detail-hero" id="eventDetailHero">
+          <button class="icon-button event-image-button" id="eventImageButton" type="button" aria-label="Upload event picture">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10l2 3h2a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h2l2-3Zm7 4.5A4.5 4.5 0 1 0 12 18a4.5 4.5 0 0 0 0-8.5Zm0 2A2.5 2.5 0 1 1 12 16a2.5 2.5 0 0 1 0-5Z"/></svg>
+          </button>
+        </div>
+        <input id="eventImageInput" type="file" accept="image/*" hidden>
+        <div class="event-detail-body">
+          <p class="eyebrow" id="eventDetailType">Event</p>
+          <h2 id="eventDetailTitle">Event Details</h2>
+          <div class="event-detail-meta" id="eventDetailMeta"></div>
+          <section class="event-detail-section" id="eventDetailNotes"></section>
+          <section class="event-detail-section" id="eventDetailChecklist"></section>
+        </div>
+        <div class="modal-actions">
+          <button class="text-button" id="eventDetailDelete" type="button">Delete</button>
+          <span class="modal-spacer"></span>
+          <button class="text-button" id="eventDetailClose" type="button">Close</button>
+          <button class="accent-button" id="eventDetailEdit" type="button">Edit Event</button>
+        </div>
+      </article>
+    </dialog>
+
+    <dialog class="settings-modal" id="settingsModal">
+      <form method="dialog" class="modal-card" id="settingsForm">
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow">Settings</p>
+            <h2>Personal Details</h2>
+          </div>
+          <button class="icon-button" id="closeSettingsButton" value="cancel" type="button" aria-label="Close settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </div>
+        <label>Preferred name
+          <input id="preferredName" type="text" placeholder="How should the dashboard greet you?">
+        </label>
+        <label>Time format
+          <select id="timeFormat">
+            <option value="24">24-hour</option>
+            <option value="12">12-hour</option>
+          </select>
+        </label>
+        <label>API-SPORTS key
+          <input id="apiSportsKey" type="password" placeholder="Paste key to save locally">
+        </label>
+        <section class="hotkeys-section" aria-label="Hotkeys">
+          <p class="eyebrow">Hotkeys</p>
+          <div class="hotkey-list">
+            <span>Add Event</span><kbd>Ctrl+Shift+C</kbd>
+            <span>Current Month</span><kbd>Ctrl+Shift+M</kbd>
+            <span>Previous Month</span><kbd>Ctrl+Shift+[</kbd>
+            <span>Next Month</span><kbd>Ctrl+Shift+]</kbd>
+            <span>Calendar Mode</span><kbd>Alt+1</kbd>
+            <span>Scheduler</span><kbd>Alt+2</kbd>
+            <span>Planning Mode</span><kbd>Alt+3</kbd>
+            <span>Settings</span><kbd>Ctrl+,</kbd>
+            <span>Undo Planning Draft</span><kbd>Ctrl+Z</kbd>
+          </div>
+        </section>
+        <div class="modal-actions">
+          <span></span>
+          <button class="accent-button" value="default" type="submit">Save Settings</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="source-modal" id="sourceModal">
+      <form method="dialog" class="modal-card source-card" id="sourceForm">
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow">News</p>
+            <h2>Choose Sources</h2>
+          </div>
+          <button class="icon-button" id="closeSourceButton" type="button" aria-label="Close source settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </div>
+        <p class="empty-state">Choose up to 10 sources per category. If none are selected, the first 10 sources are used.</p>
+        <div class="source-grid" id="sourceGrid"></div>
+        <div class="modal-actions">
+          <button class="text-button" id="resetSourcesButton" type="button">Use All</button>
+          <button class="accent-button" value="default" type="submit">Save Sources</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="reader-modal" id="readerModal">
+      <article class="modal-card reader-card">
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow" id="readerSource">RSS</p>
+            <h2 id="readerTitle">Article</h2>
+          </div>
+          <div class="reader-actions">
+            <button class="icon-button" id="splitReaderButton" type="button" aria-label="Open split reader">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4V5Zm2 2v10h7V7H6Zm9 0v10h3V7h-3Z"/></svg>
+            </button>
+            <button class="icon-button" id="closeReaderButton" type="button" aria-label="Close reader">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="reader-body" id="readerBody"></div>
+        <div class="modal-actions">
+          <a class="text-button" id="readerOriginalLink" href="#" target="_blank" rel="noopener">Open original</a>
+          <button class="accent-button" id="readerDoneButton" type="button">Done</button>
+        </div>
+      </article>
+    </dialog>
+
+    <dialog class="split-reader-modal" id="splitReaderModal">
+      <section class="split-reader-shell">
+        <header class="split-reader-header">
+          <div>
+            <p class="eyebrow" id="splitReaderSource">RSS</p>
+            <h2 id="splitReaderTitle">Article</h2>
+          </div>
+          <button class="icon-button" id="closeSplitReaderButton" type="button" aria-label="Close split reader">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </header>
+        <div class="split-reader-layout" id="splitReaderLayout">
+          <article class="split-reader-pane split-reader-article" id="splitReaderArticle"></article>
+          <div class="split-reader-divider" id="splitReaderDivider" role="separator" aria-orientation="vertical" tabindex="0"></div>
+          <aside class="split-reader-pane split-reader-original">
+            <iframe id="splitReaderFrame" title="Original article"></iframe>
+            <a class="split-open-original" id="splitReaderOriginalLink" href="#" target="_blank" rel="noopener">Open original</a>
+            <div class="split-reader-fallback" id="splitReaderFallback" hidden>
+              <p>This article may block embedded viewing.</p>
+              <a class="accent-button" id="splitReaderFallbackLink" href="#" target="_blank" rel="noopener">Open original article</a>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="video-modal" id="languageVideoModal">
+      <article class="modal-card video-card">
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow" id="languageVideoSource">Daily Dose</p>
+            <h2 id="languageVideoTitle">Video</h2>
+          </div>
+          <button class="icon-button" id="closeLanguageVideoButton" type="button" aria-label="Close video">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M17.6 5 19 6.4 6.4 19 5 17.6 17.6 5Z"/></svg>
+          </button>
+        </div>
+        <div class="video-frame-wrap">
+          <iframe id="languageVideoFrame" title="Daily Dose video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        </div>
+      </article>
+    </dialog>
+
+    <script src="app.js?v=42"></script>
+  </body>
+</html>
