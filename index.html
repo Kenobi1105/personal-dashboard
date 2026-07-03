@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ministry Dashboard</title>
-    <link rel="stylesheet" href="styles.css?v=19">
+    <link rel="stylesheet" href="styles.css?v=20">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -590,6 +590,15 @@
           <input id="apiSportsKey" type="password" placeholder="Paste key to save locally">
         </label>
         <p class="settings-note cloud-only-setting" id="cloudPrivateSettingsNote" hidden>Sports and Google keys are stored in Supabase secrets for the hosted dashboard.</p>
+        <section class="cloud-status-section" aria-label="Cloud status">
+          <div class="settings-section-head">
+            <p class="eyebrow">Cloud Status</p>
+            <button class="text-button small-control" id="cloudStatusRefresh" type="button">Check</button>
+          </div>
+          <div class="cloud-status-grid" id="cloudStatusGrid">
+            <p class="empty-state">Open Settings to check hosted sync and feeds.</p>
+          </div>
+        </section>
         <section class="hotkeys-section" aria-label="Hotkeys">
           <p class="eyebrow">Hotkeys</p>
           <div class="hotkey-list">
@@ -698,6 +707,6 @@
       </article>
     </dialog>
 
-    <script src="app.js?v=44"></script>
+    <script src="app.js?v=45"></script>
   </body>
 </html>

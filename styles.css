@@ -329,6 +329,71 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 }
 body.hosted-dashboard .local-only-setting { display: none !important; }
 body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
+.cloud-status-section {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.38);
+}
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.settings-section-head .eyebrow { margin: 0; }
+.cloud-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.cloud-status-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-height: 48px;
+  padding: 7px 8px;
+  border: 1px solid rgba(73, 53, 72, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 250, 240, 0.72);
+}
+.cloud-status-row strong {
+  overflow: hidden;
+  color: var(--signature);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cloud-status-row em {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.cloud-status-row p {
+  grid-column: 2 / -1;
+  margin: -1px 0 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.cloud-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #b8b1aa;
+}
+.cloud-status-row.ok .cloud-status-dot { background: #6f7d5c; }
+.cloud-status-row.warn .cloud-status-dot { background: #c44747; }
+.cloud-status-row.checking .cloud-status-dot {
+  background: var(--accent-deep);
+  box-shadow: 0 0 0 4px rgba(240, 208, 143, 0.25);
+}
 
 .calendar-panel.planning-mode {
   background: linear-gradient(135deg, rgba(160, 160, 160, 0.22), rgba(255, 250, 240, 0.92));
@@ -1766,7 +1831,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .event-detail-section li.done { text-decoration: line-through; opacity: 0.72; }
 .event-detail-section li span { color: var(--sage); font-weight: 900; }
 .source-card { gap: 10px; }
-.source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 10px; }
 .source-error-note {
   grid-column: 1 / -1;
   margin: 0;
@@ -1777,6 +1842,18 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   background: rgba(255, 255, 255, 0.62);
   font-size: 0.78rem;
   line-height: 1.35;
+}
+.source-loading-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed rgba(73, 53, 72, 0.18);
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.48);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
 }
 .source-section {
   display: grid;

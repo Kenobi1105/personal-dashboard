@@ -101,6 +101,8 @@ var els = {
   apiSportsKey: document.getElementById("apiSportsKey"),
   apiSportsKeySetting: document.getElementById("apiSportsKeySetting"),
   cloudPrivateSettingsNote: document.getElementById("cloudPrivateSettingsNote"),
+  cloudStatusGrid: document.getElementById("cloudStatusGrid"),
+  cloudStatusRefresh: document.getElementById("cloudStatusRefresh"),
   calendarPanel: document.getElementById("calendarPanel"),
   calendarGrid: document.getElementById("calendarGrid"),
   googleCalendarButton: document.getElementById("googleCalendarButton"),
@@ -839,6 +841,15 @@ var splitDragging = false;
 var mainSplitDragging = false;
 var googleCalendarStatus = { configured: false, connected: false, redirectUri: "" };
 var googleCalendarLoading = false;
+var googleCalendarLastMessage = "";
+var cloudStatusChecks = {
+  auth: { state: "idle", detail: "Not checked yet." },
+  sync: { state: "idle", detail: "Not checked yet." },
+  news: { state: "idle", detail: "Not checked yet." },
+  sports: { state: "idle", detail: "Not checked yet." },
+  rss: { state: "idle", detail: "Not checked yet." },
+  google: { state: "idle", detail: "Not checked yet." }
+};
 
 var DAILY_VERSES = [
   {
@@ -867,6 +878,96 @@ var DAILY_VERSES = [
     netFallback: "For I am sure of this very thing, that the one who began a good work in you will perfect it until the day of Christ Jesus.",
     original: "πεποιθὼς αὐτὸ τοῦτο, ὅτι ὁ ἐναρξάμενος ἐν ὑμῖν ἔργον ἀγαθὸν ἐπιτελέσει ἄχρι ἡμέρας Χριστοῦ Ἰησοῦ.",
     parses: [["πεποιθὼς", "perfect active participle, nominative masculine singular"], ["ἐναρξάμενος", "aorist middle participle, nominative masculine singular"], ["ἐπιτελέσει", "future active indicative, 3rd singular"]]
+  },
+  {
+    reference: "Psalm 23:1",
+    passage: "Psalm 23:1",
+    language: "hebrew",
+    originalSource: "WLC",
+    netFallback: "The Lord is my shepherd, I lack nothing.",
+    original: "יְהוָה רֹעִי לֹא אֶחְסָר.",
+    parses: [["אֶחְסָר", "Qal imperfect, 1st common singular"]]
+  },
+  {
+    reference: "Romans 8:1",
+    passage: "Romans 8:1",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "There is therefore now no condemnation for those who are in Christ Jesus.",
+    original: "Οὐδὲν ἄρα νῦν κατάκριμα τοῖς ἐν Χριστῷ Ἰησοῦ.",
+    parses: []
+  },
+  {
+    reference: "Deuteronomy 6:4",
+    passage: "Deuteronomy 6:4",
+    language: "hebrew",
+    originalSource: "WLC",
+    netFallback: "Listen, Israel: The Lord is our God, the Lord is one.",
+    original: "שְׁמַע יִשְׂרָאֵל יְהוָה אֱלֹהֵינוּ יְהוָה אֶחָד.",
+    parses: [["שְׁמַע", "Qal imperative, masculine singular"]]
+  },
+  {
+    reference: "Matthew 28:19",
+    passage: "Matthew 28:19",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "Therefore go and make disciples of all nations, baptizing them in the name of the Father and the Son and the Holy Spirit.",
+    original: "πορευθέντες οὖν μαθητεύσατε πάντα τὰ ἔθνη, βαπτίζοντες αὐτοὺς εἰς τὸ ὄνομα τοῦ πατρὸς καὶ τοῦ υἱοῦ καὶ τοῦ ἁγίου πνεύματος.",
+    parses: [["πορευθέντες", "aorist passive participle, nominative masculine plural"], ["μαθητεύσατε", "aorist active imperative, 2nd plural"], ["βαπτίζοντες", "present active participle, nominative masculine plural"]]
+  },
+  {
+    reference: "Isaiah 40:31",
+    passage: "Isaiah 40:31",
+    language: "hebrew",
+    originalSource: "WLC",
+    netFallback: "But those who wait for the Lord will renew their strength; they will soar on wings like eagles.",
+    original: "וְקוֹיֵ יְהוָה יַחֲלִיפוּ כֹחַ יַעֲלוּ אֵבֶר כַּנְּשָׁרִים.",
+    parses: [["יַחֲלִיפוּ", "Hiphil imperfect, 3rd masculine plural"], ["יַעֲלוּ", "Qal imperfect, 3rd masculine plural"]]
+  },
+  {
+    reference: "Ephesians 2:8",
+    passage: "Ephesians 2:8",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "For by grace you are saved through faith, and this is not from yourselves, it is the gift of God.",
+    original: "τῇ γὰρ χάριτί ἐστε σεσῳσμένοι διὰ πίστεως· καὶ τοῦτο οὐκ ἐξ ὑμῶν, θεοῦ τὸ δῶρον.",
+    parses: [["ἐστε", "present active indicative, 2nd plural"], ["σεσῳσμένοι", "perfect passive participle, nominative masculine plural"]]
+  },
+  {
+    reference: "Numbers 6:24",
+    passage: "Numbers 6:24",
+    language: "hebrew",
+    originalSource: "WLC",
+    netFallback: "The Lord bless you and protect you.",
+    original: "יְבָרֶכְךָ יְהוָה וְיִשְׁמְרֶךָ.",
+    parses: [["יְבָרֶכְךָ", "Piel imperfect, 3rd masculine singular with 2nd masculine singular suffix"], ["יִשְׁמְרֶךָ", "Qal imperfect, 3rd masculine singular with 2nd masculine singular suffix"]]
+  },
+  {
+    reference: "Colossians 1:15",
+    passage: "Colossians 1:15",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "He is the image of the invisible God, the firstborn over all creation.",
+    original: "ὅς ἐστιν εἰκὼν τοῦ θεοῦ τοῦ ἀοράτου, πρωτότοκος πάσης κτίσεως.",
+    parses: [["ἐστιν", "present active indicative, 3rd singular"]]
+  },
+  {
+    reference: "Micah 6:8",
+    passage: "Micah 6:8",
+    language: "hebrew",
+    originalSource: "WLC",
+    netFallback: "He has told you, O man, what is good, and what the Lord really wants from you.",
+    original: "הִגִּיד לְךָ אָדָם מַה־טּוֹב וּמָה־יְהוָה דּוֹרֵשׁ מִמְּךָ.",
+    parses: [["הִגִּיד", "Hiphil perfect, 3rd masculine singular"], ["דּוֹרֵשׁ", "Qal participle, masculine singular"]]
+  },
+  {
+    reference: "1 Peter 1:3",
+    passage: "1 Peter 1:3",
+    language: "greek",
+    originalSource: "SBLGNT",
+    netFallback: "Blessed be the God and Father of our Lord Jesus Christ, who according to his great mercy gave us new birth into a living hope.",
+    original: "Εὐλογητὸς ὁ θεὸς καὶ πατὴρ τοῦ κυρίου ἡμῶν Ἰησοῦ Χριστοῦ, ὁ κατὰ τὸ πολὺ αὐτοῦ ἔλεος ἀναγεννήσας ἡμᾶς εἰς ἐλπίδα ζῶσαν.",
+    parses: [["ἀναγεννήσας", "aorist active participle, nominative masculine singular"], ["ζῶσαν", "present active participle, accusative feminine singular"]]
   }
 ];
 
@@ -963,6 +1064,7 @@ function updateAccountButton() {
   els.accountButton.classList.toggle("connected", !!email);
   els.accountButton.title = email ? "Signed in as " + email + ". Click to sign out." : "Sign in to sync";
   els.accountButton.setAttribute("aria-label", email ? "Signed in. Click to sign out." : "Sign in to sync");
+  renderCloudStatus();
 }
 
 function applyHostedModeUi() {
@@ -972,6 +1074,107 @@ function applyHostedModeUi() {
   if (els.accountButton) {
     els.accountButton.title = isHostedDashboard ? "Sign in / Account sync" : "Local account sync";
   }
+}
+
+function cloudStatusClass(state) {
+  return state === "ok" ? "ok" : state === "warn" ? "warn" : state === "checking" ? "checking" : "idle";
+}
+
+function cloudStatusText(state) {
+  return state === "ok" ? "OK" : state === "warn" ? "Needs attention" : state === "checking" ? "Checking" : "Not checked";
+}
+
+function setCloudStatus(key, state, detail) {
+  cloudStatusChecks[key] = { state: state, detail: detail };
+  renderCloudStatus();
+}
+
+function renderCloudStatus() {
+  if (!els.cloudStatusGrid) return;
+  var labels = {
+    auth: "Supabase sign-in",
+    sync: "Dashboard sync",
+    news: "News functions",
+    sports: "Sports function",
+    rss: "RSS / article functions",
+    google: "Google Calendar"
+  };
+  els.cloudStatusGrid.innerHTML = Object.keys(labels).map(function (key) {
+    var item = cloudStatusChecks[key] || { state: "idle", detail: "Not checked yet." };
+    return "<div class='cloud-status-row " + cloudStatusClass(item.state) + "'><span class='cloud-status-dot'></span><strong>" + labels[key] + "</strong><em>" + cloudStatusText(item.state) + "</em><p>" + escapeHTML(item.detail || "") + "</p></div>";
+  }).join("");
+}
+
+async function checkCloudEndpoint(key, label, request, okDetail) {
+  setCloudStatus(key, "checking", "Checking " + label + "...");
+  try {
+    var response = await request();
+    var payload = await readDashboardJson(response, label);
+    setCloudStatus(key, "ok", okDetail(payload));
+    return payload;
+  } catch (error) {
+    setCloudStatus(key, "warn", hostedHint(label, error));
+    return null;
+  }
+}
+
+async function runCloudStatusChecks() {
+  renderCloudStatus();
+  if (!isHostedDashboard) {
+    setCloudStatus("auth", "ok", "Local dashboard mode. Cloud sign-in is optional here.");
+  } else if (!cloudAvailable()) {
+    setCloudStatus("auth", "warn", "Supabase client could not load from the CDN.");
+  } else if (cloudSession && cloudSession.user) {
+    setCloudStatus("auth", "ok", "Signed in as " + (cloudSession.user.email || "your Supabase account") + ".");
+  } else {
+    setCloudStatus("auth", "warn", "Not signed in. Click the account icon at the top right.");
+  }
+
+  if (!cloudSession) {
+    setCloudStatus("sync", "warn", "Sign in first so dashboard state can sync across devices.");
+  } else {
+    await checkCloudEndpoint("sync", "dashboard-sync", function () {
+      return dashboardFetch("/api/dashboard-sync", { cache: "no-store" });
+    }, function () {
+      return "Dashboard state sync is reachable.";
+    });
+  }
+
+  await checkCloudEndpoint("news", "news-sources", function () {
+    return dashboardFetch("/api/news-sources", { cache: "no-store" });
+  }, function (payload) {
+    var total = ["world", "philippines", "theology"].reduce(function (sum, section) { return sum + ((payload && payload[section]) || []).length; }, 0);
+    return total ? total + " source choices loaded." : "Function responded, but returned no source choices.";
+  });
+
+  await checkCloudEndpoint("sports", "sports/mlb", function () {
+    return dashboardFetch("/api/sports/mlb?statusCheck=1", { cache: "no-store" });
+  }, function (payload) {
+    if (payload && payload.errors && payload.errors.length) return "Function responded, but upstream sports feed reported warnings.";
+    return "MLB scoreboard function is reachable.";
+  });
+
+  setCloudStatus("rss", "checking", "Checking RSS and article functions...");
+  try {
+    var rssResponse = await dashboardFetch("/api/rss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feeds: [] })
+    });
+    await readDashboardJson(rssResponse, "rss");
+    var articleResponse = await dashboardFetch("/api/article", { cache: "no-store" });
+    if (articleResponse.status !== 400) await readDashboardJson(articleResponse, "article");
+    setCloudStatus("rss", "ok", "RSS and article functions are reachable.");
+  } catch (error) {
+    setCloudStatus("rss", "warn", hostedHint("rss/article", error));
+  }
+
+  setCloudStatus("google", "checking", "Checking Google Calendar...");
+  var status = await loadGoogleCalendarStatus();
+  if (!cloudSession) setCloudStatus("google", "warn", "Sign in before connecting Google Calendar.");
+  else if (!status.configured) setCloudStatus("google", "warn", googleCalendarLastMessage || "Google Calendar OAuth secrets are missing or not deployed.");
+  else if (status.connected) setCloudStatus("google", "ok", "Connected to " + (googleCalendarAccountLabel() || "Google Calendar") + ".");
+  else setCloudStatus("google", "warn", "Configured, but not connected. Click Connect Google Calendar.");
 }
 
 async function initCloudIdentity() {
@@ -1114,8 +1317,10 @@ function openSettings() {
   if (els.apiSportsKey) els.apiSportsKey.value = "";
   if (els.apiSportsKeySetting) els.apiSportsKeySetting.hidden = isHostedDashboard;
   if (els.cloudPrivateSettingsNote) els.cloudPrivateSettingsNote.hidden = !isHostedDashboard;
+  renderCloudStatus();
   if (typeof els.settingsModal.showModal === "function") els.settingsModal.showModal();
   loadGoogleCalendarStatus();
+  runCloudStatusChecks();
 }
 
 function openVaultPlaceholder() {
@@ -1149,7 +1354,7 @@ function updateGoogleCalendarControls() {
   }
   if (!googleCalendarStatus.configured) {
     els.googleCalendarButton.textContent = "Connect Google Calendar";
-    els.googleCalendarButton.title = "Google Calendar is not configured on this device yet.";
+    els.googleCalendarButton.title = googleCalendarLastMessage || "Google Calendar OAuth is not configured yet.";
   } else if (googleCalendarStatus.connected) {
     els.googleCalendarButton.textContent = googleCalendarLoading ? "Syncing..." : googleCalendarStatus.needsReconnect ? "Reconnect Google" : "Google Connected";
     els.googleCalendarButton.title = googleCalendarStatus.needsReconnect ? "Reconnect Google Calendar to approve the latest permissions." : googleCalendarAccountLabel() || "Google Calendar is connected.";
@@ -1260,11 +1465,13 @@ function findEventForView(eventId) {
 }
 
 async function loadGoogleCalendarStatus() {
+  googleCalendarLastMessage = "";
   try {
     var response = await dashboardFetch("/api/google-calendar/status", { cache: "no-store" });
     var payload = await response.json().catch(function () { return null; });
     if (!response.ok && payload) {
       googleCalendarStatus = Object.assign({ configured: false, connected: false, redirectUri: "" }, payload);
+      googleCalendarLastMessage = payload.error || "Sign in required.";
     } else if (!response.ok) {
       throw new Error("Status request failed");
     } else {
@@ -1272,12 +1479,17 @@ async function loadGoogleCalendarStatus() {
     }
   } catch (error) {
     googleCalendarStatus = { configured: false, connected: false, redirectUri: "" };
+    googleCalendarLastMessage = hostedHint("google-calendar/status", error);
   }
   updateGoogleCalendarControls();
   return googleCalendarStatus;
 }
 
 async function loadGoogleCalendarEvents(showNotice) {
+  if (!cloudSession && isHostedDashboard) {
+    if (showNotice) showToast("Sign in to dashboard sync first.");
+    return;
+  }
   if (!googleCalendarStatus.connected || googleCalendarStatus.needsReconnect || googleCalendarLoading) return;
   googleCalendarLoading = true;
   updateGoogleCalendarControls();
@@ -1289,8 +1501,7 @@ async function loadGoogleCalendarEvents(showNotice) {
       updateGoogleCalendarControls();
       return;
     }
-    if (!response.ok) throw new Error("Google Calendar request failed");
-    var data = await response.json();
+    var data = await readDashboardJson(response, "Google Calendar events");
     if (!data.ok) return;
     var syncedIds = state.events.reduce(function (ids, event) {
       if (event.source !== "google" && event.googleEventId) ids[event.googleEventId] = true;
@@ -1304,7 +1515,8 @@ async function loadGoogleCalendarEvents(showNotice) {
     renderAll();
     if (showNotice) showToast("Google Calendar synced.");
   } catch (error) {
-    if (showNotice) showToast("Google Calendar could not be synced.");
+    googleCalendarLastMessage = hostedHint("google-calendar/events", error);
+    if (showNotice) showToast("Google Calendar needs attention. Check Settings.");
   } finally {
     googleCalendarLoading = false;
     updateGoogleCalendarControls();
@@ -3124,7 +3336,7 @@ async function loadNews() {
   } catch (error) {
     newsLoadError = hostedHint("news", error);
     newsData = { world: [], philippines: [], theology: [], top: {}, errors: [newsLoadError] };
-    showToast(newsLoadError);
+    showToast("News feeds need attention. See the Daily Brief panel.");
   }
   renderNews();
 }
@@ -3138,7 +3350,7 @@ async function loadNewsSources() {
   } catch (error) {
     newsSourceLoadError = hostedHint("news-sources", error);
     newsSourceOptions = JSON.parse(JSON.stringify(FALLBACK_NEWS_SOURCES));
-    showToast(newsSourceLoadError);
+    showToast("News source choices are using fallback data.");
   }
   return newsSourceOptions;
 }
@@ -3186,6 +3398,11 @@ function renderSourceModal() {
     updateSourceCount(block);
     els.sourceGrid.appendChild(block);
   });
+}
+
+function renderSourceLoading(message) {
+  if (!els.sourceGrid) return;
+  els.sourceGrid.innerHTML = "<p class='source-loading-note'>" + escapeHTML(message || "Loading sources...") + "</p>";
 }
 
 function updateSourceCount(block) {
@@ -3242,9 +3459,10 @@ function addSourceOptionDrag(row) {
 }
 
 async function openSourceModal() {
+  renderSourceLoading("Loading sources...");
+  els.sourceModal.showModal();
   await loadNewsSources();
   renderSourceModal();
-  els.sourceModal.showModal();
 }
 
 function collectSelectedSources() {
@@ -3392,8 +3610,7 @@ async function enrichReaderArticle(item) {
   if (!item || item.articleKind !== "news" || item.fullArticleLoaded || !/^https?:\/\//i.test(item.url || "")) return;
   try {
     var response = await dashboardFetch("/api/article?url=" + encodeURIComponent(item.url));
-    if (!response.ok) throw new Error("Article request failed");
-    var article = await response.json();
+    var article = await readDashboardJson(response, "Article");
     if (article.title && (!item.title || item.title === "Article")) item.title = article.title;
     if (article.image && !item.image) item.image = article.image;
     if (article.contentHtml) item.contentHtml = article.contentHtml;
@@ -3408,6 +3625,7 @@ async function enrichReaderArticle(item) {
     }
   } catch (error) {
     item.fullArticleLoaded = true;
+    item.contentHtml = item.contentHtml || item.summary || hostedHint("article", error);
     if (activeReaderItem && activeReaderItem.url === item.url) {
       if (document.body.classList.contains("main-reader-active")) renderDockReader(item);
       else if (els.readerModal.open) els.readerBody.innerHTML = readerArticleBody(item);
@@ -3584,7 +3802,8 @@ function renderRssCards() {
   var items = selectRssItems(candidates);
   els.rssCardGrid.innerHTML = "";
   if (!items.length) {
-    els.rssCardGrid.innerHTML = "<p class='empty-state'>" + (state.activeRssSource ? "No posts found for this RSS source yet." : "Add an RSS feed to read latest posts here.") + "</p>";
+    var errorText = rssData.errors && rssData.errors.length ? rssData.errors[0] : "";
+    els.rssCardGrid.innerHTML = "<p class='empty-state'>" + escapeHTML(errorText || (state.activeRssSource ? "No posts found for this RSS source yet." : "Add an RSS feed to read latest posts here.")) + "</p>";
   } else {
     items.forEach(function (item) {
       var button = document.createElement("button");
@@ -3623,7 +3842,7 @@ async function loadRssFeeds() {
   } catch (error) {
     var message = hostedHint("rss", error);
     rssData = { items: [], errors: [message] };
-    showToast(message);
+    showToast("RSS feeds need attention. See the RSS panel.");
   }
   renderRssCards();
 }
@@ -4175,7 +4394,7 @@ async function loadSport(sport) {
   } catch (error) {
     var message = hostedHint("sports/" + sport, error);
     sportsData[sport] = { sport: sport, games: [], standings: [], errors: [message] };
-    showToast(message);
+    showToast("Scoreboard feed needs attention. See the sports panel.");
   }
   renderScoreboard();
 }
@@ -4222,6 +4441,7 @@ function submitFormOnEnter(form, submitSelector) {
 
 els.settingsButton.addEventListener("click", openSettings);
 if (els.accountButton) els.accountButton.addEventListener("click", toggleCloudSignIn);
+if (els.cloudStatusRefresh) els.cloudStatusRefresh.addEventListener("click", runCloudStatusChecks);
 els.closeSettingsButton.addEventListener("click", function () { els.settingsModal.close(); });
 els.obsidianButton.addEventListener("click", openVaultPlaceholder);
 els.settingsModal.addEventListener("click", function (event) {
@@ -4422,12 +4642,13 @@ els.googleCalendarButton.addEventListener("click", async function () {
   }
   try {
     var response = await dashboardFetch("/api/google-calendar/connect", { cache: "no-store" });
-    if (!response.ok) throw new Error("Connect URL unavailable");
-    var data = await response.json();
+    var data = await readDashboardJson(response, "Google Calendar connect");
     if (!data.authUrl) throw new Error("Missing Google auth URL");
     window.location.href = data.authUrl;
   } catch (error) {
-    showToast("Google Calendar connection could not start.");
+    googleCalendarLastMessage = hostedHint("google-calendar/connect", error);
+    setCloudStatus("google", "warn", googleCalendarLastMessage);
+    showToast("Google Calendar needs attention. Check Settings.");
   }
 });
 if (els.googleCalendarSyncButton) {
