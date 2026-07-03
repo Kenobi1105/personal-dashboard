@@ -1,0 +1,32 @@
+[functions.news-sources]
+verify_jwt = false
+
+[functions.news]
+verify_jwt = false
+
+[functions.rss]
+verify_jwt = false
+
+[functions.article]
+verify_jwt = false
+
+[functions.bible-net]
+verify_jwt = false
+
+[functions.sports]
+verify_jwt = false
+
+[functions.world-watch]
+verify_jwt = false
+
+[functions.missions]
+verify_jwt = false
+
+[functions.languages]
+verify_jwt = false
+
+[functions.dashboard-sync]
+verify_jwt = true
+
+[functions.google-calendar]
+verify_jwt = false

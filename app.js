@@ -10,18 +10,74 @@ var EVENT_COLORS = [
   { key: "green", name: "Green", value: "#4F7A65", bg: "rgba(79, 122, 101, 0.15)" }
 ];
 
+var SUPABASE_URL = "https://txowrviwvulkuopmugfb.supabase.co";
+var SUPABASE_PUBLISHABLE_KEY = "sb_publishable_r8EhucgXv5nSDisLvtwW5Q_LnqS454a";
+var SUPABASE_FUNCTIONS_BASE = SUPABASE_URL + "/functions/v1";
+var CLOUD_APP_URL = "https://kenobi1105.github.io/personal-dashboard/";
+var isHostedDashboard = /github\.io$/i.test(window.location.hostname);
+var cloudClient = null;
+var cloudSession = null;
+var cloudStateLoaded = false;
+var cloudSaveTimer = null;
+var cloudSaveInFlight = false;
+
+function cloudAvailable() {
+  return !!(window.supabase && SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
+}
+
+function apiUrl(path) {
+  if (!isHostedDashboard || /^https?:\/\//i.test(path)) return path;
+  var split = String(path).split("?");
+  var pathname = split[0];
+  var query = split[1] ? "?" + split.slice(1).join("?") : "";
+  var routes = [
+    ["/api/bible/net", "/bible-net"],
+    ["/api/google-calendar", "/google-calendar"],
+    ["/api/dashboard-sync", "/dashboard-sync"],
+    ["/api/news-sources", "/news-sources"],
+    ["/api/news", "/news"],
+    ["/api/article", "/article"],
+    ["/api/rss", "/rss"],
+    ["/api/world-watch", "/world-watch"],
+    ["/api/missions", "/missions"],
+    ["/api/languages", "/languages"],
+    ["/api/sports", "/sports"]
+  ];
+  for (var index = 0; index < routes.length; index += 1) {
+    var route = routes[index];
+    if (pathname.indexOf(route[0]) === 0) {
+      return SUPABASE_FUNCTIONS_BASE + route[1] + pathname.slice(route[0].length) + query;
+    }
+  }
+  return path;
+}
+
+async function dashboardFetch(path, options) {
+  var target = apiUrl(path);
+  var fetchOptions = Object.assign({}, options || {});
+  fetchOptions.headers = Object.assign({}, fetchOptions.headers || {});
+  if (isHostedDashboard && target.indexOf(SUPABASE_FUNCTIONS_BASE) === 0) {
+    fetchOptions.headers.apikey = SUPABASE_PUBLISHABLE_KEY;
+    fetchOptions.headers.Authorization = "Bearer " + (cloudSession && cloudSession.access_token ? cloudSession.access_token : SUPABASE_PUBLISHABLE_KEY);
+  }
+  return fetch(target, fetchOptions);
+}
+
 var els = {
   greeting: document.getElementById("greeting"),
   todayLabel: document.getElementById("todayLabel"),
   dateLine: document.getElementById("dateLine"),
   timeLine: document.getElementById("timeLine"),
   settingsButton: document.getElementById("settingsButton"),
+  accountButton: document.getElementById("accountButton"),
   obsidianButton: document.getElementById("obsidianButton"),
   settingsModal: document.getElementById("settingsModal"),
   settingsForm: document.getElementById("settingsForm"),
   preferredName: document.getElementById("preferredName"),
   timeFormat: document.getElementById("timeFormat"),
   apiSportsKey: document.getElementById("apiSportsKey"),
+  apiSportsKeySetting: document.getElementById("apiSportsKeySetting"),
+  cloudPrivateSettingsNote: document.getElementById("cloudPrivateSettingsNote"),
   calendarPanel: document.getElementById("calendarPanel"),
   calendarGrid: document.getElementById("calendarGrid"),
   googleCalendarButton: document.getElementById("googleCalendarButton"),
@@ -763,6 +819,135 @@ var DAILY_VERSES = [
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  queueCloudStateSave();
+}
+
+function syncableStateSnapshot() {
+  return {
+    settings: state.settings,
+    events: state.events,
+    plans: state.plans,
+    tasks: state.tasks,
+    templates: state.templates,
+    activeTemplateId: state.activeTemplateId,
+    rssFeeds: state.rssFeeds,
+    activeRssSource: state.activeRssSource,
+    rssReadMoreUrl: state.rssReadMoreUrl,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function mergeCloudState(remote) {
+  if (!remote || typeof remote !== "object") return false;
+  var localUpdated = Date.parse(state.updatedAt || "") || 0;
+  var remoteUpdated = Date.parse(remote.updatedAt || "") || 0;
+  if (localUpdated && remoteUpdated && localUpdated > remoteUpdated) return false;
+  state.settings = Object.assign({}, state.settings, remote.settings || {});
+  state.events = (remote.events || state.events || []).map(normalizeEvent);
+  state.plans = (remote.plans || state.plans || []).map(normalizeEvent);
+  state.tasks = remote.tasks || state.tasks || [];
+  state.templates = remote.templates || state.templates || [];
+  state.activeTemplateId = remote.activeTemplateId || state.activeTemplateId || null;
+  state.rssFeeds = remote.rssFeeds || state.rssFeeds || [];
+  state.activeRssSource = remote.activeRssSource || state.activeRssSource || "";
+  state.rssReadMoreUrl = remote.rssReadMoreUrl || state.rssReadMoreUrl || "";
+  state.updatedAt = remote.updatedAt || state.updatedAt || "";
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  return true;
+}
+
+function queueCloudStateSave() {
+  if (!cloudSession || !cloudStateLoaded || cloudSaveInFlight) return;
+  window.clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = window.setTimeout(saveCloudState, 900);
+}
+
+async function saveCloudState() {
+  if (!cloudClient || !cloudSession) return;
+  cloudSaveInFlight = true;
+  try {
+    state.updatedAt = new Date().toISOString();
+    var payload = syncableStateSnapshot();
+    var response = await dashboardFetch("/api/dashboard-sync", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: payload })
+    });
+    if (!response.ok) throw new Error("Cloud save failed");
+  } catch (error) {
+    console.warn(error);
+  } finally {
+    cloudSaveInFlight = false;
+  }
+}
+
+async function loadCloudState() {
+  if (!cloudClient || !cloudSession) return;
+  try {
+    var response = await dashboardFetch("/api/dashboard-sync", { cache: "no-store" });
+    if (!response.ok) throw new Error("Cloud state unavailable");
+    var data = await response.json();
+    if (data && data.state && mergeCloudState(data.state)) {
+      renderAll();
+      renderRssFeeds();
+      showToast("Synced dashboard data loaded.");
+    }
+  } catch (error) {
+    console.warn(error);
+  } finally {
+    cloudStateLoaded = true;
+  }
+}
+
+function updateAccountButton() {
+  if (!els.accountButton) return;
+  if (!cloudAvailable()) {
+    els.accountButton.hidden = true;
+    return;
+  }
+  els.accountButton.hidden = false;
+  var email = cloudSession && cloudSession.user && cloudSession.user.email ? cloudSession.user.email : "";
+  els.accountButton.classList.toggle("connected", !!email);
+  els.accountButton.title = email ? "Signed in as " + email + ". Click to sign out." : "Sign in to sync";
+  els.accountButton.setAttribute("aria-label", email ? "Signed in. Click to sign out." : "Sign in to sync");
+}
+
+async function initCloudIdentity() {
+  if (!cloudAvailable()) return;
+  cloudClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
+  var sessionResult = await cloudClient.auth.getSession();
+  cloudSession = sessionResult && sessionResult.data ? sessionResult.data.session : null;
+  updateAccountButton();
+  if (cloudSession) await loadCloudState();
+  cloudClient.auth.onAuthStateChange(function (_event, session) {
+    cloudSession = session;
+    updateAccountButton();
+    if (cloudSession) loadCloudState();
+  });
+}
+
+async function toggleCloudSignIn() {
+  if (!cloudClient) {
+    showToast("Supabase sync is not available yet.");
+    return;
+  }
+  if (cloudSession) {
+    await saveCloudState();
+    await cloudClient.auth.signOut();
+    cloudSession = null;
+    cloudStateLoaded = false;
+    updateAccountButton();
+    showToast("Signed out of dashboard sync.");
+    return;
+  }
+  await cloudClient.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: isHostedDashboard ? CLOUD_APP_URL : window.location.origin + window.location.pathname
+    }
+  });
 }
 
 function showToast(message) {
@@ -835,7 +1020,7 @@ function highlightedOriginalText(verse) {
 
 function loadNetVerse(verse) {
   if (!verse || verseTextCache[verse.passage] || verseFetches[verse.passage]) return;
-  verseFetches[verse.passage] = fetch("/api/bible/net?passage=" + encodeURIComponent(verse.passage))
+  verseFetches[verse.passage] = dashboardFetch("/api/bible/net?passage=" + encodeURIComponent(verse.passage))
     .then(function (response) {
       if (!response.ok) throw new Error("NET request failed");
       return response.json();
@@ -858,7 +1043,9 @@ function loadNetVerse(verse) {
 function openSettings() {
   els.preferredName.value = state.settings.preferredName || "";
   els.timeFormat.value = state.settings.timeFormat || "24";
-  els.apiSportsKey.value = "";
+  if (els.apiSportsKey) els.apiSportsKey.value = "";
+  if (els.apiSportsKeySetting) els.apiSportsKeySetting.hidden = isHostedDashboard;
+  if (els.cloudPrivateSettingsNote) els.cloudPrivateSettingsNote.hidden = !isHostedDashboard;
   if (typeof els.settingsModal.showModal === "function") els.settingsModal.showModal();
   loadGoogleCalendarStatus();
 }
@@ -1006,9 +1193,15 @@ function findEventForView(eventId) {
 
 async function loadGoogleCalendarStatus() {
   try {
-    var response = await fetch("/api/google-calendar/status", { cache: "no-store" });
-    if (!response.ok) throw new Error("Status request failed");
-    googleCalendarStatus = await response.json();
+    var response = await dashboardFetch("/api/google-calendar/status", { cache: "no-store" });
+    var payload = await response.json().catch(function () { return null; });
+    if (!response.ok && payload) {
+      googleCalendarStatus = Object.assign({ configured: false, connected: false, redirectUri: "" }, payload);
+    } else if (!response.ok) {
+      throw new Error("Status request failed");
+    } else {
+      googleCalendarStatus = payload;
+    }
   } catch (error) {
     googleCalendarStatus = { configured: false, connected: false, redirectUri: "" };
   }
@@ -1022,7 +1215,7 @@ async function loadGoogleCalendarEvents(showNotice) {
   updateGoogleCalendarControls();
   try {
     var range = calendarVisibleRange();
-    var response = await fetch("/api/google-calendar/events?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax), { cache: "no-store" });
+    var response = await dashboardFetch("/api/google-calendar/events?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax), { cache: "no-store" });
     if (response.status === 401) {
       googleCalendarStatus.connected = false;
       updateGoogleCalendarControls();
@@ -1074,7 +1267,7 @@ async function syncDashboardEventToGoogle(localEvent, showNotice) {
   localEvent.syncStatus = "syncing";
   saveState();
   try {
-    var response = await fetch("/api/google-calendar/events", {
+    var response = await dashboardFetch("/api/google-calendar/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ event: localEvent })
@@ -1105,7 +1298,7 @@ async function syncDashboardEventToGoogle(localEvent, showNotice) {
 async function deleteGoogleCalendarEvent(localEvent) {
   if (!localEvent || !localEvent.googleEventId || !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) return false;
   try {
-    var response = await fetch("/api/google-calendar/events/" + encodeURIComponent(localEvent.googleEventId), { method: "DELETE" });
+    var response = await dashboardFetch("/api/google-calendar/events/" + encodeURIComponent(localEvent.googleEventId), { method: "DELETE" });
     return response.ok;
   } catch (error) {
     return false;
@@ -2854,7 +3047,7 @@ function saveSourceOrder(section, names) {
 
 async function loadNews() {
   try {
-    var response = await fetch("/api/news" + selectedNewsQuery());
+    var response = await dashboardFetch("/api/news" + selectedNewsQuery());
     if (!response.ok) throw new Error("News request failed.");
     newsData = await response.json();
   } catch (error) {
@@ -2867,7 +3060,7 @@ async function loadNews() {
 async function loadNewsSources() {
   if (newsSourceOptions) return newsSourceOptions;
   try {
-    var response = await fetch("/api/news-sources");
+    var response = await dashboardFetch("/api/news-sources");
     if (!response.ok) throw new Error("Source request failed.");
     newsSourceOptions = await response.json();
   } catch (error) {
@@ -3116,7 +3309,7 @@ function readerArticleBody(item) {
 async function enrichReaderArticle(item) {
   if (!item || item.articleKind !== "news" || item.fullArticleLoaded || !/^https?:\/\//i.test(item.url || "")) return;
   try {
-    var response = await fetch("/api/article?url=" + encodeURIComponent(item.url));
+    var response = await dashboardFetch("/api/article?url=" + encodeURIComponent(item.url));
     if (!response.ok) throw new Error("Article request failed");
     var article = await response.json();
     if (article.title && (!item.title || item.title === "Article")) item.title = article.title;
@@ -3339,7 +3532,7 @@ async function loadRssFeeds() {
     return;
   }
   try {
-    var response = await fetch("/api/rss", {
+    var response = await dashboardFetch("/api/rss", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ feeds: state.rssFeeds })
@@ -3698,7 +3891,7 @@ function renderWorldWatch() {
 
 async function loadWorldWatch() {
   try {
-    var response = await fetch("/api/world-watch");
+    var response = await dashboardFetch("/api/world-watch");
     if (!response.ok) throw new Error("World Watch request failed.");
     worldWatchData = await response.json();
   } catch (error) {
@@ -3742,7 +3935,7 @@ function renderMissions() {
 
 async function loadMissions() {
   try {
-    var response = await fetch("/api/missions");
+    var response = await dashboardFetch("/api/missions");
     if (!response.ok) throw new Error("Missions request failed.");
     missionsData = await response.json();
   } catch (error) {
@@ -3828,7 +4021,7 @@ function renderLanguagePanel() {
 
 async function loadLanguagePanel() {
   try {
-    var response = await fetch("/api/languages");
+    var response = await dashboardFetch("/api/languages");
     if (!response.ok) throw new Error("Language tools request failed.");
     languageData = await response.json();
   } catch (error) {
@@ -3886,7 +4079,7 @@ async function loadSport(sport) {
   sportsData[sport] = null;
   renderScoreboard();
   try {
-    var response = await fetch("/api/sports/" + sport + "?ts=" + Date.now(), { cache: "no-store" });
+    var response = await dashboardFetch("/api/sports/" + sport + "?ts=" + Date.now(), { cache: "no-store" });
     if (!response.ok) throw new Error("Sports request failed.");
     sportsData[sport] = await response.json();
   } catch (error) {
@@ -3937,6 +4130,7 @@ function submitFormOnEnter(form, submitSelector) {
 }
 
 els.settingsButton.addEventListener("click", openSettings);
+if (els.accountButton) els.accountButton.addEventListener("click", toggleCloudSignIn);
 els.closeSettingsButton.addEventListener("click", function () { els.settingsModal.close(); });
 els.obsidianButton.addEventListener("click", openVaultPlaceholder);
 els.settingsModal.addEventListener("click", function (event) {
@@ -4021,11 +4215,11 @@ els.settingsForm.addEventListener("submit", async function (event) {
   saveState();
   renderGreeting();
   var privateSettingsPayload = {
-    apiSportsKey: els.apiSportsKey.value.trim()
+    apiSportsKey: els.apiSportsKey ? els.apiSportsKey.value.trim() : ""
   };
-  if (privateSettingsPayload.apiSportsKey) {
+  if (!isHostedDashboard && privateSettingsPayload.apiSportsKey) {
     try {
-      var response = await fetch("/api/private-settings", {
+      var response = await dashboardFetch("/api/private-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(privateSettingsPayload)
@@ -4117,16 +4311,33 @@ els.monthLabel.addEventListener("click", function () {
   loadGoogleCalendarEvents(false);
 });
 els.googleCalendarButton.addEventListener("click", async function () {
+  if (isHostedDashboard && !cloudSession) {
+    showToast("Sign in first, then connect Google Calendar.");
+    await toggleCloudSignIn();
+    return;
+  }
   await loadGoogleCalendarStatus();
   if (!googleCalendarStatus.configured) {
-    showToast("Google Calendar is not configured on this device yet.");
+    showToast(isHostedDashboard ? "Google Calendar is not configured in Supabase yet." : "Google Calendar is not configured on this device yet.");
     return;
   }
   if (googleCalendarStatus.connected && !googleCalendarStatus.needsReconnect) {
     loadGoogleCalendarEvents(true);
     return;
   }
-  window.location.href = "/api/google-calendar/connect";
+  if (!isHostedDashboard) {
+    window.location.href = "/api/google-calendar/connect";
+    return;
+  }
+  try {
+    var response = await dashboardFetch("/api/google-calendar/connect", { cache: "no-store" });
+    if (!response.ok) throw new Error("Connect URL unavailable");
+    var data = await response.json();
+    if (!data.authUrl) throw new Error("Missing Google auth URL");
+    window.location.href = data.authUrl;
+  } catch (error) {
+    showToast("Google Calendar connection could not start.");
+  }
 });
 if (els.googleCalendarSyncButton) {
   els.googleCalendarSyncButton.addEventListener("click", function () {
@@ -4483,6 +4694,7 @@ window.addEventListener("mouseup", function () {
 
 try {
   renderAll();
+  initCloudIdentity();
   handleGoogleCalendarReturnMessage();
   refreshGoogleCalendar(false);
   loadNewsSources().then(loadNews);
@@ -4500,3 +4712,4 @@ try {
   document.body.dataset.appError = error && error.stack ? error.stack : String(error);
   console.error(error);
 }
+

@@ -110,6 +110,11 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 .small-control { min-height: 29px; padding: 0 10px; }
 .accent-button { padding: 0 14px; border-color: rgba(73, 53, 72, 0.24); color: var(--ink); font-weight: 900; background: var(--accent); }
 .icon-button:hover, .text-button:hover, .accent-button:hover, .mode-chip:hover, .app-button:hover, .study-launch-button:hover { transform: translateY(-1px); border-color: rgba(73, 53, 72, 0.34); }
+.account-button.connected {
+  border-color: rgba(111, 125, 92, 0.55);
+  background: linear-gradient(135deg, rgba(111, 125, 92, 0.16), rgba(240, 208, 143, 0.34));
+  color: #3f5f4b;
+}
 
 .study-launch-bar {
   display: grid;
@@ -317,6 +322,10 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   font-weight: 800;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+.cloud-only-setting[hidden],
+.local-only-setting[hidden] {
+  display: none !important;
 }
 
 .calendar-panel.planning-mode {
@@ -1758,6 +1767,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .source-section {
   display: grid;
+  grid-template-rows: auto auto minmax(64px, 1fr);
   gap: 8px;
   min-height: 220px;
   padding: 10px;
@@ -1782,6 +1792,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .source-add-row {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.35fr) auto;
+  align-items: center;
   gap: 5px;
 }
 .source-add-row input {
@@ -1800,6 +1811,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 6px;
+  min-height: 64px;
   max-height: 275px;
   overflow: auto;
   padding-right: 2px;
