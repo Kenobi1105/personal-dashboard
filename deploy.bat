@@ -4,6 +4,8 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "REMOTE_URL=https://github.com/Kenobi1105/personal-dashboard.git"
+set "PUSH_HOST=github.com"
+set "PUSH_REPO=Kenobi1105/personal-dashboard.git"
 set "BRANCH_NAME=main"
 
 echo.
@@ -96,7 +98,7 @@ git diff --cached --quiet
 if not errorlevel 1 (
   echo.
   echo No new changes to commit. Pushing current branch anyway...
-  git push -u origin "%BRANCH_NAME%"
+  call :push_with_token
   if errorlevel 1 goto fail
   goto done
 )
@@ -110,7 +112,7 @@ if errorlevel 1 goto fail
 
 echo.
 echo Pushing to GitHub...
-git push -u origin "%BRANCH_NAME%"
+call :push_with_token
 if errorlevel 1 goto fail
 
 :done
@@ -120,7 +122,34 @@ echo Press any key to close.
 pause >nul
 exit /b 0
 
+:push_with_token
+echo.
+echo GitHub authentication
+echo ---------------------
+set "GITHUB_USER="
+set "GITHUB_TOKEN="
+set /p "GITHUB_USER=GitHub username: "
+if "%GITHUB_USER%"=="" (
+  echo ERROR: GitHub username is required.
+  exit /b 1
+)
+for /f "usebackq delims=" %%t in (`powershell -NoProfile -Command "$s=Read-Host 'GitHub token' -AsSecureString; $b=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($s); try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }"`) do set "GITHUB_TOKEN=%%t"
+if "%GITHUB_TOKEN%"=="" (
+  echo ERROR: GitHub token is required.
+  exit /b 1
+)
+echo.
+echo Pushing with the token you provided for this run only...
+git remote set-url origin "%REMOTE_URL%" >nul 2>nul
+git -c credential.helper= push -u "https://%GITHUB_USER%:%GITHUB_TOKEN%@%PUSH_HOST%/%PUSH_REPO%" "%BRANCH_NAME%:%BRANCH_NAME%"
+set "PUSH_RESULT=%ERRORLEVEL%"
+set "GITHUB_TOKEN="
+if not "%PUSH_RESULT%"=="0" exit /b %PUSH_RESULT%
+git remote set-url origin "%REMOTE_URL%" >nul 2>nul
+exit /b 0
+
 :fail
+set "GITHUB_TOKEN="
 echo.
 echo Deployment stopped. Read the message above, then press any key to close.
 pause >nul
