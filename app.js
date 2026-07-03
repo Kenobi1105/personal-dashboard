@@ -63,6 +63,29 @@ async function dashboardFetch(path, options) {
   return fetch(target, fetchOptions);
 }
 
+async function readDashboardJson(response, label) {
+  var text = await response.text().catch(function () { return ""; });
+  var payload = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch (_error) {
+      payload = null;
+    }
+  }
+  if (!response.ok) {
+    var detail = payload && payload.error ? payload.error : payload && payload.errors ? [].concat(payload.errors).join("; ") : text.slice(0, 160);
+    throw new Error(label + " failed (" + response.status + ")" + (detail ? ": " + detail : "."));
+  }
+  return payload || {};
+}
+
+function hostedHint(functionName, error) {
+  var message = error && error.message ? error.message : String(error || "Unknown error");
+  if (!isHostedDashboard) return message;
+  return functionName + " Edge Function did not return data. Check that deploy-supabase.bat finished, then confirm the required Supabase secrets are set. " + message;
+}
+
 var els = {
   greeting: document.getElementById("greeting"),
   todayLabel: document.getElementById("todayLabel"),
@@ -249,6 +272,34 @@ var els = {
 };
 
 var DEFAULT_EVENT_TYPES = ["General Event", "Reminder", "Sermon", "Bible Study", "Sermon Prep", "Bible Study Prep", "Class", "Ministry", "Others"];
+var FALLBACK_NEWS_SOURCES = {
+  world: [
+    { source: "Reuters", url: "https://www.reutersagency.com/feed/?best-topics=world&post_type=best" },
+    { source: "CNN", url: "http://rss.cnn.com/rss/edition_world.rss" },
+    { source: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
+    { source: "BBC", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
+    { source: "The Guardian", url: "https://www.theguardian.com/world/rss" },
+    { source: "France 24", url: "https://www.france24.com/en/rss" },
+    { source: "Deutsche Welle", url: "https://rss.dw.com/rdf/rss-en-world" },
+    { source: "NPR", url: "https://feeds.npr.org/1004/rss.xml" }
+  ],
+  philippines: [
+    { source: "Rappler", url: "https://www.rappler.com/feed/" },
+    { source: "Inquirer.net", url: "https://newsinfo.inquirer.net/feed" },
+    { source: "GMA News Online", url: "https://www.gmanetwork.com/news/rss/news/" },
+    { source: "ABS-CBN News", url: "https://news.abs-cbn.com/rss/news" },
+    { source: "Philstar", url: "https://www.philstar.com/rss/headlines" },
+    { source: "Manila Bulletin", url: "https://mb.com.ph/rss" }
+  ],
+  theology: [
+    { source: "Open Doors", url: "https://www.opendoors.org/en-US/news/latest/rss/" },
+    { source: "The Gospel Coalition", url: "https://www.thegospelcoalition.org/feed/" },
+    { source: "Christianity Today", url: "https://www.christianitytoday.com/rss.xml" },
+    { source: "Desiring God", url: "https://www.desiringgod.org/articles.atom" },
+    { source: "Baptist Press", url: "https://www.baptistpress.com/feed/" },
+    { source: "Religion News Service", url: "https://religionnews.com/feed/" }
+  ]
+};
 
 function id(prefix) {
   return prefix + "-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -777,6 +828,8 @@ var activeVerse = null;
 var verseTextCache = {};
 var verseFetches = {};
 var newsSourceOptions = null;
+var newsSourceLoadError = "";
+var newsLoadError = "";
 var rssData = { items: [], errors: [] };
 var activeDeleteMenu = null;
 var activeReaderItem = null;
@@ -912,6 +965,15 @@ function updateAccountButton() {
   els.accountButton.setAttribute("aria-label", email ? "Signed in. Click to sign out." : "Sign in to sync");
 }
 
+function applyHostedModeUi() {
+  document.body.classList.toggle("hosted-dashboard", isHostedDashboard);
+  if (els.apiSportsKeySetting) els.apiSportsKeySetting.hidden = isHostedDashboard;
+  if (els.cloudPrivateSettingsNote) els.cloudPrivateSettingsNote.hidden = !isHostedDashboard;
+  if (els.accountButton) {
+    els.accountButton.title = isHostedDashboard ? "Sign in / Account sync" : "Local account sync";
+  }
+}
+
 async function initCloudIdentity() {
   if (!cloudAvailable()) return;
   cloudClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -920,11 +982,17 @@ async function initCloudIdentity() {
   var sessionResult = await cloudClient.auth.getSession();
   cloudSession = sessionResult && sessionResult.data ? sessionResult.data.session : null;
   updateAccountButton();
-  if (cloudSession) await loadCloudState();
+  if (cloudSession) {
+    await loadCloudState();
+    await refreshGoogleCalendar(false);
+  }
   cloudClient.auth.onAuthStateChange(function (_event, session) {
     cloudSession = session;
     updateAccountButton();
-    if (cloudSession) loadCloudState();
+    if (cloudSession) {
+      loadCloudState();
+      refreshGoogleCalendar(false);
+    }
   });
 }
 
@@ -2960,8 +3028,8 @@ function renderHeadline() {
     els.headlineStory.href = "#";
     els.headlineMedia.innerHTML = "<div class='headline-image'></div>";
     els.headlineKicker.textContent = "Top Headline";
-    els.headlineTitle.textContent = "News feeds are loading.";
-    els.headlineSummary.textContent = "If a source blocks its feed, the dashboard will use the other available sources.";
+    els.headlineTitle.textContent = newsLoadError ? "News feeds need attention." : "News feeds are loading.";
+    els.headlineSummary.textContent = newsLoadError || "If a source blocks its feed, the dashboard will use the other available sources.";
     return;
   }
   if (headlineIndex >= topItems.length) headlineIndex = 0;
@@ -3046,26 +3114,31 @@ function saveSourceOrder(section, names) {
 }
 
 async function loadNews() {
+  newsLoadError = "";
   try {
     var response = await dashboardFetch("/api/news" + selectedNewsQuery());
-    if (!response.ok) throw new Error("News request failed.");
-    newsData = await response.json();
+    newsData = await readDashboardJson(response, "News");
+    if (newsData && newsData.errors && newsData.errors.length) {
+      console.warn("News feed warnings", newsData.errors);
+    }
   } catch (error) {
-    newsData = { world: [], philippines: [], top: {} };
-    showToast("News feeds could not be loaded yet.");
+    newsLoadError = hostedHint("news", error);
+    newsData = { world: [], philippines: [], theology: [], top: {}, errors: [newsLoadError] };
+    showToast(newsLoadError);
   }
   renderNews();
 }
 
 async function loadNewsSources() {
   if (newsSourceOptions) return newsSourceOptions;
+  newsSourceLoadError = "";
   try {
     var response = await dashboardFetch("/api/news-sources");
-    if (!response.ok) throw new Error("Source request failed.");
-    newsSourceOptions = await response.json();
+    newsSourceOptions = await readDashboardJson(response, "News sources");
   } catch (error) {
-    newsSourceOptions = { world: [], philippines: [], theology: [] };
-    showToast("News source choices could not be loaded yet.");
+    newsSourceLoadError = hostedHint("news-sources", error);
+    newsSourceOptions = JSON.parse(JSON.stringify(FALLBACK_NEWS_SOURCES));
+    showToast(newsSourceLoadError);
   }
   return newsSourceOptions;
 }
@@ -3077,16 +3150,25 @@ function renderSourceModal() {
   var selected = state.settings.newsSources || {};
   var custom = state.settings.customNewsSources || { world: [], philippines: [], theology: [] };
   els.sourceGrid.innerHTML = "";
+  if (newsSourceLoadError) {
+    var errorNote = document.createElement("p");
+    errorNote.className = "source-error-note";
+    errorNote.textContent = newsSourceLoadError + " Showing built-in source choices for now.";
+    els.sourceGrid.appendChild(errorNote);
+  }
   ["world", "philippines", "theology"].forEach(function (section) {
     var sources = orderedNewsSources(section);
     var chosen = selected[section] || [];
     var block = document.createElement("section");
-    block.className = "source-section";
+    block.className = "source-section" + (!sources.length ? " unavailable" : "");
     block.innerHTML =
       "<div class='source-section-head'><h3>" + labels[section] + "</h3><label class='check-all-source'><input type='checkbox' data-check-all='" + section + "'" + (chosen.length && chosen.length === sources.length ? " checked" : "") + "> Check all</label><span class='source-count'>" + chosen.length + "/10</span></div>" +
       "<div class='source-add-row'><input data-custom-name='" + section + "' type='text' placeholder='Source name'><input data-custom-url='" + section + "' type='url' placeholder='RSS / Atom URL'><button class='text-button small-control' data-add-source='" + section + "' type='button'>Add</button></div>" +
       "<div class='source-options'></div>";
     var list = block.querySelector(".source-options");
+    if (!sources.length) {
+      list.innerHTML = "<p class='source-empty'>No sources are available yet. Add an RSS or Atom feed above.</p>";
+    }
     sources.forEach(function (source) {
       var idValue = "source-" + section + "-" + source.source.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
       var row = document.createElement("label");
@@ -3537,11 +3619,11 @@ async function loadRssFeeds() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ feeds: state.rssFeeds })
     });
-    if (!response.ok) throw new Error("RSS request failed.");
-    rssData = await response.json();
+    rssData = await readDashboardJson(response, "RSS");
   } catch (error) {
-    rssData = { items: [], errors: [error.message] };
-    showToast("RSS feeds could not be loaded yet.");
+    var message = hostedHint("rss", error);
+    rssData = { items: [], errors: [message] };
+    showToast(message);
   }
   renderRssCards();
 }
@@ -3574,6 +3656,10 @@ function renderScoreboard() {
   var data = sportsData[currentSport];
   if (!data) {
     els.scoreboard.innerHTML = "<div class='score-card featured'><strong>Loading " + currentSport.toUpperCase() + "</strong><span>Connecting to free scoreboard data.</span></div>";
+    return;
+  }
+  if (data.errors && data.errors.length && !(data.games || []).length && !(data.priorityGames || []).length) {
+    els.scoreboard.innerHTML = "<div class='score-card featured error-card'><strong>" + currentSport.toUpperCase() + " feed needs attention</strong><span>" + escapeHTML(data.errors[0]) + "</span></div>";
     return;
   }
   renderLeagueScoreboard(data);
@@ -4080,11 +4166,16 @@ async function loadSport(sport) {
   renderScoreboard();
   try {
     var response = await dashboardFetch("/api/sports/" + sport + "?ts=" + Date.now(), { cache: "no-store" });
-    if (!response.ok) throw new Error("Sports request failed.");
-    sportsData[sport] = await response.json();
+    sportsData[sport] = await readDashboardJson(response, sport.toUpperCase() + " scoreboard");
+    if (sportsData[sport] && sportsData[sport].errors && sportsData[sport].errors.length) {
+      sportsData[sport].errors = sportsData[sport].errors.map(function (message) {
+        return hostedHint("sports/" + sport, new Error(message));
+      });
+    }
   } catch (error) {
-    sportsData[sport] = { sport: sport, games: [], standings: [], errors: [error.message] };
-    showToast("Scoreboard data could not be loaded yet.");
+    var message = hostedHint("sports/" + sport, error);
+    sportsData[sport] = { sport: sport, games: [], standings: [], errors: [message] };
+    showToast(message);
   }
   renderScoreboard();
 }
@@ -4693,6 +4784,7 @@ window.addEventListener("mouseup", function () {
 });
 
 try {
+  applyHostedModeUi();
   renderAll();
   initCloudIdentity();
   handleGoogleCalendarReturnMessage();

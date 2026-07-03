@@ -2,6 +2,7 @@
 .google-calendar-token.json
 .secret/
 .secrets/
+supabase/.temp/
 
 # Local environment and credentials
 .env

@@ -327,6 +327,8 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 .local-only-setting[hidden] {
   display: none !important;
 }
+body.hosted-dashboard .local-only-setting { display: none !important; }
+body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 
 .calendar-panel.planning-mode {
   background: linear-gradient(135deg, rgba(160, 160, 160, 0.22), rgba(255, 250, 240, 0.92));
@@ -1765,6 +1767,17 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .event-detail-section li span { color: var(--sage); font-weight: 900; }
 .source-card { gap: 10px; }
 .source-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.source-error-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(196, 71, 71, 0.18);
+  border-radius: 8px;
+  color: #9f3a3a;
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
 .source-section {
   display: grid;
   grid-template-rows: auto auto minmax(64px, 1fr);
@@ -1774,6 +1787,10 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.42);
+}
+.source-section.unavailable {
+  grid-template-rows: auto auto auto;
+  min-height: 162px;
 }
 .source-section-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
 .source-section h3 { margin: 0; color: var(--signature); font-size: 1rem; }
@@ -1816,6 +1833,16 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   overflow: auto;
   padding-right: 2px;
 }
+.source-empty {
+  width: 100%;
+  margin: 0;
+  padding: 7px 8px;
+  border: 1px dashed rgba(73, 53, 72, 0.16);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
 .source-option {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1833,6 +1860,14 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   cursor: grab;
   user-select: none;
   touch-action: none;
+}
+.score-card.error-card {
+  border-color: rgba(196, 71, 71, 0.24);
+  background: rgba(255, 255, 255, 0.76);
+}
+.score-card.error-card span {
+  color: #9f3a3a;
+  line-height: 1.35;
 }
 .source-option.dragging { opacity: 0.58; cursor: grabbing; }
 .source-option input { justify-self: center; margin: 0; }

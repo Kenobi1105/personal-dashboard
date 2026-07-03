@@ -141,7 +141,7 @@ export function uniqueItems(items: any[]) {
 export function supabaseEnv() {
   const url = Deno.env.get("SUPABASE_URL") || "https://txowrviwvulkuopmugfb.supabase.co";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY") || "";
   return { url, anonKey, serviceRoleKey };
 }
 
@@ -158,7 +158,7 @@ export async function getAuthUser(req: Request) {
 
 export async function serviceRequest(path: string, init: RequestInit = {}) {
   const { url, serviceRoleKey } = supabaseEnv();
-  if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
+  if (!serviceRoleKey) throw new Error("SERVICE_ROLE_KEY is not set");
   const headers = new Headers(init.headers || {});
   headers.set("apikey", serviceRoleKey);
   headers.set("Authorization", "Bearer " + serviceRoleKey);

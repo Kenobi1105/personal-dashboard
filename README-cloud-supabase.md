@@ -30,7 +30,7 @@ In Supabase, add these Edge Function secrets:
 GOOGLE_CALENDAR_CLIENT_ID
 GOOGLE_CALENDAR_CLIENT_SECRET
 GOOGLE_CALENDAR_REDIRECT_URI
-SUPABASE_SERVICE_ROLE_KEY
+SERVICE_ROLE_KEY
 API_SPORTS_KEY
 APP_URL
 ```
@@ -42,7 +42,7 @@ GOOGLE_CALENDAR_REDIRECT_URI=https://txowrviwvulkuopmugfb.supabase.co/functions/
 APP_URL=https://kenobi1105.github.io/personal-dashboard/
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` is in Supabase under:
+`SERVICE_ROLE_KEY` should contain the Supabase service role key from:
 
 ```text
 Project Settings -> API -> service_role key
@@ -102,4 +102,3 @@ The frontend now switches automatically:
 
 - `127.0.0.1` uses local `server.js`.
 - `kenobi1105.github.io` uses Supabase Edge Functions.
-
