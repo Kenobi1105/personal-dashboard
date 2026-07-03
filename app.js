@@ -103,6 +103,7 @@ var els = {
   cloudPrivateSettingsNote: document.getElementById("cloudPrivateSettingsNote"),
   cloudStatusGrid: document.getElementById("cloudStatusGrid"),
   cloudStatusRefresh: document.getElementById("cloudStatusRefresh"),
+  cloudSyncNow: document.getElementById("cloudSyncNow"),
   calendarPanel: document.getElementById("calendarPanel"),
   calendarGrid: document.getElementById("calendarGrid"),
   googleCalendarButton: document.getElementById("googleCalendarButton"),
@@ -690,7 +691,8 @@ function seedState() {
     activeTemplateId: null,
     rssFeeds: [],
     activeRssSource: "",
-    rssReadMoreUrl: ""
+    rssReadMoreUrl: "",
+    updatedAt: ""
   };
 }
 
@@ -776,6 +778,7 @@ function loadState() {
     loaded.rssFeeds = (loaded.rssFeeds || []).slice(0, 10);
     loaded.activeRssSource = loaded.activeRssSource || "";
     loaded.rssReadMoreUrl = loaded.rssReadMoreUrl || "";
+    loaded.updatedAt = loaded.updatedAt || "";
     return loaded;
   } catch (error) {
     console.warn(error);
@@ -971,9 +974,11 @@ var DAILY_VERSES = [
   }
 ];
 
-function saveState() {
+function saveState(options) {
+  options = options || {};
+  if (options.touch !== false) state.updatedAt = new Date().toISOString();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  queueCloudStateSave();
+  if (options.cloud !== false) queueCloudStateSave();
 }
 
 function syncableStateSnapshot() {
@@ -987,7 +992,7 @@ function syncableStateSnapshot() {
     rssFeeds: state.rssFeeds,
     activeRssSource: state.activeRssSource,
     rssReadMoreUrl: state.rssReadMoreUrl,
-    updatedAt: new Date().toISOString()
+    updatedAt: state.updatedAt || new Date().toISOString()
   };
 }
 
@@ -1006,7 +1011,7 @@ function mergeCloudState(remote) {
   state.activeRssSource = remote.activeRssSource || state.activeRssSource || "";
   state.rssReadMoreUrl = remote.rssReadMoreUrl || state.rssReadMoreUrl || "";
   state.updatedAt = remote.updatedAt || state.updatedAt || "";
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveState({ touch: false, cloud: false });
   return true;
 }
 
@@ -1020,16 +1025,23 @@ async function saveCloudState() {
   if (!cloudClient || !cloudSession) return;
   cloudSaveInFlight = true;
   try {
-    state.updatedAt = new Date().toISOString();
+    state.updatedAt = state.updatedAt || new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     var payload = syncableStateSnapshot();
     var response = await dashboardFetch("/api/dashboard-sync", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state: payload })
     });
-    if (!response.ok) throw new Error("Cloud save failed");
+    var data = await readDashboardJson(response, "dashboard-sync save");
+    if (data && data.state && data.state.updatedAt) {
+      state.updatedAt = data.state.updatedAt;
+      saveState({ touch: false, cloud: false });
+    }
+    setCloudStatus("sync", "ok", "Dashboard saved to cloud.");
   } catch (error) {
     console.warn(error);
+    setCloudStatus("sync", "warn", hostedHint("dashboard-sync save", error));
   } finally {
     cloudSaveInFlight = false;
   }
@@ -1037,20 +1049,36 @@ async function saveCloudState() {
 
 async function loadCloudState() {
   if (!cloudClient || !cloudSession) return;
+  var shouldUploadLocal = false;
   try {
     var response = await dashboardFetch("/api/dashboard-sync", { cache: "no-store" });
-    if (!response.ok) throw new Error("Cloud state unavailable");
-    var data = await response.json();
-    if (data && data.state && mergeCloudState(data.state)) {
-      renderAll();
-      renderRssFeeds();
-      showToast("Synced dashboard data loaded.");
+    var data = await readDashboardJson(response, "dashboard-sync load");
+    var remote = data && data.state ? data.state : null;
+    if (remote && Object.keys(remote).length) {
+      var localUpdated = Date.parse(state.updatedAt || "") || 0;
+      var remoteUpdated = Date.parse(remote.updatedAt || "") || 0;
+      if (localUpdated && remoteUpdated && localUpdated > remoteUpdated) {
+        shouldUploadLocal = true;
+        setCloudStatus("sync", "checking", "This device has newer changes. Uploading them to cloud...");
+      } else if (mergeCloudState(remote)) {
+        renderAll();
+        renderRssFeeds();
+        showToast("Synced dashboard data loaded.");
+        setCloudStatus("sync", "ok", "Cloud dashboard data loaded.");
+      } else {
+        setCloudStatus("sync", "ok", "Cloud dashboard data is current.");
+      }
+    } else {
+      shouldUploadLocal = true;
+      setCloudStatus("sync", "checking", "No cloud dashboard found. Seeding this account from this device...");
     }
   } catch (error) {
     console.warn(error);
+    setCloudStatus("sync", "warn", hostedHint("dashboard-sync load", error));
   } finally {
     cloudStateLoaded = true;
   }
+  if (shouldUploadLocal) await saveCloudState();
 }
 
 function updateAccountButton() {
@@ -1175,6 +1203,21 @@ async function runCloudStatusChecks() {
   else if (!status.configured) setCloudStatus("google", "warn", googleCalendarLastMessage || "Google Calendar OAuth secrets are missing or not deployed.");
   else if (status.connected) setCloudStatus("google", "ok", "Connected to " + (googleCalendarAccountLabel() || "Google Calendar") + ".");
   else setCloudStatus("google", "warn", "Configured, but not connected. Click Connect Google Calendar.");
+}
+
+async function syncCloudNow(showNotice) {
+  if (!cloudAvailable()) {
+    showToast("Dashboard sync is not available yet.");
+    return;
+  }
+  if (!cloudSession) {
+    setCloudStatus("sync", "warn", "Sign in first so dashboard state can sync across devices.");
+    showToast("Sign in to dashboard sync first.");
+    return;
+  }
+  setCloudStatus("sync", "checking", "Syncing dashboard state...");
+  await loadCloudState();
+  if (showNotice) showToast("Dashboard sync checked.");
 }
 
 async function initCloudIdentity() {
@@ -4442,6 +4485,7 @@ function submitFormOnEnter(form, submitSelector) {
 els.settingsButton.addEventListener("click", openSettings);
 if (els.accountButton) els.accountButton.addEventListener("click", toggleCloudSignIn);
 if (els.cloudStatusRefresh) els.cloudStatusRefresh.addEventListener("click", runCloudStatusChecks);
+if (els.cloudSyncNow) els.cloudSyncNow.addEventListener("click", function () { syncCloudNow(true); });
 els.closeSettingsButton.addEventListener("click", function () { els.settingsModal.close(); });
 els.obsidianButton.addEventListener("click", openVaultPlaceholder);
 els.settingsModal.addEventListener("click", function (event) {

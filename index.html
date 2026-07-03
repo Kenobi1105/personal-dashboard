@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ministry Dashboard</title>
-    <link rel="stylesheet" href="styles.css?v=20">
+    <link rel="stylesheet" href="styles.css?v=21">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -593,7 +593,10 @@
         <section class="cloud-status-section" aria-label="Cloud status">
           <div class="settings-section-head">
             <p class="eyebrow">Cloud Status</p>
-            <button class="text-button small-control" id="cloudStatusRefresh" type="button">Check</button>
+            <div class="settings-section-actions">
+              <button class="text-button small-control" id="cloudSyncNow" type="button">Sync Now</button>
+              <button class="text-button small-control" id="cloudStatusRefresh" type="button">Check</button>
+            </div>
           </div>
           <div class="cloud-status-grid" id="cloudStatusGrid">
             <p class="empty-state">Open Settings to check hosted sync and feeds.</p>
@@ -707,6 +710,6 @@
       </article>
     </dialog>
 
-    <script src="app.js?v=45"></script>
+    <script src="app.js?v=46"></script>
   </body>
 </html>

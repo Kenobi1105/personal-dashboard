@@ -9,7 +9,11 @@ Deno.serve(async (req) => {
     const response = await serviceRequest("/rest/v1/dashboard_state?user_id=eq." + encodeURIComponent(user.id) + "&select=state,updated_at&limit=1");
     if (!response.ok) return json({ error: await response.text() }, response.status);
     const rows = await response.json();
-    return json(rows[0] || { state: null });
+    const row = rows[0];
+    if (!row) return json({ state: null, updatedAt: "" });
+    const state = row.state && typeof row.state === "object" ? row.state : {};
+    if (!state.updatedAt && row.updated_at) state.updatedAt = row.updated_at;
+    return json({ state, updatedAt: row.updated_at || state.updatedAt || "" });
   }
 
   if (req.method === "PUT" || req.method === "POST") {
@@ -26,9 +30,11 @@ Deno.serve(async (req) => {
     });
     if (!response.ok) return json({ error: await response.text() }, response.status);
     const rows = await response.json();
-    return json({ ok: true, state: rows[0]?.state || payload.state });
+    const saved = rows[0] || payload;
+    const state = saved.state && typeof saved.state === "object" ? saved.state : payload.state;
+    if (!state.updatedAt) state.updatedAt = saved.updated_at || payload.updated_at;
+    return json({ ok: true, state, updatedAt: saved.updated_at || state.updatedAt || "" });
   }
 
   return json({ error: "Method not allowed" }, 405);
 });
-

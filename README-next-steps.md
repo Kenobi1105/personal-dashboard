@@ -50,3 +50,13 @@ Use this order after cloud-related code changes.
 6. Open Settings in the hosted dashboard.
 
    Use **Cloud Status -> Check** to verify sign-in, sync, news, sports, RSS/article, and Google Calendar.
+
+7. Test account sync.
+
+   Sign in with the account icon, then open Settings and click:
+
+   ```text
+   Cloud Status -> Sync Now
+   ```
+
+   Make one small dashboard change, refresh the page, and confirm the change remains.
