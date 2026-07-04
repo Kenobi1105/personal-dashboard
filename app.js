@@ -3335,6 +3335,24 @@ function newsReaderItem(item) {
   };
 }
 
+function prayerReaderItem(item, fallbackTitle) {
+  var title = item.peopleGroup || item.country || item.name || fallbackTitle || "Prayer Focus";
+  var points = (item.prayerPoints || []).length
+    ? "<h2>Prayer Points</h2><ul>" + item.prayerPoints.map(function (point) { return "<li>" + escapeHTML(point) + "</li>"; }).join("") + "</ul>"
+    : "";
+  var summary = item.summary ? "<p>" + escapeHTML(item.summary) + "</p>" : "";
+  return {
+    source: item.source || fallbackTitle || "Prayer Focus",
+    title: title,
+    summary: item.summary || "",
+    contentHtml: summary + points,
+    url: item.url || "#",
+    image: item.flagImage || "",
+    articleKind: "news",
+    fullArticleLoaded: false
+  };
+}
+
 function renderNews() {
   renderHeadline();
   renderNewsList(els.worldNewsList, newsItems("world"));
@@ -4254,11 +4272,15 @@ function renderWorldWatch() {
   var flag = watchFlagImage
     ? "<img class='watch-flag-img' src='" + escapeHTML(watchFlagImage) + "' alt='" + escapeHTML(watchName) + " flag'>"
     : "<span class='watch-flag'>" + escapeHTML(watchFlagText) + "</span>";
+  var heroOpen = worldWatchData.url
+    ? "<a class='watch-hero watch-hero-button' href='" + escapeHTML(worldWatchData.url) + "' data-world-watch-link>"
+    : "<div class='watch-hero'>";
+  var heroClose = worldWatchData.url ? "</a>" : "</div>";
   els.worldWatchCard.innerHTML =
-    "<div class='watch-hero'>" +
+    heroOpen +
       "<div><p class='watch-label'>World Watch Ranking</p><strong class='watch-rank'>#" + escapeHTML(worldWatchData.rank) + "</strong></div>" +
       "<div class='watch-country'><h3>" + escapeHTML(watchName) + "</h3>" + flag + "</div>" +
-    "</div>" +
+    heroClose +
     "<dl class='watch-stats'>" +
       "<div><dt>Christian population</dt><dd>" + escapeHTML(worldWatchData.christianPopulation || "Not listed") + "</dd></div>" +
       "<div><dt>Population</dt><dd>" + escapeHTML(worldWatchData.population || "Not listed") + "</dd></div>" +
@@ -4267,6 +4289,13 @@ function renderWorldWatch() {
       "<div><dt>Leader</dt><dd>" + escapeHTML(worldWatchData.leader || "Not listed") + "</dd></div>" +
     "</dl>" +
     "<section class='watch-prayer-section'><h4>Prayer Points</h4><ul class='watch-prayers'>" + points + "</ul></section>";
+  var watchLink = els.worldWatchCard.querySelector("[data-world-watch-link]");
+  if (watchLink) {
+    watchLink.addEventListener("click", function (event) {
+      event.preventDefault();
+      openReader(prayerReaderItem(worldWatchData, "Open Doors"));
+    });
+  }
 }
 
 async function loadWorldWatch() {
@@ -4306,7 +4335,15 @@ function missionItemMarkup(item, fallbackTitle) {
 function renderMissions() {
   if (!els.missionsCard) return;
   var item = missionsData && missionsData[activeMission];
-  els.missionsCard.innerHTML = missionItemMarkup(item, activeMission === "operation" ? "Operation World" : "Joshua Project");
+  var missionTitle = activeMission === "operation" ? "Operation World" : "Joshua Project";
+  els.missionsCard.innerHTML = missionItemMarkup(item, missionTitle);
+  var missionLink = els.missionsCard.querySelector(".mission-link");
+  if (missionLink && item) {
+    missionLink.addEventListener("click", function (event) {
+      event.preventDefault();
+      openReader(prayerReaderItem(item, missionTitle));
+    });
+  }
   if (els.missionsTabs) {
     els.missionsTabs.querySelectorAll(".missions-tab").forEach(function (button) {
       button.classList.toggle("active", button.dataset.mission === activeMission);
