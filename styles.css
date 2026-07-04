@@ -1075,6 +1075,19 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   background-size: cover;
   background-position: center;
 }
+.news-card-thumb.no-image,
+.league-news-thumb.no-image {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 250, 240, 0.96);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-align: center;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(240, 208, 143, 0.42), transparent 36%),
+    linear-gradient(145deg, rgba(73, 53, 72, 0.92), rgba(111, 125, 92, 0.72));
+}
 .news-card-copy {
   display: grid;
   align-content: center;
@@ -1372,6 +1385,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .league-news-thumb {
   width: 48px;
   height: 48px;
+  flex: 0 0 48px;
   border-radius: 7px;
   background: linear-gradient(145deg, rgba(73, 53, 72, 0.72), rgba(240, 208, 143, 0.5));
   background-size: cover;
@@ -1872,8 +1886,15 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 }
 .source-section.unavailable {
   grid-template-rows: auto auto auto;
-  min-height: 162px;
+  min-height: 150px;
 }
+.source-section.unavailable .source-add-row { align-self: start; }
+.source-section.unavailable .source-add-row input,
+.source-section.unavailable .source-add-row button {
+  min-height: 30px;
+  height: 30px;
+}
+.source-section.unavailable .source-options { min-height: 0; }
 .source-section-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
 .source-section h3 { margin: 0; color: var(--signature); font-size: 1rem; }
 .source-count { color: var(--sage); font-size: 0.68rem; font-weight: 900; }

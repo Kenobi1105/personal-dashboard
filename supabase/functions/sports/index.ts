@@ -1,4 +1,4 @@
-import { fetchText, json, optionsResponse, parseFeed, uniqueItems } from "../_shared/dashboard.ts";
+import { enrichItemMedia, fetchText, json, optionsResponse, parseFeed, uniqueItems } from "../_shared/dashboard.ts";
 
 const SPORT_NEWS: Record<string, Array<{ source: string; url: string; priority: number }>> = {
   mlb: [
@@ -113,7 +113,8 @@ async function leagueNews(sport: string) {
   settled.forEach((entry) => {
     if (entry.status === "fulfilled") items = items.concat(entry.value);
   });
-  return uniqueItems(items).slice(0, 6);
+  const selected = uniqueItems(items).slice(0, 6);
+  return await Promise.all(selected.map(enrichItemMedia));
 }
 
 async function getMlb() {
@@ -198,4 +199,3 @@ Deno.serve(async (req) => {
     return json({ sport, games: [], standings: [], errors: [error instanceof Error ? error.message : String(error)] }, 200);
   }
 });
-

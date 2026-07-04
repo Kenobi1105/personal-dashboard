@@ -66,6 +66,67 @@ function attr(block: string, tagName: string, attrName: string) {
   return match ? decodeEntities(match[1]).trim() : "";
 }
 
+export function metaTag(html: string, name: string) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp("<meta[^>]+(?:property|name)=[\"']" + escaped + "[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>", "i"),
+    new RegExp("<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+(?:property|name)=[\"']" + escaped + "[\"'][^>]*>", "i"),
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return decodeEntities(match[1]).trim();
+  }
+  return "";
+}
+
+export function extractArticleImage(html: string, pageUrl: string) {
+  const metaImage = metaTag(html, "og:image") || metaTag(html, "twitter:image") || metaTag(html, "image");
+  if (metaImage) return absoluteUrl(metaImage, pageUrl);
+
+  const jsonLdBlocks = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+  for (const block of jsonLdBlocks) {
+    const text = block.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, "").trim();
+    try {
+      const parsed = JSON.parse(text);
+      const queue = Array.isArray(parsed) ? parsed.slice() : [parsed];
+      while (queue.length) {
+        const item = queue.shift();
+        if (!item || typeof item !== "object") continue;
+        if (Array.isArray(item)) {
+          queue.push(...item);
+          continue;
+        }
+        const image = item.image || item.thumbnailUrl;
+        if (typeof image === "string") return absoluteUrl(image, pageUrl);
+        if (Array.isArray(image) && image[0]) return absoluteUrl(typeof image[0] === "string" ? image[0] : image[0].url || "", pageUrl);
+        if (image && typeof image === "object" && image.url) return absoluteUrl(image.url, pageUrl);
+        Object.keys(item).forEach((key) => {
+          if (item[key] && typeof item[key] === "object") queue.push(item[key]);
+        });
+      }
+    } catch {
+      // Ignore invalid JSON-LD blocks.
+    }
+  }
+
+  const imgMatches = Array.from(html.matchAll(/<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["'][^>]*>/gi));
+  const found = imgMatches
+    .map((match) => decodeEntities(match[1]))
+    .find((src) => /^https?:\/\//i.test(src) || /^\//.test(src));
+  return found ? absoluteUrl(found, pageUrl) : "";
+}
+
+export async function enrichItemMedia(item: any) {
+  if (!item || item.image || !/^https?:\/\//i.test(item.url || "")) return item;
+  try {
+    const html = await fetchText(item.url, 7000);
+    item.image = extractArticleImage(html, item.url);
+  } catch {
+    item.image = item.image || "";
+  }
+  return item;
+}
+
 export async function fetchText(url: string, timeoutMs = 9000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);

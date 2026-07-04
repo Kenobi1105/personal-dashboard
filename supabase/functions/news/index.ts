@@ -1,4 +1,4 @@
-import { compareNews, fetchText, json, optionsResponse, parseFeed, uniqueItems } from "../_shared/dashboard.ts";
+import { compareNews, enrichItemMedia, fetchText, json, optionsResponse, parseFeed, uniqueItems } from "../_shared/dashboard.ts";
 
 const FEEDS: Record<string, Array<{ source: string; url: string; priority: number }>> = {
   world: [
@@ -56,8 +56,30 @@ async function sectionNews(url: URL, section: string) {
     if (entry.status === "fulfilled") items = items.concat(entry.value);
     else errors.push({ section, source: feeds[index].source, message: entry.reason?.message || "Feed failed" });
   });
-  items = uniqueItems(items).sort(compareNews).slice(0, 12);
-  return { items, errors };
+  items = balanceSources(uniqueItems(items).sort(compareNews), 12);
+  const enriched = await Promise.all(items.slice(0, 8).map(enrichItemMedia));
+  return { items: enriched.concat(items.slice(8)), errors };
+}
+
+function balanceSources(items: any[], limit: number) {
+  const firstPass: any[] = [];
+  const used: Record<string, boolean> = {};
+  for (const item of items) {
+    const source = String(item.source || "unknown").toLowerCase();
+    if (used[source]) continue;
+    firstPass.push(item);
+    used[source] = true;
+    if (firstPass.length >= limit) return firstPass;
+  }
+  const seen = new Set(firstPass.map((item) => item.url || item.title));
+  for (const item of items) {
+    const key = item.url || item.title;
+    if (seen.has(key)) continue;
+    firstPass.push(item);
+    seen.add(key);
+    if (firstPass.length >= limit) break;
+  }
+  return firstPass;
 }
 
 Deno.serve(async (req) => {
@@ -72,4 +94,3 @@ Deno.serve(async (req) => {
   }
   return json(result);
 });
-

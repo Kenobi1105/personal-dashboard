@@ -3186,6 +3186,25 @@ function newsItems(section) {
   });
 }
 
+function sourceInitials(source) {
+  return String(source || "News")
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(function (part) { return part.charAt(0).toUpperCase(); })
+    .join("") || "N";
+}
+
+function setNewsThumb(media, item) {
+  if (item && item.image) {
+    media.style.backgroundImage = "url('" + item.image.replace(/'/g, "%27") + "')";
+    return;
+  }
+  media.classList.add("no-image");
+  media.textContent = sourceInitials(item && item.source);
+}
+
 function renderNewsList(list, items) {
   list.innerHTML = "";
   if (!items.length) {
@@ -3206,7 +3225,7 @@ function renderNewsList(list, items) {
     });
     var media = document.createElement("span");
     media.className = "news-card-thumb";
-    if (item.image) media.style.backgroundImage = "url('" + item.image.replace(/'/g, "%27") + "')";
+    setNewsThumb(media, item);
     var copy = document.createElement("span");
     copy.className = "news-card-copy";
     var title = document.createElement("strong");
@@ -4118,9 +4137,19 @@ function renderLeagueNews(data) {
     link.href = item.url;
     link.target = "_blank";
     link.rel = "noopener";
+    link.addEventListener("click", function (event) {
+      event.preventDefault();
+      openReader(newsReaderItem({
+        title: item.title,
+        summary: item.summary || "",
+        source: item.source || data.label || "League News",
+        url: item.url,
+        image: item.image || ""
+      }));
+    });
     var media = document.createElement("span");
     media.className = "league-news-thumb";
-    if (item.image) media.style.backgroundImage = "url('" + item.image.replace(/'/g, "%27") + "')";
+    setNewsThumb(media, item);
     var copy = document.createElement("span");
     copy.className = "league-news-copy";
     var title = document.createElement("strong");
@@ -4216,16 +4245,19 @@ function renderWorldWatch() {
     els.worldWatchCard.innerHTML = "<p class='empty-state'>Loading prayer country...</p>";
     return;
   }
+  var watchName = worldWatchData.name || worldWatchData.country || "Open Doors";
+  var watchFlagImage = worldWatchData.flagImage || (/^https?:\/\//i.test(worldWatchData.flag || "") ? worldWatchData.flag : "");
+  var watchFlagText = watchFlagImage ? "" : (worldWatchData.flag || "");
   var points = (worldWatchData.prayerPoints || []).length
     ? worldWatchData.prayerPoints.map(function (point) { return "<li>" + escapeHTML(point) + "</li>"; }).join("")
     : "<li>Prayer points are not listed for this country.</li>";
-  var flag = worldWatchData.flagImage
-    ? "<img class='watch-flag-img' src='" + escapeHTML(worldWatchData.flagImage) + "' alt='" + escapeHTML(worldWatchData.name) + " flag'>"
-    : "<span class='watch-flag'>" + escapeHTML(worldWatchData.flag || "") + "</span>";
+  var flag = watchFlagImage
+    ? "<img class='watch-flag-img' src='" + escapeHTML(watchFlagImage) + "' alt='" + escapeHTML(watchName) + " flag'>"
+    : "<span class='watch-flag'>" + escapeHTML(watchFlagText) + "</span>";
   els.worldWatchCard.innerHTML =
     "<div class='watch-hero'>" +
       "<div><p class='watch-label'>World Watch Ranking</p><strong class='watch-rank'>#" + escapeHTML(worldWatchData.rank) + "</strong></div>" +
-      "<div class='watch-country'><h3>" + escapeHTML(worldWatchData.name) + "</h3>" + flag + "</div>" +
+      "<div class='watch-country'><h3>" + escapeHTML(watchName) + "</h3>" + flag + "</div>" +
     "</div>" +
     "<dl class='watch-stats'>" +
       "<div><dt>Christian population</dt><dd>" + escapeHTML(worldWatchData.christianPopulation || "Not listed") + "</dd></div>" +
@@ -4250,8 +4282,9 @@ async function loadWorldWatch() {
 
 function missionItemMarkup(item, fallbackTitle) {
   if (!item) return "<p class='empty-state'>Loading " + escapeHTML(fallbackTitle) + "...</p>";
-  var flag = item.flagImage
-    ? "<img class='mission-flag-img' src='" + escapeHTML(item.flagImage) + "' alt='" + escapeHTML(item.country || item.name || fallbackTitle) + " flag'>"
+  var missionFlagImage = item.flagImage || (/^https?:\/\//i.test(item.flag || "") ? item.flag : "");
+  var flag = missionFlagImage
+    ? "<img class='mission-flag-img' src='" + escapeHTML(missionFlagImage) + "' alt='" + escapeHTML(item.country || item.name || fallbackTitle) + " flag'>"
     : "";
   var isJoshua = activeMission === "joshua";
   var title = isJoshua ? (item.peopleGroup || item.name || fallbackTitle) : (item.country || item.name || fallbackTitle);
@@ -4298,13 +4331,16 @@ async function loadMissions() {
 function languageVocabularyCard(item, type) {
   if (!item) return "";
   var textClass = type === "hebrew" ? "hebrew-text" : "greek-text";
+  var original = item.original || item.word || "";
+  var transliteration = item.transliteration || item.word || "";
+  var parsing = item.parsing || item.form || "";
   return "<article class='language-vocab-card " + type + "'>" +
     "<p class='eyebrow'>" + (type === "hebrew" ? "Hebrew" : "Greek") + "</p>" +
-    "<h3 class='" + textClass + "'>" + escapeHTML(item.word) + "</h3>" +
-    "<p class='language-translit'>" + escapeHTML(item.transliteration) + "</p>" +
+    "<h3 class='" + textClass + "'>" + escapeHTML(original) + "</h3>" +
+    "<p class='language-translit'>" + escapeHTML(transliteration) + "</p>" +
     "<dl>" +
       "<div><dt>Gloss</dt><dd>" + escapeHTML(item.gloss) + "</dd></div>" +
-      "<div><dt>Form</dt><dd>" + escapeHTML(item.parsing) + "</dd></div>" +
+      "<div><dt>Form</dt><dd>" + escapeHTML(parsing) + "</dd></div>" +
       "<div><dt>Example</dt><dd>" + escapeHTML(item.example) + "</dd></div>" +
       (item.source ? "<div><dt>Source</dt><dd>" + escapeHTML(item.source) + "</dd></div>" : "") +
     "</dl>" +
@@ -4375,8 +4411,8 @@ async function loadLanguagePanel() {
   } catch (error) {
     languageData = {
       vocabulary: {
-        greek: { word: "λόγος", transliteration: "logos", gloss: "word, message, reason", parsing: "Noun, masculine", example: "John 1:1" },
-        hebrew: { word: "חֶסֶד", transliteration: "hesed", gloss: "steadfast love, covenant loyalty", parsing: "Noun, masculine", example: "Psalm 136:1" }
+        greek: { word: "logos", original: "λόγος", transliteration: "logos", gloss: "word, message, reason", parsing: "Noun, masculine", example: "John 1:1", source: "MorphGNT / SBLGNT curated cache" },
+        hebrew: { word: "berit", original: "בְּרִית", transliteration: "berit", gloss: "covenant", parsing: "Noun, feminine", example: "Genesis 17:7", source: "Open Scriptures Hebrew Bible curated cache" }
       },
       videos: {}
     };

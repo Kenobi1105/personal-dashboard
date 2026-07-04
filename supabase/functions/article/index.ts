@@ -1,16 +1,4 @@
-import { absoluteUrl, escapeHtml, fetchText, json, optionsResponse, stripTags } from "../_shared/dashboard.ts";
-
-function meta(html: string, name: string) {
-  const patterns = [
-    new RegExp("<meta[^>]+(?:property|name)=[\"']" + name + "[\"'][^>]+content=[\"']([^\"']+)[\"'][^>]*>", "i"),
-    new RegExp("<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+(?:property|name)=[\"']" + name + "[\"'][^>]*>", "i"),
-  ];
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match) return match[1];
-  }
-  return "";
-}
+import { escapeHtml, extractArticleImage, fetchText, json, metaTag, optionsResponse, stripTags } from "../_shared/dashboard.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return optionsResponse();
@@ -24,10 +12,9 @@ Deno.serve(async (req) => {
     .slice(0, 18);
   return json({
     url: pageUrl,
-    title: stripTags(meta(html, "og:title") || meta(html, "twitter:title")),
-    image: absoluteUrl(meta(html, "og:image") || meta(html, "twitter:image"), pageUrl),
+    title: stripTags(metaTag(html, "og:title") || metaTag(html, "twitter:title")),
+    image: extractArticleImage(html, pageUrl),
     contentHtml: paragraphs.map((paragraph) => "<p>" + escapeHtml(paragraph) + "</p>").join(""),
     extracted: paragraphs.length > 0,
   });
 });
-

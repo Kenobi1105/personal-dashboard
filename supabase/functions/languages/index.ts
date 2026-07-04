@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
   ]);
   return json({
     vocabulary: {
-      greek: { word: "logos", original: "λόγος", gloss: "word, message, reason", form: "Noun, masculine", example: "John 1:1", source: "MorphGNT / SBLGNT curated cache" },
-      hebrew: { word: "berit", original: "בְּרִית", gloss: "covenant", form: "Noun, feminine", example: "Genesis 17:7", source: "Open Scriptures Hebrew Bible curated cache" },
+      greek: { word: "logos", original: "λόγος", transliteration: "logos", gloss: "word, message, reason", form: "Noun, masculine", parsing: "Noun, masculine", example: "John 1:1", source: "MorphGNT / SBLGNT curated cache" },
+      hebrew: { word: "berit", original: "בְּרִית", transliteration: "berit", gloss: "covenant", form: "Noun, feminine", parsing: "Noun, feminine", example: "Genesis 17:7", source: "Open Scriptures Hebrew Bible curated cache" },
     },
     videos: { greek, hebrew, septuagint },
   });
