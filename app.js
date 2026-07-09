@@ -851,6 +851,7 @@ var cloudStatusChecks = {
   news: { state: "idle", detail: "Not checked yet." },
   sports: { state: "idle", detail: "Not checked yet." },
   rss: { state: "idle", detail: "Not checked yet." },
+  language: { state: "idle", detail: "Not checked yet." },
   google: { state: "idle", detail: "Not checked yet." }
 };
 
@@ -1125,6 +1126,7 @@ function renderCloudStatus() {
     news: "News functions",
     sports: "Sports function",
     rss: "RSS / article functions",
+    language: "Language Lab",
     google: "Google Calendar"
   };
   els.cloudStatusGrid.innerHTML = Object.keys(labels).map(function (key) {
@@ -1196,6 +1198,18 @@ async function runCloudStatusChecks() {
   } catch (error) {
     setCloudStatus("rss", "warn", hostedHint("rss/article", error));
   }
+
+  await checkCloudEndpoint("language", "languages", function () {
+    return dashboardFetch("/api/languages", { cache: "no-store" });
+  }, function (payload) {
+    var vocabulary = payload && payload.vocabulary ? payload.vocabulary : {};
+    if (!vocabulary.greek || !vocabulary.hebrew) throw new Error("Language Lab vocabulary is missing.");
+    var videos = payload && payload.videos ? payload.videos : {};
+    var videoCount = ["greek", "hebrew", "septuagint"].reduce(function (sum, key) {
+      return sum + (((videos[key] || {}).items || []).length);
+    }, 0);
+    return videoCount ? "Vocabulary and " + videoCount + " video entries loaded." : "Vocabulary loaded. Video feeds returned no entries yet.";
+  });
 
   setCloudStatus("google", "checking", "Checking Google Calendar...");
   var status = await loadGoogleCalendarStatus();
@@ -5142,6 +5156,7 @@ try {
   loadLanguagePanel();
   loadSport(currentSport);
   startHeadlineCarousel();
+  window.setTimeout(runCloudStatusChecks, 1500);
   setInterval(loadNews, 5 * 60 * 1000);
   setInterval(loadRssFeeds, 30 * 60 * 1000);
   setInterval(function () { refreshGoogleCalendar(false); }, 10 * 60 * 1000);
