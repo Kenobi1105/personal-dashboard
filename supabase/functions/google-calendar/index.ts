@@ -4,6 +4,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+const GOOGLE_REQUEST_TIMEOUT_MS = 12_000;
 const SCOPES = [
   "openid",
   "email",
@@ -129,7 +130,17 @@ async function calendarRequest(userId: string, apiPath: string, init: RequestIni
   const headers = new Headers(init.headers || {});
   headers.set("Authorization", "Bearer " + accessToken);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await fetch(GOOGLE_CALENDAR_API + apiPath, { ...init, headers });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GOOGLE_REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(GOOGLE_CALENDAR_API + apiPath, { ...init, headers, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("Google Calendar request timed out");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   if (response.status === 204) return {};
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error?.message || "Google Calendar request failed");
@@ -141,7 +152,7 @@ async function visibleCalendars(userId: string) {
   const calendars = (data.items || []).filter((calendar: any) => {
     if (!calendar?.id) return false;
     if (calendar.deleted || calendar.hidden) return false;
-    return calendar.primary || calendar.selected !== false;
+    return true;
   });
   return calendars.length ? calendars : [{ id: "primary", summary: "Primary", primary: true }];
 }
@@ -270,7 +281,16 @@ Deno.serve(async (req) => {
       }
     }));
     events.sort((a, b) => String(a.start + (a.timeStart || "")).localeCompare(String(b.start + (b.timeStart || ""))));
-    return json({ ok: true, configured: true, connected: true, calendarCount: calendars.length, errors, events });
+    return json({
+      ok: true,
+      configured: true,
+      connected: true,
+      calendarCount: calendars.length,
+      calendarNames: calendars.map((calendar: any) => calendar.summary || calendar.id).slice(0, 12),
+      range: { timeMin: params.get("timeMin"), timeMax: params.get("timeMax") },
+      errors,
+      events,
+    });
   }
 
   if (path === "/events" && req.method === "POST") {

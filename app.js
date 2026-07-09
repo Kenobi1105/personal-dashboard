@@ -1566,18 +1566,28 @@ async function loadGoogleCalendarEvents(showNotice) {
       if (event.source !== "google" && event.googleEventId) ids[event.googleEventId] = true;
       return ids;
     }, {});
-    var googleEvents = (data.events || []).map(normalizeEvent).filter(function (event) {
+    var rawGoogleEvents = data.events || [];
+    var googleEvents = rawGoogleEvents.map(normalizeEvent).filter(function (event) {
       return !syncedIds[event.googleEventId];
     });
     state.events = state.events.filter(function (event) { return event.source !== "google"; }).concat(googleEvents);
     saveState();
     renderAll();
     var count = googleEvents.length;
+    var rawCount = rawGoogleEvents.length;
+    var duplicateCount = Math.max(0, rawCount - count);
     var calendarCount = Number(data.calendarCount || 1);
     var rangeLabel = calendarCount + " calendar" + (calendarCount === 1 ? "" : "s") + " checked";
-    var warning = data.errors && data.errors.length ? " Some calendars reported warnings." : "";
-    setCloudStatus("google", "ok", count ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded for this view; " + rangeLabel + "." + warning : "Google Calendar connected. No events found in this visible range; " + rangeLabel + "." + warning);
-    if (showNotice) showToast(count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. No events found in this visible range.");
+    var rangeStart = data.range && data.range.timeMin ? formatShortDate(data.range.timeMin) : formatShortDate(range.timeMin);
+    var rangeEnd = data.range && data.range.timeMax ? formatShortDate(data.range.timeMax) : formatShortDate(range.timeMax);
+    var rangeText = rangeStart && rangeEnd ? " Range: " + rangeStart + "-" + rangeEnd + "." : "";
+    var duplicateText = duplicateCount ? " " + duplicateCount + " duplicate synced event" + (duplicateCount === 1 ? "" : "s") + " hidden." : "";
+    var warning = data.errors && data.errors.length ? " Warnings: " + data.errors.slice(0, 2).join(" | ") : "";
+    var summary = count
+      ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded; " + rangeLabel + "." + duplicateText + rangeText + warning
+      : "Google Calendar returned " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " for this view; " + rangeLabel + "." + duplicateText + rangeText + warning;
+    setCloudStatus("google", data.errors && data.errors.length && !count ? "warn" : "ok", summary);
+    if (showNotice) showToast(count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " returned for this range.");
   } catch (error) {
     googleCalendarLastMessage = hostedHint("google-calendar/events", error);
     if (showNotice) showToast("Google Calendar needs attention. Check Settings.");
