@@ -2024,6 +2024,17 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   max-height: 320px;
   object-fit: cover;
 }
+.reader-hero-flag {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+.reader-hero-flag img {
+  max-height: 260px;
+  object-fit: contain;
+  border-radius: 6px;
+}
 .reader-body {
   max-height: min(58vh, 560px);
   overflow: auto;

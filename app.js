@@ -3341,16 +3341,22 @@ function prayerReaderItem(item, fallbackTitle) {
     ? "<h2>Prayer Points</h2><ul>" + item.prayerPoints.map(function (point) { return "<li>" + escapeHTML(point) + "</li>"; }).join("") + "</ul>"
     : "";
   var summary = item.summary ? "<p>" + escapeHTML(item.summary) + "</p>" : "";
+  var flagImage = highResolutionFlagUrl(item.flagImage || "");
   return {
     source: item.source || fallbackTitle || "Prayer Focus",
     title: title,
     summary: item.summary || "",
     contentHtml: summary + points,
     url: item.url || "#",
-    image: item.flagImage || "",
+    image: flagImage,
+    imageKind: flagImage ? "flag" : "",
     articleKind: "news",
     fullArticleLoaded: false
   };
+}
+
+function highResolutionFlagUrl(url) {
+  return String(url || "").replace(/flagcdn\.com\/w(?:80|160|320)\//i, "flagcdn.com/w640/");
 }
 
 function renderNews() {
@@ -3680,7 +3686,8 @@ function selectRssItems(items) {
 
 function readerArticleBody(item) {
   var body = item.contentHtml || item.summary || "";
-  var image = item.image ? "<figure class='reader-hero-image'><img src='" + escapeHTML(item.image) + "' alt=''></figure>" : "";
+  var imageClass = item.imageKind === "flag" ? "reader-hero-image reader-hero-flag" : "reader-hero-image";
+  var image = item.image ? "<figure class='" + imageClass + "'><img src='" + escapeHTML(item.image) + "' alt=''></figure>" : "";
   var videoNote = item.isVideo && !item.video ? "<p><strong>Video article:</strong> open the original story to watch the embedded video.</p>" : "";
   var loading = item.articleKind === "news" && !item.fullArticleLoaded ? "<p class='reader-loading-note'>Loading full article text...</p>" : "";
   return image + videoNote + loading + (sanitizeArticleHtml(body) || "<p>" + escapeHTML(plainTextFromHtml(body) || "This feed only provided a short preview.") + "</p>");
@@ -4413,9 +4420,10 @@ function renderDoseView(view) {
   var list = items.slice(1, 7).map(function (item, index) {
     return languageVideoButton(item, index + 1);
   }).join("");
+  var latestImage = latest.image || latest.thumbnail || (latest.videoId ? "https://i.ytimg.com/vi/" + encodeURIComponent(latest.videoId) + "/hqdefault.jpg" : "");
   els.languageContent.innerHTML =
     "<button class='language-feature-video' type='button' data-video-view='" + escapeHTML(view) + "' data-video-index='0'>" +
-      (latest.image ? "<img src='" + escapeHTML(latest.image) + "' alt=''>" : "<span class='language-video-placeholder'></span>") +
+      (latestImage ? "<img src='" + escapeHTML(latestImage) + "' alt=''>" : "<span class='language-video-placeholder'></span>") +
       "<span class='language-play-pill'>Play latest</span>" +
       "<strong>" + escapeHTML(latest.title) + "</strong>" +
     "</button>" +
