@@ -1407,7 +1407,9 @@ function updateGoogleCalendarControls() {
   els.googleCalendarButton.disabled = googleCalendarLoading;
   if (els.googleCalendarSyncButton) {
     els.googleCalendarSyncButton.disabled = googleCalendarLoading || !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect;
-    els.googleCalendarSyncButton.hidden = true;
+    els.googleCalendarSyncButton.hidden = !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect;
+    els.googleCalendarSyncButton.textContent = googleCalendarLoading ? "Syncing..." : "Sync Google";
+    els.googleCalendarSyncButton.title = "Refresh Google Calendar events for the visible calendar range.";
   }
   if (!googleCalendarStatus.configured) {
     els.googleCalendarButton.textContent = "Connect Google Calendar";
@@ -1570,7 +1572,9 @@ async function loadGoogleCalendarEvents(showNotice) {
     state.events = state.events.filter(function (event) { return event.source !== "google"; }).concat(googleEvents);
     saveState();
     renderAll();
-    if (showNotice) showToast("Google Calendar synced.");
+    var count = googleEvents.length;
+    setCloudStatus("google", "ok", count ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded for this view." : "Google Calendar connected. No events found in this visible range.");
+    if (showNotice) showToast(count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. No events found in this visible range.");
   } catch (error) {
     googleCalendarLastMessage = hostedHint("google-calendar/events", error);
     if (showNotice) showToast("Google Calendar needs attention. Check Settings.");
