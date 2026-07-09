@@ -42,15 +42,18 @@ function timeSlot(date: Date) {
   return "Evening";
 }
 
-function normalizeGoogleEvent(item: any) {
+function normalizeGoogleEvent(item: any, calendar: any = {}) {
   const allDay = Boolean(item.start?.date);
   const startDateTime = allDay ? null : new Date(item.start.dateTime);
   const start = allDay ? item.start.date : isoDate(startDateTime!);
   const end = allDay ? isoDate(addDays(item.end?.date + "T00:00:00", -1)) : isoDate(new Date(item.end?.dateTime || item.start?.dateTime));
+  const calendarId = calendar.id || "primary";
   return {
-    id: "google:" + item.id,
+    id: "google:" + calendarId + ":" + item.id,
     googleEventId: item.id,
-    type: "Google Calendar",
+    googleCalendarId: calendarId,
+    googleCalendarName: calendar.summary || (calendar.primary ? "Primary" : "Google Calendar"),
+    type: calendar.summary || "Google Calendar",
     passage: "",
     title: item.summary || "(No title)",
     start,
@@ -131,6 +134,16 @@ async function calendarRequest(userId: string, apiPath: string, init: RequestIni
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error?.message || "Google Calendar request failed");
   return data;
+}
+
+async function visibleCalendars(userId: string) {
+  const data = await calendarRequest(userId, "/users/me/calendarList?minAccessRole=reader&showDeleted=false&showHidden=false&maxResults=250");
+  const calendars = (data.items || []).filter((calendar: any) => {
+    if (!calendar?.id) return false;
+    if (calendar.deleted || calendar.hidden) return false;
+    return calendar.primary || calendar.selected !== false;
+  });
+  return calendars.length ? calendars : [{ id: "primary", summary: "Primary", primary: true }];
 }
 
 function googleDateTime(event: any, field: "start" | "end") {
@@ -243,8 +256,21 @@ Deno.serve(async (req) => {
       orderBy: "startTime",
       maxResults: "250",
     });
-    const data = await calendarRequest(user.id, "/calendars/primary/events?" + params.toString());
-    return json({ ok: true, configured: true, connected: true, events: (data.items || []).filter((item: any) => item.status !== "cancelled").map(normalizeGoogleEvent) });
+    const calendars = await visibleCalendars(user.id);
+    const errors: string[] = [];
+    const events: any[] = [];
+    await Promise.all(calendars.map(async (calendar: any) => {
+      try {
+        const data = await calendarRequest(user.id, "/calendars/" + encodeURIComponent(calendar.id) + "/events?" + params.toString());
+        (data.items || [])
+          .filter((item: any) => item.status !== "cancelled")
+          .forEach((item: any) => events.push(normalizeGoogleEvent(item, calendar)));
+      } catch (error) {
+        errors.push((calendar.summary || calendar.id) + ": " + (error instanceof Error ? error.message : String(error)));
+      }
+    }));
+    events.sort((a, b) => String(a.start + (a.timeStart || "")).localeCompare(String(b.start + (b.timeStart || ""))));
+    return json({ ok: true, configured: true, connected: true, calendarCount: calendars.length, errors, events });
   }
 
   if (path === "/events" && req.method === "POST") {

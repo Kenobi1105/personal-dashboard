@@ -1573,7 +1573,10 @@ async function loadGoogleCalendarEvents(showNotice) {
     saveState();
     renderAll();
     var count = googleEvents.length;
-    setCloudStatus("google", "ok", count ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded for this view." : "Google Calendar connected. No events found in this visible range.");
+    var calendarCount = Number(data.calendarCount || 1);
+    var rangeLabel = calendarCount + " calendar" + (calendarCount === 1 ? "" : "s") + " checked";
+    var warning = data.errors && data.errors.length ? " Some calendars reported warnings." : "";
+    setCloudStatus("google", "ok", count ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded for this view; " + rangeLabel + "." + warning : "Google Calendar connected. No events found in this visible range; " + rangeLabel + "." + warning);
     if (showNotice) showToast(count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. No events found in this visible range.");
   } catch (error) {
     googleCalendarLastMessage = hostedHint("google-calendar/events", error);
