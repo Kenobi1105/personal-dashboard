@@ -108,6 +108,7 @@ var els = {
   calendarGrid: document.getElementById("calendarGrid"),
   googleCalendarButton: document.getElementById("googleCalendarButton"),
   googleCalendarSyncButton: document.getElementById("googleCalendarSyncButton"),
+  googleCalendarReconnectButton: document.getElementById("googleCalendarReconnectButton"),
   monthLabel: document.getElementById("monthLabel"),
   prevMonth: document.getElementById("prevMonth"),
   nextMonth: document.getElementById("nextMonth"),
@@ -1418,12 +1419,18 @@ function updateGoogleCalendarControls() {
     els.googleCalendarSyncButton.textContent = googleCalendarLoading ? "Syncing..." : "Sync Google";
     els.googleCalendarSyncButton.title = "Refresh Google Calendar events for the visible calendar range.";
   }
+  if (els.googleCalendarReconnectButton) {
+    els.googleCalendarReconnectButton.disabled = googleCalendarLoading || !googleCalendarStatus.connected;
+    els.googleCalendarReconnectButton.hidden = !googleCalendarStatus.connected;
+    els.googleCalendarReconnectButton.textContent = googleCalendarLoading ? "Working..." : "Reconnect Google";
+    els.googleCalendarReconnectButton.title = "Clear the saved Google Calendar permission and ask Google for fresh Calendar access.";
+  }
   if (!googleCalendarStatus.configured) {
     els.googleCalendarButton.textContent = "Connect Google Calendar";
     els.googleCalendarButton.title = googleCalendarLastMessage || "Google Calendar OAuth is not configured yet.";
   } else if (googleCalendarStatus.connected) {
-    els.googleCalendarButton.textContent = googleCalendarLoading ? "Syncing..." : googleCalendarStatus.needsReconnect ? "Reconnect Google" : "Google Connected";
-    els.googleCalendarButton.title = googleCalendarStatus.needsReconnect ? "Reconnect Google Calendar to approve the latest permissions." : googleCalendarAccountLabel() || "Google Calendar is connected.";
+    els.googleCalendarButton.textContent = googleCalendarLoading ? "Syncing..." : "Google Connected";
+    els.googleCalendarButton.title = googleCalendarStatus.needsReconnect ? "Use Reconnect Google to approve the latest permissions." : googleCalendarAccountLabel() || "Google Calendar is connected.";
   } else {
     els.googleCalendarButton.textContent = "Connect Google Calendar";
     els.googleCalendarButton.title = "Connect Google Calendar.";
@@ -1591,6 +1598,49 @@ function googleCalendarDiagnosticDetail(payload) {
 function setGoogleCalendarDiagnosticStatus(payload) {
   var stateName = payload && payload.configured && payload.connected && payload.tokenRefreshOk && payload.calendarListOk && payload.eventsOk ? "ok" : "warn";
   setCloudStatus("google", stateName, googleCalendarDiagnosticDetail(payload));
+}
+
+async function startGoogleCalendarConnect() {
+  if (!isHostedDashboard) {
+    window.location.href = "/api/google-calendar/connect";
+    return;
+  }
+  var response = await dashboardFetch("/api/google-calendar/connect", { cache: "no-store" });
+  var data = await readDashboardJson(response, "Google Calendar connect");
+  if (!data.authUrl) throw new Error("Missing Google auth URL");
+  window.location.href = data.authUrl;
+}
+
+async function reconnectGoogleCalendar() {
+  if (isHostedDashboard && !cloudSession) {
+    showToast("Sign in first, then reconnect Google Calendar.");
+    await toggleCloudSignIn();
+    return;
+  }
+  await loadGoogleCalendarStatus();
+  if (!googleCalendarStatus.configured) {
+    showToast(isHostedDashboard ? "Google Calendar is not configured in Supabase yet." : "Google Calendar is not configured on this device yet.");
+    return;
+  }
+  googleCalendarLoading = true;
+  updateGoogleCalendarControls();
+  try {
+    if (googleCalendarStatus.connected) {
+      var disconnectResponse = await dashboardFetch("/api/google-calendar/disconnect", { method: "POST", cache: "no-store" });
+      await readDashboardJson(disconnectResponse, "Google Calendar disconnect");
+    }
+    googleCalendarStatus.connected = false;
+    googleCalendarStatus.needsReconnect = false;
+    updateGoogleCalendarControls();
+    await startGoogleCalendarConnect();
+  } catch (error) {
+    googleCalendarLastMessage = hostedHint("google-calendar/reconnect", error);
+    setCloudStatus("google", "warn", googleCalendarLastMessage);
+    showToast("Google Calendar reconnect needs attention. Check Settings.");
+  } finally {
+    googleCalendarLoading = false;
+    updateGoogleCalendarControls();
+  }
 }
 
 async function loadGoogleCalendarEvents(showNotice) {
@@ -4848,21 +4898,17 @@ els.googleCalendarButton.addEventListener("click", async function () {
     loadGoogleCalendarEvents(true);
     return;
   }
-  if (!isHostedDashboard) {
-    window.location.href = "/api/google-calendar/connect";
-    return;
-  }
   try {
-    var response = await dashboardFetch("/api/google-calendar/connect", { cache: "no-store" });
-    var data = await readDashboardJson(response, "Google Calendar connect");
-    if (!data.authUrl) throw new Error("Missing Google auth URL");
-    window.location.href = data.authUrl;
+    await startGoogleCalendarConnect();
   } catch (error) {
     googleCalendarLastMessage = hostedHint("google-calendar/connect", error);
     setCloudStatus("google", "warn", googleCalendarLastMessage);
     showToast("Google Calendar needs attention. Check Settings.");
   }
 });
+if (els.googleCalendarReconnectButton) {
+  els.googleCalendarReconnectButton.addEventListener("click", reconnectGoogleCalendar);
+}
 if (els.googleCalendarSyncButton) {
   els.googleCalendarSyncButton.addEventListener("click", function () {
     loadGoogleCalendarEvents(true);
