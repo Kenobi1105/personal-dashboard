@@ -104,6 +104,9 @@ var els = {
   cloudStatusGrid: document.getElementById("cloudStatusGrid"),
   cloudStatusRefresh: document.getElementById("cloudStatusRefresh"),
   cloudSyncNow: document.getElementById("cloudSyncNow"),
+  googleCalendarList: document.getElementById("googleCalendarList"),
+  googleCalendarRefreshCalendars: document.getElementById("googleCalendarRefreshCalendars"),
+  googleCalendarShowAllButton: document.getElementById("googleCalendarShowAllButton"),
   calendarPanel: document.getElementById("calendarPanel"),
   calendarGrid: document.getElementById("calendarGrid"),
   googleCalendarButton: document.getElementById("googleCalendarButton"),
@@ -681,7 +684,7 @@ function seedState() {
   var sermonDate = toISO(addDays(today, 13));
   var bibleStudyDate = toISO(addDays(today, 3));
   return {
-    settings: { preferredName: "", timeFormat: "24", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
+    settings: { preferredName: "", timeFormat: "24", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
     events: [
       createEvent({ type: "Sermon", passage: "Jn 3:16", title: "Sermon: Jn 3:16", start: sermonDate, end: sermonDate, timeSlot: "Morning", source: "dashboard" }),
       createEvent({ type: "Bible Study", passage: "Rom 8:1-11", title: "Bible Study: Rom 8:1-11", start: bibleStudyDate, end: bibleStudyDate, timeSlot: "Evening", source: "dashboard" })
@@ -751,6 +754,8 @@ function loadState() {
     loaded.settings.readerSplit = loaded.settings.readerSplit || 50;
     loaded.settings.mainReaderSplit = loaded.settings.mainReaderSplit || 62;
     loaded.settings.hideBirthdaysFromCalendar = !!loaded.settings.hideBirthdaysFromCalendar;
+    loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
+    loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
     loaded.settings.eventTypes = Array.from(new Set(DEFAULT_EVENT_TYPES.concat(loaded.settings.eventTypes || [])));
     loaded.settings.newsSources = loaded.settings.newsSources || { world: [], philippines: [], theology: [] };
     loaded.settings.customNewsSources = loaded.settings.customNewsSources || { world: [], philippines: [], theology: [] };
@@ -844,6 +849,7 @@ var readerHistoryIndex = -1;
 var splitDragging = false;
 var mainSplitDragging = false;
 var googleCalendarStatus = { configured: false, connected: false, redirectUri: "" };
+var googleCalendarChoices = [];
 var googleCalendarLoading = false;
 var googleCalendarLastMessage = "";
 var cloudStatusChecks = {
@@ -1383,8 +1389,11 @@ function openSettings() {
   if (els.apiSportsKeySetting) els.apiSportsKeySetting.hidden = isHostedDashboard;
   if (els.cloudPrivateSettingsNote) els.cloudPrivateSettingsNote.hidden = !isHostedDashboard;
   renderCloudStatus();
+  renderGoogleCalendarChoices();
   if (typeof els.settingsModal.showModal === "function") els.settingsModal.showModal();
-  loadGoogleCalendarStatus();
+  loadGoogleCalendarStatus().then(function (status) {
+    if (status && status.connected) loadGoogleCalendarChoices(false);
+  });
   runCloudStatusChecks();
 }
 
@@ -1435,6 +1444,7 @@ function updateGoogleCalendarControls() {
     els.googleCalendarButton.textContent = "Connect Google Calendar";
     els.googleCalendarButton.title = "Connect Google Calendar.";
   }
+  renderGoogleCalendarChoices();
 }
 
 function googleCalendarAccountLabel() {
@@ -1566,9 +1576,71 @@ function googleCalendarRangeQuery() {
   };
 }
 
+function googleCalendarSelectionQuery() {
+  if (state.settings.googleCalendarUseAll !== false) return "";
+  return "&calendarIds=" + encodeURIComponent((state.settings.googleCalendarIds || []).join(","));
+}
+
+function renderGoogleCalendarChoices() {
+  if (!els.googleCalendarList) return;
+  if (!googleCalendarStatus.connected) {
+    els.googleCalendarList.innerHTML = '<p class="empty-state">Connect Google Calendar, then load calendars.</p>';
+    return;
+  }
+  if (!googleCalendarChoices.length) {
+    els.googleCalendarList.innerHTML = '<p class="empty-state">Load calendars to choose which ones appear here.</p>';
+    return;
+  }
+  var allIds = googleCalendarChoices.map(function (calendar) { return calendar.id; });
+  var activeIds = state.settings.googleCalendarUseAll === false ? state.settings.googleCalendarIds || [] : allIds;
+  var activeSet = new Set(activeIds);
+  els.googleCalendarList.innerHTML = googleCalendarChoices.map(function (calendar) {
+    var color = calendar.backgroundColor || "#F0D08F";
+    var meta = (calendar.primary ? "Primary" : calendar.accessRole || "Calendar");
+    return '<label class="google-calendar-choice">'
+      + '<input type="checkbox" data-calendar-id="' + escapeAttr(calendar.id) + '"' + (activeSet.has(calendar.id) ? " checked" : "") + '>'
+      + '<span class="calendar-color-dot" style="background:' + escapeAttr(color) + '"></span>'
+      + '<span><span class="google-calendar-name">' + escapeHTML(calendar.summary || calendar.id) + '</span><span class="google-calendar-meta">' + escapeHTML(meta) + '</span></span>'
+      + '</label>';
+  }).join("");
+  els.googleCalendarList.querySelectorAll("input[data-calendar-id]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      state.settings.googleCalendarUseAll = false;
+      state.settings.googleCalendarIds = Array.from(els.googleCalendarList.querySelectorAll("input[data-calendar-id]:checked")).map(function (control) {
+        return control.getAttribute("data-calendar-id");
+      }).filter(Boolean);
+      saveState();
+      renderGoogleCalendarChoices();
+      loadGoogleCalendarEvents(false);
+    });
+  });
+}
+
+async function loadGoogleCalendarChoices(showNotice) {
+  if (!googleCalendarStatus.connected) {
+    renderGoogleCalendarChoices();
+    if (showNotice) showToast("Connect Google Calendar first.");
+    return [];
+  }
+  try {
+    var response = await dashboardFetch("/api/google-calendar/calendars", { cache: "no-store" });
+    var payload = await readDashboardJson(response, "Google Calendar calendars");
+    googleCalendarChoices = Array.isArray(payload.calendars) ? payload.calendars : [];
+    renderGoogleCalendarChoices();
+    if (showNotice) showToast(googleCalendarChoices.length ? "Google calendars loaded." : "No Google calendars were returned.");
+    return googleCalendarChoices;
+  } catch (error) {
+    googleCalendarLastMessage = hostedHint("google-calendar/calendars", error);
+    setCloudStatus("google", "warn", googleCalendarLastMessage);
+    renderGoogleCalendarChoices();
+    if (showNotice) showToast("Google calendar list needs attention.");
+    return [];
+  }
+}
+
 async function loadGoogleCalendarDiagnostics() {
   var rangeQuery = googleCalendarRangeQuery();
-  var response = await dashboardFetch("/api/google-calendar/diagnostics" + rangeQuery.query, { cache: "no-store" });
+  var response = await dashboardFetch("/api/google-calendar/diagnostics" + rangeQuery.query + googleCalendarSelectionQuery(), { cache: "no-store" });
   return readDashboardJson(response, "Google Calendar diagnostics");
 }
 
@@ -1654,7 +1726,7 @@ async function loadGoogleCalendarEvents(showNotice) {
   try {
     var rangeQuery = googleCalendarRangeQuery();
     var range = rangeQuery.range;
-    var response = await dashboardFetch("/api/google-calendar/events" + rangeQuery.query, { cache: "no-store" });
+    var response = await dashboardFetch("/api/google-calendar/events" + rangeQuery.query + googleCalendarSelectionQuery(), { cache: "no-store" });
     if (response.status === 401) {
       googleCalendarStatus.connected = false;
       updateGoogleCalendarControls();
@@ -1767,7 +1839,10 @@ async function deleteGoogleCalendarEvent(localEvent) {
 
 async function refreshGoogleCalendar(showNotice) {
   await loadGoogleCalendarStatus();
-  if (googleCalendarStatus.connected) await loadGoogleCalendarEvents(showNotice);
+  if (googleCalendarStatus.connected) {
+    await loadGoogleCalendarChoices(false);
+    await loadGoogleCalendarEvents(showNotice);
+  }
   else if (showNotice && googleCalendarStatus.configured) showToast("Connect Google Calendar first.");
 }
 
@@ -4402,6 +4477,10 @@ function escapeHTML(value) {
   });
 }
 
+function escapeAttr(value) {
+  return escapeHTML(value);
+}
+
 function renderWorldWatch() {
   if (!worldWatchData) {
     els.worldWatchCard.innerHTML = "<p class='empty-state'>Loading prayer country...</p>";
@@ -4912,6 +4991,20 @@ if (els.googleCalendarReconnectButton) {
 if (els.googleCalendarSyncButton) {
   els.googleCalendarSyncButton.addEventListener("click", function () {
     loadGoogleCalendarEvents(true);
+  });
+}
+if (els.googleCalendarRefreshCalendars) {
+  els.googleCalendarRefreshCalendars.addEventListener("click", function () {
+    loadGoogleCalendarChoices(true);
+  });
+}
+if (els.googleCalendarShowAllButton) {
+  els.googleCalendarShowAllButton.addEventListener("click", function () {
+    state.settings.googleCalendarUseAll = true;
+    state.settings.googleCalendarIds = [];
+    saveState();
+    renderGoogleCalendarChoices();
+    loadGoogleCalendarEvents(false);
   });
 }
 els.normalModeButton.addEventListener("click", function () { setMode("normal"); });

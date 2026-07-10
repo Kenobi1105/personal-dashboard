@@ -1260,17 +1260,20 @@ function timeSlotForDate(date) {
   return "Evening";
 }
 
-function normalizeGoogleCalendarEvent(item) {
+function normalizeGoogleCalendarEvent(item, calendar) {
   var allDay = Boolean(item.start && item.start.date);
   var startDateTime = allDay ? null : new Date(item.start.dateTime);
   var startDate = allDay ? item.start.date : serverISODate(new Date(item.start.dateTime));
   var endDate = allDay ? inclusiveAllDayEnd(item.end && item.end.date) : serverISODate(new Date(item.end.dateTime || item.start.dateTime));
   var startTime = allDay ? "" : serverTime(startDateTime);
   var endTime = allDay ? "" : serverTime(new Date(item.end.dateTime || item.start.dateTime));
+  var sourceCalendar = calendar || {};
   return {
     id: "google:" + item.id,
     googleEventId: item.id,
-    type: "Google Calendar",
+    googleCalendarId: sourceCalendar.id || "primary",
+    googleCalendarName: sourceCalendar.summary || "Google Calendar",
+    type: sourceCalendar.summary || "Google Calendar",
     passage: "",
     title: item.summary || "(No title)",
     start: startDate,
@@ -1443,6 +1446,46 @@ async function handleGoogleCalendarCallback(url, res) {
   redirect(res, "/?googleCalendar=connected");
 }
 
+async function visibleGoogleCalendars() {
+  var data = await googleCalendarRequest("/users/me/calendarList?minAccessRole=reader&showDeleted=false&showHidden=false&maxResults=250");
+  var calendars = (data.items || []).filter(function (calendar) {
+    return calendar && calendar.id && !calendar.deleted && !calendar.hidden;
+  });
+  return calendars.length ? calendars : [{ id: "primary", summary: "Primary", primary: true }];
+}
+
+function normalizeGoogleCalendarChoice(calendar) {
+  return {
+    id: calendar.id || "primary",
+    summary: calendar.summary || (calendar.primary ? "Primary" : calendar.id || "Calendar"),
+    primary: !!calendar.primary,
+    backgroundColor: calendar.backgroundColor || "",
+    foregroundColor: calendar.foregroundColor || "",
+    accessRole: calendar.accessRole || ""
+  };
+}
+
+function selectedGoogleCalendarIds(url) {
+  if (!url.searchParams.has("calendarIds")) return null;
+  return String(url.searchParams.get("calendarIds") || "").split(",").map(function (idValue) {
+    return idValue.trim();
+  }).filter(Boolean);
+}
+
+function filterGoogleCalendars(calendars, selectedIds) {
+  if (selectedIds === null) return calendars;
+  var selected = new Set(selectedIds);
+  return calendars.filter(function (calendar) { return selected.has(calendar.id); });
+}
+
+async function handleGoogleCalendarList(res) {
+  if (!googleCalendarConfigured()) {
+    return sendJson(res, 200, { ok: false, configured: false, connected: false, calendars: [] });
+  }
+  var calendars = await visibleGoogleCalendars();
+  sendJson(res, 200, { ok: true, configured: true, connected: true, calendars: calendars.map(normalizeGoogleCalendarChoice) });
+}
+
 async function handleGoogleCalendarEvents(url, res) {
   if (!googleCalendarConfigured()) {
     return sendJson(res, 200, { ok: false, configured: false, connected: false, events: [] });
@@ -1456,11 +1499,30 @@ async function handleGoogleCalendarEvents(url, res) {
     orderBy: "startTime",
     maxResults: "250"
   });
-  var data = await googleCalendarRequest("/calendars/primary/events?" + query.toString());
-  var events = (data.items || [])
-    .filter(function (item) { return item.status !== "cancelled"; })
-    .map(normalizeGoogleCalendarEvent);
-  sendJson(res, 200, { ok: true, configured: true, connected: true, events: events });
+  var calendars = filterGoogleCalendars(await visibleGoogleCalendars(), selectedGoogleCalendarIds(url));
+  var errors = [];
+  var events = [];
+  await Promise.all(calendars.map(async function (calendar) {
+    try {
+      var data = await googleCalendarRequest("/calendars/" + encodeURIComponent(calendar.id) + "/events?" + query.toString());
+      (data.items || [])
+        .filter(function (item) { return item.status !== "cancelled"; })
+        .forEach(function (item) { events.push(normalizeGoogleCalendarEvent(item, calendar)); });
+    } catch (error) {
+      errors.push((calendar.summary || calendar.id) + ": " + (error && error.message ? error.message : String(error)));
+    }
+  }));
+  events.sort(function (a, b) { return String(a.start + (a.timeStart || "")).localeCompare(String(b.start + (b.timeStart || ""))); });
+  sendJson(res, 200, {
+    ok: true,
+    configured: true,
+    connected: true,
+    calendarCount: calendars.length,
+    calendarNames: calendars.map(function (calendar) { return calendar.summary || calendar.id; }).slice(0, 12),
+    range: { timeMin: timeMin, timeMax: timeMax },
+    errors: errors,
+    events: events
+  });
 }
 
 async function handleGoogleCalendarUpsert(req, res) {
@@ -2193,6 +2255,7 @@ http.createServer(async function (req, res) {
       deleteGoogleCalendarToken();
       return sendJson(res, 200, { ok: true });
     }
+    if (url.pathname === "/api/google-calendar/calendars" && req.method === "GET") return handleGoogleCalendarList(res);
     if (url.pathname === "/api/google-calendar/events" && req.method === "GET") return handleGoogleCalendarEvents(url, res);
     if (url.pathname === "/api/google-calendar/events" && req.method === "POST") return handleGoogleCalendarUpsert(req, res);
     if (url.pathname.indexOf("/api/google-calendar/events/") === 0 && req.method === "DELETE") return handleGoogleCalendarDelete(url, res);

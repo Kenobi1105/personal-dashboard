@@ -399,6 +399,55 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
   background: var(--accent-deep);
   box-shadow: 0 0 0 4px rgba(240, 208, 143, 0.25);
 }
+.google-calendar-settings {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.34);
+}
+.google-calendar-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 3px;
+}
+.google-calendar-choice {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid rgba(73, 53, 72, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 250, 240, 0.72);
+  color: var(--signature);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+.google-calendar-choice input { width: 15px; height: 15px; }
+.google-calendar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.google-calendar-meta {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+.calendar-color-dot {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(73, 53, 72, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(73, 53, 72, 0.12);
+}
 
 .calendar-panel.planning-mode {
   background: linear-gradient(135deg, rgba(160, 160, 160, 0.22), rgba(255, 250, 240, 0.92));

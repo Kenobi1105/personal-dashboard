@@ -157,6 +157,29 @@ async function visibleCalendars(userId: string) {
   return calendars.length ? calendars : [{ id: "primary", summary: "Primary", primary: true }];
 }
 
+function normalizeCalendar(calendar: any) {
+  return {
+    id: calendar.id || "primary",
+    summary: calendar.summary || (calendar.primary ? "Primary" : calendar.id || "Calendar"),
+    primary: !!calendar.primary,
+    backgroundColor: calendar.backgroundColor || "",
+    foregroundColor: calendar.foregroundColor || "",
+    accessRole: calendar.accessRole || "",
+  };
+}
+
+function selectedCalendarIds(url: URL) {
+  if (!url.searchParams.has("calendarIds")) return null;
+  const raw = url.searchParams.get("calendarIds") || "";
+  return raw.split(",").map((id) => id.trim()).filter(Boolean);
+}
+
+function filterCalendars(calendars: any[], selectedIds: string[] | null) {
+  if (selectedIds === null) return calendars;
+  const selected = new Set(selectedIds);
+  return calendars.filter((calendar: any) => selected.has(calendar.id));
+}
+
 function eventRange(url: URL) {
   return new URLSearchParams({
     timeMin: url.searchParams.get("timeMin") || new Date(Date.now() - 7 * 86400000).toISOString(),
@@ -217,7 +240,7 @@ async function googleCalendarDiagnostics(userId: string, url: URL) {
 
   let calendars: any[] = [];
   try {
-    calendars = await visibleCalendars(userId);
+    calendars = filterCalendars(await visibleCalendars(userId), selectedCalendarIds(url));
     result.calendarListOk = true;
     result.calendarCount = calendars.length;
     result.calendarNames = calendars.map((calendar: any) => calendar.summary || calendar.id).slice(0, 12);
@@ -241,7 +264,7 @@ async function googleCalendarDiagnostics(userId: string, url: URL) {
     }
   }));
   events.sort((a, b) => String(a.start + (a.timeStart || "")).localeCompare(String(b.start + (b.timeStart || ""))));
-  result.eventsOk = eventErrors.length < calendars.length;
+  result.eventsOk = calendars.length ? eventErrors.length < calendars.length : eventErrors.length === 0;
   result.eventCount = events.length;
   result.sampleEvents = events.slice(0, 5).map((event) => ({
     title: event.title,
@@ -359,9 +382,19 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
+  if (path === "/calendars" && req.method === "GET") {
+    const calendars = await visibleCalendars(user.id);
+    return json({
+      ok: true,
+      configured: true,
+      connected: true,
+      calendars: calendars.map(normalizeCalendar),
+    });
+  }
+
   if (path === "/events" && req.method === "GET") {
     const params = eventRange(url);
-    const calendars = await visibleCalendars(user.id);
+    const calendars = filterCalendars(await visibleCalendars(user.id), selectedCalendarIds(url));
     const errors: string[] = [];
     const events: any[] = [];
     await Promise.all(calendars.map(async (calendar: any) => {
