@@ -17,7 +17,7 @@ function config() {
   return {
     clientId: Deno.env.get("GOOGLE_CALENDAR_CLIENT_ID") || Deno.env.get("GOOGLE_CLIENT_ID") || "",
     clientSecret: Deno.env.get("GOOGLE_CALENDAR_CLIENT_SECRET") || Deno.env.get("GOOGLE_CLIENT_SECRET") || "",
-    redirectUri: Deno.env.get("GOOGLE_CALENDAR_REDIRECT_URI") || "",
+    redirectUri: Deno.env.get("GOOGLE_CALENDAR_REDIRECT_URI") || Deno.env.get("GOOGLE_REDIRECT_URI") || "",
     appUrl: Deno.env.get("APP_URL") || "https://kenobi1105.github.io/personal-dashboard/",
   };
 }
@@ -136,7 +136,7 @@ async function calendarRequest(userId: string, apiPath: string, init: RequestIni
   try {
     response = await fetch(GOOGLE_CALENDAR_API + apiPath, { ...init, headers, signal: controller.signal });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("Google Calendar request timed out");
+    if (error instanceof Error && error.name === "AbortError") throw new Error("Google Calendar request timed out");
     throw error;
   } finally {
     clearTimeout(timer);
@@ -155,6 +155,102 @@ async function visibleCalendars(userId: string) {
     return true;
   });
   return calendars.length ? calendars : [{ id: "primary", summary: "Primary", primary: true }];
+}
+
+function eventRange(url: URL) {
+  return new URLSearchParams({
+    timeMin: url.searchParams.get("timeMin") || new Date(Date.now() - 7 * 86400000).toISOString(),
+    timeMax: url.searchParams.get("timeMax") || new Date(Date.now() + 45 * 86400000).toISOString(),
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "250",
+  });
+}
+
+function scopeList(row: any) {
+  return String(row?.scope || "").split(/\s+/).filter(Boolean);
+}
+
+function scopeIncludes(scopes: string[], scope: string) {
+  return scopes.includes(scope) || scopes.includes("https://www.googleapis.com/auth/calendar");
+}
+
+async function googleCalendarDiagnostics(userId: string, url: URL) {
+  const cfg = config();
+  const result: any = {
+    configured: Boolean(cfg.clientId && cfg.clientSecret && cfg.redirectUri),
+    connected: false,
+    hasRefreshToken: false,
+    scope: [],
+    hasCalendarReadonlyScope: false,
+    hasCalendarEventsScope: false,
+    tokenRefreshOk: false,
+    calendarListOk: false,
+    calendarCount: 0,
+    calendarNames: [],
+    eventsOk: false,
+    eventCount: 0,
+    sampleEvents: [],
+    range: {},
+    errors: [],
+  };
+  const row = await tokenRow(userId).catch((error) => {
+    result.errors.push("Token lookup: " + (error instanceof Error ? error.message : String(error)));
+    return null;
+  });
+  result.connected = Boolean(row?.refresh_token);
+  result.hasRefreshToken = Boolean(row?.refresh_token);
+  result.account = row?.profile || null;
+  result.connectedAt = row?.connected_at || "";
+  result.scope = scopeList(row);
+  result.hasCalendarReadonlyScope = scopeIncludes(result.scope, "https://www.googleapis.com/auth/calendar.readonly");
+  result.hasCalendarEventsScope = scopeIncludes(result.scope, "https://www.googleapis.com/auth/calendar.events");
+  if (!result.configured || !row?.refresh_token) return result;
+
+  try {
+    await refreshToken(row);
+    result.tokenRefreshOk = true;
+  } catch (error) {
+    result.errors.push("Token refresh: " + (error instanceof Error ? error.message : String(error)));
+    return result;
+  }
+
+  let calendars: any[] = [];
+  try {
+    calendars = await visibleCalendars(userId);
+    result.calendarListOk = true;
+    result.calendarCount = calendars.length;
+    result.calendarNames = calendars.map((calendar: any) => calendar.summary || calendar.id).slice(0, 12);
+  } catch (error) {
+    result.errors.push("Calendar list: " + (error instanceof Error ? error.message : String(error)));
+    return result;
+  }
+
+  const params = eventRange(url);
+  result.range = { timeMin: params.get("timeMin"), timeMax: params.get("timeMax") };
+  const eventErrors: string[] = [];
+  const events: any[] = [];
+  await Promise.all(calendars.map(async (calendar: any) => {
+    try {
+      const data = await calendarRequest(userId, "/calendars/" + encodeURIComponent(calendar.id) + "/events?" + params.toString());
+      (data.items || [])
+        .filter((item: any) => item.status !== "cancelled")
+        .forEach((item: any) => events.push(normalizeGoogleEvent(item, calendar)));
+    } catch (error) {
+      eventErrors.push((calendar.summary || calendar.id) + ": " + (error instanceof Error ? error.message : String(error)));
+    }
+  }));
+  events.sort((a, b) => String(a.start + (a.timeStart || "")).localeCompare(String(b.start + (b.timeStart || ""))));
+  result.eventsOk = eventErrors.length < calendars.length;
+  result.eventCount = events.length;
+  result.sampleEvents = events.slice(0, 5).map((event) => ({
+    title: event.title,
+    start: event.start,
+    timeStart: event.timeStart,
+    calendar: event.googleCalendarName,
+  }));
+  if (eventErrors.length) result.errors.push(...eventErrors.slice(0, 8));
+  return result;
 }
 
 function googleDateTime(event: any, field: "start" | "end") {
@@ -254,19 +350,17 @@ Deno.serve(async (req) => {
     return json({ authUrl: authUrl.toString(), configured: true });
   }
 
+  if (path === "/diagnostics" && req.method === "GET") {
+    return json({ ok: true, ...(await googleCalendarDiagnostics(user.id, url)) });
+  }
+
   if (path === "/disconnect" && req.method === "POST") {
     await serviceRequest("/rest/v1/google_calendar_tokens?user_id=eq." + encodeURIComponent(user.id), { method: "DELETE" });
     return json({ ok: true });
   }
 
   if (path === "/events" && req.method === "GET") {
-    const params = new URLSearchParams({
-      timeMin: url.searchParams.get("timeMin") || new Date(Date.now() - 7 * 86400000).toISOString(),
-      timeMax: url.searchParams.get("timeMax") || new Date(Date.now() + 45 * 86400000).toISOString(),
-      singleEvents: "true",
-      orderBy: "startTime",
-      maxResults: "250",
-    });
+    const params = eventRange(url);
     const calendars = await visibleCalendars(user.id);
     const errors: string[] = [];
     const events: any[] = [];

@@ -1215,7 +1215,14 @@ async function runCloudStatusChecks() {
   var status = await loadGoogleCalendarStatus();
   if (!cloudSession) setCloudStatus("google", "warn", "Sign in before connecting Google Calendar.");
   else if (!status.configured) setCloudStatus("google", "warn", googleCalendarLastMessage || "Google Calendar OAuth secrets are missing or not deployed.");
-  else if (status.connected) setCloudStatus("google", "ok", "Connected to " + (googleCalendarAccountLabel() || "Google Calendar") + ".");
+  else if (status.connected) {
+    try {
+      var diagnostics = await loadGoogleCalendarDiagnostics();
+      setGoogleCalendarDiagnosticStatus(diagnostics);
+    } catch (error) {
+      setCloudStatus("google", "warn", hostedHint("google-calendar/diagnostics", error));
+    }
+  }
   else setCloudStatus("google", "warn", "Configured, but not connected. Click Connect Google Calendar.");
 }
 
@@ -1544,6 +1551,48 @@ async function loadGoogleCalendarStatus() {
   return googleCalendarStatus;
 }
 
+function googleCalendarRangeQuery() {
+  var range = calendarVisibleRange();
+  return {
+    range: range,
+    query: "?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax)
+  };
+}
+
+async function loadGoogleCalendarDiagnostics() {
+  var rangeQuery = googleCalendarRangeQuery();
+  var response = await dashboardFetch("/api/google-calendar/diagnostics" + rangeQuery.query, { cache: "no-store" });
+  return readDashboardJson(response, "Google Calendar diagnostics");
+}
+
+function googleCalendarDiagnosticDetail(payload) {
+  if (!payload) return "Diagnostics returned no details.";
+  if (!payload.configured) return "Google Calendar OAuth secrets are missing or not deployed.";
+  if (!payload.connected) return "Google Calendar is configured, but this dashboard account is not connected yet.";
+  if (!payload.hasRefreshToken) return "Google Calendar connection has no refresh token. Disconnect and reconnect Google Calendar.";
+  if (payload.scope && payload.scope.length && !payload.hasCalendarReadonlyScope && !payload.hasCalendarEventsScope) {
+    return "Google Calendar is connected, but the saved permission scope does not include calendar access. Disconnect and reconnect Google Calendar.";
+  }
+  if (!payload.tokenRefreshOk) return "Google Calendar token refresh failed: " + ((payload.errors || [])[0] || "Reconnect Google Calendar.");
+  if (!payload.calendarListOk) return "Google Calendar calendar-list request failed: " + ((payload.errors || [])[0] || "No calendar-list response.");
+  if (!payload.eventsOk) return "Google Calendar event request failed: " + ((payload.errors || [])[0] || "No event response from Google.");
+  var calendarCount = Number(payload.calendarCount || 0);
+  var eventCount = Number(payload.eventCount || 0);
+  var rangeStart = payload.range && payload.range.timeMin ? formatShortDate(payload.range.timeMin) : "";
+  var rangeEnd = payload.range && payload.range.timeMax ? formatShortDate(payload.range.timeMax) : "";
+  var rangeText = rangeStart && rangeEnd ? " Range: " + rangeStart + "-" + rangeEnd + "." : "";
+  var sampleText = payload.sampleEvents && payload.sampleEvents.length
+    ? " Sample: " + payload.sampleEvents.slice(0, 3).map(function (event) { return event.title; }).join("; ") + "."
+    : "";
+  var warning = payload.errors && payload.errors.length ? " Warnings: " + payload.errors.slice(0, 2).join(" | ") : "";
+  return "Connected to " + (googleCalendarAccountLabel() || "Google Calendar") + ". " + calendarCount + " calendar" + (calendarCount === 1 ? "" : "s") + " checked; " + eventCount + " event" + (eventCount === 1 ? "" : "s") + " returned." + rangeText + sampleText + warning;
+}
+
+function setGoogleCalendarDiagnosticStatus(payload) {
+  var stateName = payload && payload.configured && payload.connected && payload.tokenRefreshOk && payload.calendarListOk && payload.eventsOk ? "ok" : "warn";
+  setCloudStatus("google", stateName, googleCalendarDiagnosticDetail(payload));
+}
+
 async function loadGoogleCalendarEvents(showNotice) {
   if (!cloudSession && isHostedDashboard) {
     if (showNotice) showToast("Sign in to dashboard sync first.");
@@ -1553,8 +1602,9 @@ async function loadGoogleCalendarEvents(showNotice) {
   googleCalendarLoading = true;
   updateGoogleCalendarControls();
   try {
-    var range = calendarVisibleRange();
-    var response = await dashboardFetch("/api/google-calendar/events?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax), { cache: "no-store" });
+    var rangeQuery = googleCalendarRangeQuery();
+    var range = rangeQuery.range;
+    var response = await dashboardFetch("/api/google-calendar/events" + rangeQuery.query, { cache: "no-store" });
     if (response.status === 401) {
       googleCalendarStatus.connected = false;
       updateGoogleCalendarControls();
@@ -1590,6 +1640,12 @@ async function loadGoogleCalendarEvents(showNotice) {
     if (showNotice) showToast(count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " returned for this range.");
   } catch (error) {
     googleCalendarLastMessage = hostedHint("google-calendar/events", error);
+    try {
+      var diagnostics = await loadGoogleCalendarDiagnostics();
+      setGoogleCalendarDiagnosticStatus(diagnostics);
+    } catch (diagnosticError) {
+      setCloudStatus("google", "warn", googleCalendarLastMessage + " Diagnostics also failed: " + hostedHint("google-calendar/diagnostics", diagnosticError));
+    }
     if (showNotice) showToast("Google Calendar needs attention. Check Settings.");
   } finally {
     googleCalendarLoading = false;
