@@ -1,4 +1,4 @@
-import { fetchText, json, optionsResponse } from "../_shared/dashboard.ts";
+import { absoluteUrl, fetchText, json, optionsResponse, parseFeed, stripTags } from "../_shared/dashboard.ts";
 
 const VOCABULARY = {
   greek: [
@@ -47,10 +47,25 @@ function youtubeImage(videoId: string, thumb = "") {
   return thumb || (videoId ? "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg" : "");
 }
 
+function youtubeVideoIdFromUrl(url = "") {
+  const patterns = [
+    /[?&]v=([a-zA-Z0-9_-]{6,})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{6,})/,
+    /\/shorts\/([a-zA-Z0-9_-]{6,})/,
+    /\/embed\/([a-zA-Z0-9_-]{6,})/,
+  ];
+  for (const pattern of patterns) {
+    const match = String(url).match(pattern);
+    if (match) return match[1];
+  }
+  return "";
+}
+
 function parseYouTube(xml: string) {
   return (xml.match(/<entry[\s\S]*?<\/entry>/gi) || []).slice(0, 7).map((block, index) => {
-    const title = cleanTitle(block.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
-    const videoId = block.match(/<yt:videoId>(.*?)<\/yt:videoId>/i)?.[1] || "";
+    const title = stripTags(block.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
+    const link = block.match(/<link[^>]+href=["']([^"']+)["']/i)?.[1] || "";
+    const videoId = block.match(/<yt:videoId>(.*?)<\/yt:videoId>/i)?.[1] || youtubeVideoIdFromUrl(link);
     const published = block.match(/<published>(.*?)<\/published>/i)?.[1] || "";
     const thumb = block.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i)?.[1] || "";
     const image = youtubeImage(videoId, thumb);
@@ -58,8 +73,8 @@ function parseYouTube(xml: string) {
       id: videoId || String(index),
       title,
       videoId,
-      url: "https://www.youtube.com/watch?v=" + videoId,
-      embedUrl: "https://www.youtube.com/embed/" + videoId,
+      url: videoId ? "https://www.youtube.com/watch?v=" + videoId : absoluteUrl(link, "https://www.youtube.com/"),
+      embedUrl: videoId ? "https://www.youtube.com/embed/" + videoId : "",
       thumbnail: image,
       image,
       publishedAt: published,
@@ -68,21 +83,133 @@ function parseYouTube(xml: string) {
   }).filter((item) => item.videoId);
 }
 
-async function feed(source: string, channelId: string) {
-  try {
-    const xml = await fetchText("https://www.youtube.com/feeds/videos.xml?channel_id=" + encodeURIComponent(channelId));
-    return { source, items: parseYouTube(xml) };
-  } catch (error) {
-    return { source, items: [], error: error instanceof Error ? error.message : String(error) };
+async function resolveYouTubeChannelId(handle: string) {
+  const html = await fetchText("https://www.youtube.com/@" + handle, 9000);
+  const patterns = [
+    /"channelId"\s*:\s*"([^"]+)"/,
+    /"externalId"\s*:\s*"([^"]+)"/,
+    /\/channel\/(UC[a-zA-Z0-9_-]+)/,
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return match[1];
   }
+  throw new Error("Could not resolve YouTube channel for " + handle);
+}
+
+function extractEmbeddedVideoId(html: string) {
+  return youtubeVideoIdFromUrl(html.match(/(?:src|href)=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["']/i)?.[1] || "");
+}
+
+async function siteFeedFallback(config: LanguageFeedConfig) {
+  if (!config.feedUrl) return [];
+  const xml = await fetchText(config.feedUrl, 9000);
+  const items = parseFeed(xml, { source: config.source, url: config.feedUrl }).slice(0, 7);
+  const enriched = await Promise.all(items.map(async (item, index) => {
+    let videoId = youtubeVideoIdFromUrl(item.url || "");
+    if (!videoId && item.url) {
+      try {
+        videoId = extractEmbeddedVideoId(await fetchText(item.url, 7000));
+      } catch {
+        videoId = "";
+      }
+    }
+    const image = item.image || youtubeImage(videoId);
+    return {
+      id: videoId || config.source.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + index,
+      title: item.title || "Latest lesson",
+      videoId,
+      url: videoId ? "https://www.youtube.com/watch?v=" + videoId : item.url || config.url,
+      embedUrl: videoId ? "https://www.youtube.com/embed/" + videoId : "",
+      thumbnail: image,
+      image,
+      publishedAt: item.publishedAt || "",
+      publishedTime: item.publishedTime || 0,
+    };
+  }));
+  return enriched.filter((item) => item.title);
+}
+
+type LanguageFeedConfig = {
+  source: string;
+  channelId: string;
+  handle: string;
+  url: string;
+  feedUrl: string;
+};
+
+const VIDEO_FEEDS: Record<string, LanguageFeedConfig> = {
+  greek: {
+    source: "Daily Dose of Greek",
+    channelId: "UC0fRqEfY1ZaiWiJWTj7HQng",
+    handle: "DailyDoseOfGreek",
+    url: "https://dailydoseofgreek.com/",
+    feedUrl: "https://dailydoseofgreek.com/feed/",
+  },
+  hebrew: {
+    source: "Daily Dose of Hebrew",
+    channelId: "UCRSbS2XhqOhnSUzWfGHUkLg",
+    handle: "DailyDoseOfHebrew",
+    url: "https://dailydoseofhebrew.com/",
+    feedUrl: "https://dailydoseofhebrew.com/feed/",
+  },
+  septuagint: {
+    source: "Daily Dose of Septuagint",
+    channelId: "UC5SB4egyj9-RNdjL-VxcDRw",
+    handle: "DailyDoseOfSeptuagint",
+    url: "https://dailydoseofseptuagint.com/",
+    feedUrl: "https://dailydoseofseptuagint.com/feed/",
+  },
+};
+
+function openChannelFallback(config: LanguageFeedConfig) {
+  return [{
+    id: config.handle,
+    title: "Open " + config.source,
+    videoId: "",
+    url: config.url,
+    embedUrl: "",
+    thumbnail: "",
+    image: "",
+    publishedAt: "",
+    publishedTime: 0,
+  }];
+}
+
+async function feed(config: LanguageFeedConfig) {
+  const errors: string[] = [];
+  try {
+    const xml = await fetchText("https://www.youtube.com/feeds/videos.xml?channel_id=" + encodeURIComponent(config.channelId));
+    const items = parseYouTube(xml);
+    if (items.length) return { source: config.source, url: config.url, items };
+    errors.push("YouTube channel feed returned no entries.");
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+  }
+  try {
+    const resolved = await resolveYouTubeChannelId(config.handle);
+    const xml = await fetchText("https://www.youtube.com/feeds/videos.xml?channel_id=" + encodeURIComponent(resolved));
+    const items = parseYouTube(xml);
+    if (items.length) return { source: config.source, url: config.url, channelId: resolved, items, warnings: errors };
+    errors.push("Resolved YouTube feed returned no entries.");
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+  }
+  try {
+    const items = await siteFeedFallback(config);
+    if (items.length) return { source: config.source, url: config.url, items, warnings: errors };
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+  }
+  return { source: config.source, url: config.url, items: openChannelFallback(config), error: errors.join(" | ") };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return optionsResponse();
   const [greek, hebrew, septuagint] = await Promise.all([
-    feed("Daily Dose of Greek", "UC0fRqEfY1ZaiWiJWTj7HQng"),
-    feed("Daily Dose of Hebrew", "UCRSbS2XhqOhnSUzWfGHUkLg"),
-    feed("Daily Dose of Septuagint", "UC5SB4egyj9-RNdjL-VxcDRw"),
+    feed(VIDEO_FEEDS.greek),
+    feed(VIDEO_FEEDS.hebrew),
+    feed(VIDEO_FEEDS.septuagint),
   ]);
   return json({
     vocabulary: dailyVocabulary(),
