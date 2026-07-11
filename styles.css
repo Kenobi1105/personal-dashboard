@@ -189,9 +189,9 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   display: grid;
   grid-template-columns: minmax(196px, 0.713fr) minmax(330px, 1.287fr);
   gap: 8px;
-  grid-template-rows: minmax(178px, auto) minmax(190px, 1fr) minmax(240px, 1.26fr);
+  grid-template-rows: minmax(218px, auto) minmax(190px, 1fr) minmax(240px, 1.26fr);
   align-items: stretch;
-  min-height: 552px;
+  min-height: 592px;
 }
 
 .first-view-stack .verse-card { grid-column: 1 / -1; }
@@ -307,6 +307,88 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 }
 .verse-actions { display: flex; align-items: center; gap: 6px; }
 .verse-reader-button { min-height: 25px; padding: 0 8px; font-size: 0.72rem; }
+.verse-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 0;
+  border-color: rgba(240, 208, 143, 0.62);
+  background: #2d232c;
+  box-shadow: 0 16px 34px rgba(73, 53, 72, 0.22);
+}
+.verse-visual,
+.verse-card::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.verse-visual {
+  z-index: -2;
+  background-image: url("assets/verse-background.png");
+  background-size: cover;
+  background-position: center right;
+  opacity: 0.98;
+}
+.verse-card::after {
+  z-index: -1;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(31, 30, 30, 0.92) 0%, rgba(49, 38, 47, 0.84) 43%, rgba(73, 53, 72, 0.42) 71%, rgba(247, 243, 233, 0.13) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.36));
+}
+.verse-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  min-height: 218px;
+  padding: 17px 20px 18px;
+}
+.verse-card .panel-heading { margin-bottom: 12px; }
+.verse-card .eyebrow { color: rgba(240, 208, 143, 0.92); }
+.verse-card .panel-heading h2 {
+  color: #fff9ea;
+  font-size: clamp(1.45rem, 2.2vw, 2.1rem);
+  line-height: 0.98;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.28);
+}
+.verse-card .verse-text {
+  max-width: min(780px, 90%);
+  color: #fffdf7;
+  font-size: clamp(1.08rem, 1.45vw, 1.36rem);
+  font-weight: 700;
+  line-height: 1.42;
+  letter-spacing: 0;
+  text-wrap: balance;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.32);
+}
+.verse-card .original-line {
+  max-width: min(820px, 95%);
+  margin-top: 10px;
+  color: #f7e9bd;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.38);
+}
+.verse-card .original-line.greek-text { font-size: clamp(1.08rem, 1.45vw, 1.36rem); line-height: 1.36; }
+.verse-card .original-line.hebrew-text { font-size: clamp(16pt, 1.6vw, 20pt); line-height: 1.38; }
+.verse-card .verse-reader-button,
+.verse-card .verse-toggle-button {
+  border-color: rgba(255, 249, 234, 0.36);
+  color: #fff9ea;
+  background: rgba(31, 30, 30, 0.28);
+  backdrop-filter: blur(8px);
+}
+.verse-card .verse-reader-button:hover,
+.verse-card .verse-toggle-button:hover {
+  color: var(--signature);
+  background: rgba(247, 243, 233, 0.94);
+}
+.verse-card .verse-details {
+  max-width: min(820px, 95%);
+  border-top-color: rgba(255, 249, 234, 0.26);
+}
+.verse-card .verse-source,
+.verse-card .verse-details dd { color: rgba(255, 249, 234, 0.82); }
+.verse-card .verse-details dt { color: #f0d08f; }
 .planning-hint { color: var(--signature-soft); font-size: 0.72rem; font-weight: 800; line-height: 1.15; }
 .settings-group {
   display: grid;
@@ -2388,6 +2470,11 @@ kbd {
   .event-pill { padding: 3px 4px; font-size: 0.58rem; }
   .panel-heading { align-items: stretch; flex-direction: column; }
   .calendar-actions { justify-content: space-between; }
+  .verse-content { min-height: 244px; padding: 16px; }
+  .verse-card .panel-heading { flex-direction: row; align-items: flex-start; }
+  .verse-card .panel-heading h2 { font-size: 1.52rem; }
+  .verse-card .verse-text { max-width: 100%; font-size: 1.04rem; }
+  .verse-card .original-line { max-width: 100%; }
   .verse-details dl,
   .verse-details div,
   .workflow-item { grid-template-columns: 1fr; }
