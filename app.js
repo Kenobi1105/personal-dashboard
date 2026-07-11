@@ -98,6 +98,7 @@ var els = {
   settingsForm: document.getElementById("settingsForm"),
   preferredName: document.getElementById("preferredName"),
   timeFormat: document.getElementById("timeFormat"),
+  timeZone: document.getElementById("timeZone"),
   apiSportsKey: document.getElementById("apiSportsKey"),
   apiSportsKeySetting: document.getElementById("apiSportsKeySetting"),
   cloudPrivateSettingsNote: document.getElementById("cloudPrivateSettingsNote"),
@@ -312,6 +313,67 @@ function id(prefix) {
   return prefix + "-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+function dashboardTimeZone() {
+  return (typeof state !== "undefined" && state.settings && state.settings.timeZone) || "Asia/Manila";
+}
+
+function datePartsInTimeZone(date, timeZone) {
+  var parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timeZone || dashboardTimeZone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(date).reduce(function (result, part) {
+    result[part.type] = part.value;
+    return result;
+  }, {});
+  var hour = Number(parts.hour || 0);
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: hour === 24 ? 0 : hour,
+    minute: Number(parts.minute || 0),
+    second: Number(parts.second || 0)
+  };
+}
+
+function dateISOInTimeZone(date, timeZone) {
+  var parts = datePartsInTimeZone(date, timeZone);
+  return String(parts.year).padStart(4, "0") + "-" +
+    String(parts.month).padStart(2, "0") + "-" +
+    String(parts.day).padStart(2, "0");
+}
+
+function timeInTimeZone(date, timeZone) {
+  var parts = datePartsInTimeZone(date, timeZone);
+  return String(parts.hour).padStart(2, "0") + ":" + String(parts.minute).padStart(2, "0");
+}
+
+function timeZoneOffsetMs(date, timeZone) {
+  var parts = datePartsInTimeZone(date, timeZone);
+  var asUTC = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return asUTC - date.getTime();
+}
+
+function zonedDateTimeToDate(dateISO, time, timeZone) {
+  var dateParts = dateISO.split("-").map(Number);
+  var timeParts = (time || "00:00").split(":").map(Number);
+  var utcGuess = Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0] || 0, timeParts[1] || 0, 0);
+  var offset = timeZoneOffsetMs(new Date(utcGuess), timeZone);
+  var instant = new Date(utcGuess - offset);
+  var correctedOffset = timeZoneOffsetMs(instant, timeZone);
+  return new Date(utcGuess - correctedOffset);
+}
+
+function dashboardTodayISO() {
+  return dateISOInTimeZone(new Date(), dashboardTimeZone());
+}
+
 function toISO(date) {
   var copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   var year = copy.getFullYear();
@@ -379,6 +441,15 @@ function weekOfYearLabel(date) {
   var firstWeekStart = startOfWeek(new Date(weekStart.getFullYear(), 0, 1));
   var weekNumber = Math.floor((weekStart - firstWeekStart) / 604800000) + 1;
   return weekStart.getFullYear() + " Wk " + weekNumber;
+}
+
+function currentWeekRange() {
+  var today = parseISO(dashboardTodayISO());
+  var weekStart = startOfWeek(today);
+  return {
+    start: toISO(weekStart),
+    end: toISO(addDays(weekStart, 6))
+  };
 }
 
 function dayDiff(startISO, endISO) {
@@ -684,7 +755,7 @@ function seedState() {
   var sermonDate = toISO(addDays(today, 13));
   var bibleStudyDate = toISO(addDays(today, 3));
   return {
-    settings: { preferredName: "", timeFormat: "24", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
+    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
     events: [
       createEvent({ type: "Sermon", passage: "Jn 3:16", title: "Sermon: Jn 3:16", start: sermonDate, end: sermonDate, timeSlot: "Morning", source: "dashboard" }),
       createEvent({ type: "Bible Study", passage: "Rom 8:1-11", title: "Bible Study: Rom 8:1-11", start: bibleStudyDate, end: bibleStudyDate, timeSlot: "Evening", source: "dashboard" })
@@ -708,8 +779,8 @@ function createEvent(values) {
     type: values.type || "General Event",
     passage: values.passage || "",
     title: values.title || "",
-    start: values.start || toISO(new Date()),
-    end: values.end || values.start || toISO(new Date()),
+    start: values.start || dashboardTodayISO(),
+    end: values.end || values.start || dashboardTodayISO(),
     timeSlot: values.timeSlot || "Morning",
     timeStart: values.timeStart || "",
     timeEnd: values.timeEnd || "",
@@ -750,6 +821,7 @@ function loadState() {
     loaded.settings = loaded.settings || {};
     loaded.settings.preferredName = loaded.settings.preferredName || "";
     loaded.settings.timeFormat = loaded.settings.timeFormat || "24";
+    loaded.settings.timeZone = loaded.settings.timeZone || "Asia/Manila";
     loaded.settings.headlineCarouselPaused = !!loaded.settings.headlineCarouselPaused;
     loaded.settings.readerSplit = loaded.settings.readerSplit || 50;
     loaded.settings.mainReaderSplit = loaded.settings.mainReaderSplit || 62;
@@ -794,11 +866,11 @@ function loadState() {
 
 var state = loadState();
 headlineCarouselPaused = !!state.settings.headlineCarouselPaused;
-var viewDate = new Date();
-var scheduleWeekStart = startOfWeek(new Date());
+var viewDate = parseISO(dashboardTodayISO());
+var scheduleWeekStart = startOfWeek(parseISO(dashboardTodayISO()));
 var calendarMode = "normal";
 var planningMode = false;
-var selectedDate = toISO(new Date());
+var selectedDate = dashboardTodayISO();
 var eventModalMode = "create";
 var editingEventId = null;
 var viewingEventId = null;
@@ -821,7 +893,7 @@ var lastScheduleDurationMinutes = 60;
 var selectedEventColorKey = "plum";
 var selectedScheduleColorKey = "green";
 var generatedOccurrenceMap = {};
-var openBirthdayMonthIndex = new Date().getMonth();
+var openBirthdayMonthIndex = parseISO(dashboardTodayISO()).getMonth();
 var newsData = null;
 var headlineIndex = 0;
 var activeHeadlineItem = null;
@@ -1307,18 +1379,20 @@ function showToast(message) {
 
 function renderGreeting() {
   var now = new Date();
-  var hour = now.getHours();
+  var timeZone = dashboardTimeZone();
+  var parts = datePartsInTimeZone(now, timeZone);
+  var hour = parts.hour;
   var greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   var name = state.settings.preferredName.trim();
   els.greeting.textContent = name ? greeting + ", " + name : greeting;
-  els.todayLabel.textContent = now.toLocaleDateString(undefined, { weekday: "long" });
-  els.dateLine.textContent = now.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
-  els.timeLine.textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: state.settings.timeFormat === "12" });
+  els.todayLabel.textContent = now.toLocaleDateString(undefined, { weekday: "long", timeZone: timeZone });
+  els.dateLine.textContent = now.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric", timeZone: timeZone });
+  els.timeLine.textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: state.settings.timeFormat === "12", timeZone: timeZone });
 }
 
 function renderVerseOfDay() {
   var start = parseISO("2026-01-01").getTime();
-  var today = parseISO(toISO(new Date())).getTime();
+  var today = parseISO(dashboardTodayISO()).getTime();
   var index = Math.floor((today - start) / 86400000) % DAILY_VERSES.length;
   if (index < 0) index = 0;
   var verse = DAILY_VERSES[index];
@@ -1385,6 +1459,7 @@ function loadNetVerse(verse) {
 function openSettings() {
   els.preferredName.value = state.settings.preferredName || "";
   els.timeFormat.value = state.settings.timeFormat || "24";
+  if (els.timeZone) els.timeZone.value = state.settings.timeZone || "Asia/Manila";
   if (els.apiSportsKey) els.apiSportsKey.value = "";
   if (els.apiSportsKeySetting) els.apiSportsKeySetting.hidden = isHostedDashboard;
   if (els.cloudPrivateSettingsNote) els.cloudPrivateSettingsNote.hidden = !isHostedDashboard;
@@ -1406,16 +1481,16 @@ function calendarVisibleRange() {
     var birthdayStart = new Date(viewDate.getFullYear(), 0, 1);
     var birthdayEnd = new Date(viewDate.getFullYear() + 1, 11, 31);
     return {
-      timeMin: new Date(birthdayStart.getFullYear(), birthdayStart.getMonth(), birthdayStart.getDate()).toISOString(),
-      timeMax: new Date(birthdayEnd.getFullYear(), birthdayEnd.getMonth(), birthdayEnd.getDate(), 23, 59, 59).toISOString()
+      timeMin: zonedDateTimeToDate(toISO(birthdayStart), "00:00", dashboardTimeZone()).toISOString(),
+      timeMax: zonedDateTimeToDate(toISO(birthdayEnd), "23:59", dashboardTimeZone()).toISOString()
     };
   }
   var base = calendarMode === "schedule" ? scheduleWeekStart : new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   var start = calendarMode === "schedule" ? startOfWeek(base) : addDays(base, -base.getDay());
   var end = calendarMode === "schedule" ? addDays(start, 7) : addDays(start, 42);
   return {
-    timeMin: new Date(start.getFullYear(), start.getMonth(), start.getDate()).toISOString(),
-    timeMax: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59).toISOString()
+    timeMin: zonedDateTimeToDate(toISO(start), "00:00", dashboardTimeZone()).toISOString(),
+    timeMax: zonedDateTimeToDate(toISO(end), "23:59", dashboardTimeZone()).toISOString()
   };
 }
 
@@ -1572,7 +1647,7 @@ function googleCalendarRangeQuery() {
   var range = calendarVisibleRange();
   return {
     range: range,
-    query: "?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax)
+    query: "?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax) + "&timeZone=" + encodeURIComponent(dashboardTimeZone())
   };
 }
 
@@ -1802,7 +1877,7 @@ async function syncDashboardEventToGoogle(localEvent, showNotice) {
     var response = await dashboardFetch("/api/google-calendar/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event: localEvent })
+      body: JSON.stringify({ event: Object.assign({}, localEvent, { dashboardTimeZone: dashboardTimeZone() }) })
     });
     if (response.status === 401) {
       googleCalendarStatus.connected = false;
@@ -1973,7 +2048,7 @@ function birthdayName(item) {
 }
 
 function nextBirthdayOccurrence(item) {
-  var today = parseISO(toISO(new Date()));
+  var today = parseISO(dashboardTodayISO());
   var sourceDate = parseISO(item.start);
   var candidate = new Date(today.getFullYear(), sourceDate.getMonth(), sourceDate.getDate());
   if (candidate < today) candidate.setFullYear(candidate.getFullYear() + 1);
@@ -1993,7 +2068,7 @@ function nextBirthdayOccurrence(item) {
 
 function renderBirthdayView() {
   els.monthLabel.textContent = viewDate.getFullYear() + " Birthdays";
-  els.monthLabel.classList.toggle("current-month", viewDate.getFullYear() === new Date().getFullYear());
+  els.monthLabel.classList.toggle("current-month", viewDate.getFullYear() === parseISO(dashboardTodayISO()).getFullYear());
   var wrapper = document.createElement("section");
   wrapper.className = "birthday-view";
   var tools = document.createElement("div");
@@ -2070,10 +2145,10 @@ function renderMonthCalendar() {
   var firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   var gridStart = addDays(firstOfMonth, -firstOfMonth.getDay());
   els.monthLabel.textContent = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  var now = new Date();
+  var now = parseISO(dashboardTodayISO());
   els.monthLabel.classList.toggle("current-month", viewDate.getFullYear() === now.getFullYear() && viewDate.getMonth() === now.getMonth());
 
-  var todayISO = toISO(new Date());
+  var todayISO = dashboardTodayISO();
   var gridEnd = addDays(gridStart, 41);
   var allItems = visibleCalendarEvents(toISO(gridStart), toISO(gridEnd)).concat(getTaskDeadlineItems());
   if (planningMode) allItems = allItems.concat(state.plans);
@@ -2173,7 +2248,7 @@ function eventsForDate(dateISO) {
 
 function renderScheduleView() {
   els.monthLabel.textContent = weekOfYearLabel(scheduleWeekStart);
-  var nowWeek = startOfWeek(new Date());
+  var nowWeek = startOfWeek(parseISO(dashboardTodayISO()));
   els.monthLabel.classList.toggle("current-month", toISO(nowWeek) === toISO(scheduleWeekStart));
   WEEKDAYS.forEach(function (day, weekdayIndex) {
     var label = document.createElement("div");
@@ -2189,7 +2264,7 @@ function renderScheduleView() {
     var column = document.createElement("section");
     column.className = "schedule-day";
     if (date.getDay() === 0) column.classList.add("sunday");
-    if (iso === toISO(new Date())) column.classList.add("today");
+    if (iso === dashboardTodayISO()) column.classList.add("today");
     column.dataset.date = iso;
 
     var dateBadge = document.createElement("button");
@@ -2611,7 +2686,7 @@ function scheduleCategoryDefaultColor(category) {
 function openScheduleModal(options) {
   var settings = options || {};
   populateScheduleTimeSelects();
-  var today = toISO(new Date());
+  var today = dashboardTodayISO();
   var weekEnd = toISO(addDays(scheduleWeekStart, 6));
   var series = settings.scheduleId ? getScheduleSeriesDefaults(settings.scheduleId, settings.fromDate) : null;
   editingScheduleId = series ? series.scheduleId : null;
@@ -3092,11 +3167,11 @@ function updatePlanButtons() {
 
 function goToCurrentCalendarPeriod() {
   if (calendarMode === "schedule") {
-    scheduleWeekStart = startOfWeek(new Date());
+    scheduleWeekStart = startOfWeek(parseISO(dashboardTodayISO()));
   } else if (calendarMode === "birthdays") {
-    viewDate = new Date();
+    viewDate = parseISO(dashboardTodayISO());
   } else {
-    viewDate = new Date();
+    viewDate = parseISO(dashboardTodayISO());
   }
   renderCalendar();
 }
@@ -3124,14 +3199,14 @@ function goToNextCalendarPeriod() {
 }
 
 function isWithinNextDays(item, days) {
-  var today = parseISO(toISO(new Date())).getTime();
+  var today = parseISO(dashboardTodayISO()).getTime();
   var target = parseISO(item.start).getTime();
   var diff = Math.round((target - today) / 86400000);
   return diff >= 0 && diff <= days;
 }
 
 function isInCurrentCalendarMonth(item) {
-  var now = new Date();
+  var now = parseISO(dashboardTodayISO());
   var start = parseISO(item.start);
   return start.getFullYear() === now.getFullYear() && start.getMonth() === now.getMonth() && start >= parseISO(toISO(now));
 }
@@ -3140,26 +3215,27 @@ function renderPriorityList() {
   els.priorityList.innerHTML = "";
   var days = priorityScope === "month" ? 30 : 7;
   els.priorityTitle.textContent = priorityScope === "month"
-    ? "Upcoming Teachings for " + new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    ? "Upcoming Teachings for " + parseISO(dashboardTodayISO()).toLocaleDateString(undefined, { month: "long", year: "numeric" })
     : "This Week";
   els.priorityScopeToggle.textContent = priorityScope === "month" ? "Week" : "Month";
   var items;
   var birthdayItems = [];
   if (priorityScope === "month") {
-    var monthStart = toISO(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-    var monthEnd = toISO(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0));
+    var monthToday = parseISO(dashboardTodayISO());
+    var monthStart = toISO(new Date(monthToday.getFullYear(), monthToday.getMonth(), 1));
+    var monthEnd = toISO(new Date(monthToday.getFullYear(), monthToday.getMonth() + 1, 0));
     items = visibleCalendarEvents(monthStart, monthEnd).filter(function (item) {
       return isMinistryPriority(item) && isInCurrentCalendarMonth(item);
     });
   } else {
-    var rangeStart = toISO(new Date());
-    var rangeEnd = toISO(addDays(new Date(), 30));
+    var week = currentWeekRange();
+    var rangeStart = week.start;
+    var rangeEnd = week.end;
     var visible = visibleCalendarEvents(rangeStart, rangeEnd);
-    var ministry = visible.filter(function (item) { return isMinistryPriority(item) && isWithinNextDays(item, 30); });
-    var scoped = visible.filter(function (item) { return !isMinistryPriority(item) && !eventIsBirthday(item) && isWithinNextDays(item, days); });
+    var ministry = visible.filter(function (item) { return isMinistryPriority(item); });
+    var scoped = visible.filter(function (item) { return !isMinistryPriority(item) && !eventIsBirthday(item); });
     items = ministry.concat(scoped);
-    birthdayItems = visibleCalendarEvents(rangeStart, toISO(addDays(new Date(), days)), { includeBirthdays: true, onlyBirthdays: true })
-      .filter(function (item) { return isWithinNextDays(item, days); })
+    birthdayItems = visibleCalendarEvents(rangeStart, rangeEnd, { includeBirthdays: true, onlyBirthdays: true })
       .sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
   }
   items = items.sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
@@ -4863,9 +4939,11 @@ els.settingsForm.addEventListener("submit", async function (event) {
   }
   state.settings.preferredName = els.preferredName.value.trim();
   state.settings.timeFormat = els.timeFormat.value || "24";
+  state.settings.timeZone = els.timeZone ? (els.timeZone.value || "Asia/Manila") : "Asia/Manila";
   populateTimeSelects();
   saveState();
-  renderGreeting();
+  renderAll();
+  loadGoogleCalendarEvents(false);
   var privateSettingsPayload = {
     apiSportsKey: els.apiSportsKey ? els.apiSportsKey.value.trim() : ""
   };

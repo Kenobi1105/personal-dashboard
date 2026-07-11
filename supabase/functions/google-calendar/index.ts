@@ -28,26 +28,77 @@ function addDays(value: string, amount: number) {
   return date;
 }
 
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
+function datePartsInTimeZone(date: Date, timeZone = "Asia/Manila") {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date).reduce((result: Record<string, string>, part) => {
+    result[part.type] = part.value;
+    return result;
+  }, {});
+  const hour = Number(parts.hour || 0);
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: hour === 24 ? 0 : hour,
+    minute: Number(parts.minute || 0),
+    second: Number(parts.second || 0),
+  };
 }
 
-function clock(date: Date) {
-  return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+function isoDate(date: Date, timeZone = "Asia/Manila") {
+  const parts = datePartsInTimeZone(date, timeZone);
+  return String(parts.year).padStart(4, "0") + "-" +
+    String(parts.month).padStart(2, "0") + "-" +
+    String(parts.day).padStart(2, "0");
 }
 
-function timeSlot(date: Date) {
-  const hour = date.getHours();
+function clock(date: Date, timeZone = "Asia/Manila") {
+  const parts = datePartsInTimeZone(date, timeZone);
+  return String(parts.hour).padStart(2, "0") + ":" + String(parts.minute).padStart(2, "0");
+}
+
+function timeSlot(date: Date, timeZone = "Asia/Manila") {
+  const hour = datePartsInTimeZone(date, timeZone).hour;
   if (hour < 12) return "Morning";
   if (hour < 18) return "Afternoon";
   return "Evening";
 }
 
-function normalizeGoogleEvent(item: any, calendar: any = {}) {
+function addDaysToISO(dateISO: string, amount: number) {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + amount));
+  return date.toISOString().slice(0, 10);
+}
+
+function addMinutesToPlain(dateISO: string, time: string, amount: number) {
+  const [hour, minute] = time.split(":").map(Number);
+  const total = (hour || 0) * 60 + (minute || 0) + amount;
+  const dayDelta = Math.floor(total / 1440);
+  const normalized = ((total % 1440) + 1440) % 1440;
+  return {
+    date: addDaysToISO(dateISO, dayDelta),
+    time: String(Math.floor(normalized / 60)).padStart(2, "0") + ":" + String(normalized % 60).padStart(2, "0"),
+  };
+}
+
+function selectedTimeZone(url: URL) {
+  return url.searchParams.get("timeZone") || "Asia/Manila";
+}
+
+function normalizeGoogleEvent(item: any, calendar: any = {}, dashboardTimeZone = "Asia/Manila") {
   const allDay = Boolean(item.start?.date);
   const startDateTime = allDay ? null : new Date(item.start.dateTime);
-  const start = allDay ? item.start.date : isoDate(startDateTime!);
-  const end = allDay ? isoDate(addDays(item.end?.date + "T00:00:00", -1)) : isoDate(new Date(item.end?.dateTime || item.start?.dateTime));
+  const endDateTime = allDay ? null : new Date(item.end?.dateTime || item.start?.dateTime);
+  const start = allDay ? item.start.date : isoDate(startDateTime!, dashboardTimeZone);
+  const end = allDay ? addDaysToISO(item.end?.date || item.start.date, -1) : isoDate(endDateTime!, dashboardTimeZone);
   const calendarId = calendar.id || "primary";
   return {
     id: "google:" + calendarId + ":" + item.id,
@@ -59,9 +110,9 @@ function normalizeGoogleEvent(item: any, calendar: any = {}) {
     title: item.summary || "(No title)",
     start,
     end: end || start,
-    timeSlot: allDay ? "All Day" : timeSlot(startDateTime!),
-    timeStart: allDay ? "" : clock(startDateTime!),
-    timeEnd: allDay ? "" : clock(new Date(item.end?.dateTime || item.start?.dateTime)),
+    timeSlot: allDay ? "All Day" : timeSlot(startDateTime!, dashboardTimeZone),
+    timeStart: allDay ? "" : clock(startDateTime!, dashboardTimeZone),
+    timeEnd: allDay ? "" : clock(endDateTime!, dashboardTimeZone),
     allDay,
     location: item.location || "",
     notes: item.description || "",
@@ -75,6 +126,7 @@ function normalizeGoogleEvent(item: any, calendar: any = {}) {
     googleRecurringEventId: item.recurringEventId || "",
     recurring: Boolean(item.recurringEventId || (item.recurrence || []).length),
     status: item.status || "",
+    sourceTimeZone: item.start?.timeZone || dashboardTimeZone,
   };
 }
 
@@ -258,7 +310,7 @@ async function googleCalendarDiagnostics(userId: string, url: URL) {
       const data = await calendarRequest(userId, "/calendars/" + encodeURIComponent(calendar.id) + "/events?" + params.toString());
       (data.items || [])
         .filter((item: any) => item.status !== "cancelled")
-        .forEach((item: any) => events.push(normalizeGoogleEvent(item, calendar)));
+        .forEach((item: any) => events.push(normalizeGoogleEvent(item, calendar, selectedTimeZone(url))));
     } catch (error) {
       eventErrors.push((calendar.summary || calendar.id) + ": " + (error instanceof Error ? error.message : String(error)));
     }
@@ -276,19 +328,22 @@ async function googleCalendarDiagnostics(userId: string, url: URL) {
   return result;
 }
 
+function eventTimeZone(event: any) {
+  return event.dashboardTimeZone || event.timeZone || "Asia/Manila";
+}
+
 function googleDateTime(event: any, field: "start" | "end") {
   const date = field === "end" ? event.end || event.start : event.start;
   const time = field === "end" ? event.timeEnd : event.timeStart;
   if (event.allDay || !time) return { date };
-  return { dateTime: date + "T" + time + ":00", timeZone: "Asia/Manila" };
+  return { dateTime: date + "T" + time + ":00", timeZone: eventTimeZone(event) };
 }
 
 function googleEnd(event: any) {
-  if (event.allDay || !event.timeStart) return { date: isoDate(addDays((event.end || event.start) + "T00:00:00", 1)) };
+  if (event.allDay || !event.timeStart) return { date: addDaysToISO(event.end || event.start, 1) };
   if (event.timeEnd) return googleDateTime(event, "end");
-  const fallback = new Date(event.start + "T" + event.timeStart + ":00");
-  fallback.setHours(fallback.getHours() + 1);
-  return { dateTime: isoDate(fallback) + "T" + clock(fallback) + ":00", timeZone: "Asia/Manila" };
+  const fallback = addMinutesToPlain(event.start, event.timeStart, 60);
+  return { dateTime: fallback.date + "T" + fallback.time + ":00", timeZone: eventTimeZone(event) };
 }
 
 function recurrence(event: any) {
@@ -402,7 +457,7 @@ Deno.serve(async (req) => {
         const data = await calendarRequest(user.id, "/calendars/" + encodeURIComponent(calendar.id) + "/events?" + params.toString());
         (data.items || [])
           .filter((item: any) => item.status !== "cancelled")
-          .forEach((item: any) => events.push(normalizeGoogleEvent(item, calendar)));
+          .forEach((item: any) => events.push(normalizeGoogleEvent(item, calendar, selectedTimeZone(url))));
       } catch (error) {
         errors.push((calendar.summary || calendar.id) + ": " + (error instanceof Error ? error.message : String(error)));
       }
@@ -426,7 +481,7 @@ Deno.serve(async (req) => {
     const data = event.googleEventId
       ? await calendarRequest(user.id, "/calendars/primary/events/" + encodeURIComponent(event.googleEventId), { method: "PATCH", body: JSON.stringify(googlePayload(event)) })
       : await calendarRequest(user.id, "/calendars/primary/events", { method: "POST", body: JSON.stringify(googlePayload(event)) });
-    return json({ ok: true, event: normalizeGoogleEvent(data) });
+    return json({ ok: true, event: normalizeGoogleEvent(data, {}, eventTimeZone(event)) });
   }
 
   if (path.startsWith("/events/") && req.method === "DELETE") {

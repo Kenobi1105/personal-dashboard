@@ -1231,15 +1231,46 @@ async function fetchJson(url) {
   }
 }
 
-function serverISODate(date) {
-  var year = date.getFullYear();
-  var month = String(date.getMonth() + 1).padStart(2, "0");
-  var day = String(date.getDate()).padStart(2, "0");
+function serverTimeZone(fallback) {
+  return fallback || process.env.TZ || "Asia/Manila";
+}
+
+function serverDatePartsInTimeZone(date, timeZone) {
+  var parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: serverTimeZone(timeZone),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(date).reduce(function (result, part) {
+    result[part.type] = part.value;
+    return result;
+  }, {});
+  var hour = Number(parts.hour || 0);
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: hour === 24 ? 0 : hour,
+    minute: Number(parts.minute || 0),
+    second: Number(parts.second || 0)
+  };
+}
+
+function serverISODate(date, timeZone) {
+  var parts = serverDatePartsInTimeZone(date, timeZone);
+  var year = parts.year;
+  var month = String(parts.month).padStart(2, "0");
+  var day = String(parts.day).padStart(2, "0");
   return year + "-" + month + "-" + day;
 }
 
-function serverTime(date) {
-  return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+function serverTime(date, timeZone) {
+  var parts = serverDatePartsInTimeZone(date, timeZone);
+  return String(parts.hour).padStart(2, "0") + ":" + String(parts.minute).padStart(2, "0");
 }
 
 function addServerDays(value, days) {
@@ -1250,23 +1281,41 @@ function addServerDays(value, days) {
 
 function inclusiveAllDayEnd(exclusiveEnd) {
   if (!exclusiveEnd) return "";
-  return serverISODate(addServerDays(exclusiveEnd + "T00:00:00", -1));
+  return serverPlainAddDays(exclusiveEnd, -1);
 }
 
-function timeSlotForDate(date) {
-  var hour = date.getHours();
+function serverPlainAddDays(dateISO, amount) {
+  var parts = dateISO.split("-").map(Number);
+  var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + amount));
+  return date.toISOString().slice(0, 10);
+}
+
+function addMinutesToPlain(dateISO, time, amount) {
+  var parts = time.split(":").map(Number);
+  var total = (parts[0] || 0) * 60 + (parts[1] || 0) + amount;
+  var dayDelta = Math.floor(total / 1440);
+  var normalized = ((total % 1440) + 1440) % 1440;
+  return {
+    date: serverPlainAddDays(dateISO, dayDelta),
+    time: String(Math.floor(normalized / 60)).padStart(2, "0") + ":" + String(normalized % 60).padStart(2, "0")
+  };
+}
+
+function timeSlotForDate(date, timeZone) {
+  var hour = serverDatePartsInTimeZone(date, timeZone).hour;
   if (hour < 12) return "Morning";
   if (hour < 18) return "Afternoon";
   return "Evening";
 }
 
-function normalizeGoogleCalendarEvent(item, calendar) {
+function normalizeGoogleCalendarEvent(item, calendar, dashboardTimeZone) {
   var allDay = Boolean(item.start && item.start.date);
   var startDateTime = allDay ? null : new Date(item.start.dateTime);
-  var startDate = allDay ? item.start.date : serverISODate(new Date(item.start.dateTime));
-  var endDate = allDay ? inclusiveAllDayEnd(item.end && item.end.date) : serverISODate(new Date(item.end.dateTime || item.start.dateTime));
-  var startTime = allDay ? "" : serverTime(startDateTime);
-  var endTime = allDay ? "" : serverTime(new Date(item.end.dateTime || item.start.dateTime));
+  var zone = serverTimeZone(dashboardTimeZone);
+  var startDate = allDay ? item.start.date : serverISODate(new Date(item.start.dateTime), zone);
+  var endDate = allDay ? inclusiveAllDayEnd(item.end && item.end.date) : serverISODate(new Date(item.end.dateTime || item.start.dateTime), zone);
+  var startTime = allDay ? "" : serverTime(startDateTime, zone);
+  var endTime = allDay ? "" : serverTime(new Date(item.end.dateTime || item.start.dateTime), zone);
   var sourceCalendar = calendar || {};
   return {
     id: "google:" + item.id,
@@ -1278,7 +1327,7 @@ function normalizeGoogleCalendarEvent(item, calendar) {
     title: item.summary || "(No title)",
     start: startDate,
     end: endDate || startDate,
-    timeSlot: allDay ? "All Day" : timeSlotForDate(startDateTime),
+    timeSlot: allDay ? "All Day" : timeSlotForDate(startDateTime, zone),
     timeStart: startTime,
     timeEnd: endTime,
     allDay: allDay,
@@ -1294,7 +1343,8 @@ function normalizeGoogleCalendarEvent(item, calendar) {
     googleRecurringEventId: item.recurringEventId || "",
     repeatRule: googleRepeatRule(item.recurrence || []),
     recurring: Boolean(item.recurringEventId || (item.recurrence || []).length),
-    status: item.status || ""
+    status: item.status || "",
+    sourceTimeZone: item.start && item.start.timeZone || zone
   };
 }
 
@@ -1328,22 +1378,21 @@ function googleDateTimeForEvent(event, field) {
   if (event.allDay || !time) return { date: date };
   return {
     dateTime: date + "T" + time + ":00",
-    timeZone: process.env.TZ || "Asia/Manila"
+    timeZone: serverTimeZone(event.dashboardTimeZone || event.timeZone)
   };
 }
 
 function googleExclusiveEndForEvent(event) {
   if (!(event.allDay || !event.timeStart)) {
     if (event.timeEnd) return googleDateTimeForEvent(event, "end");
-    var fallbackEnd = new Date(event.start + "T" + event.timeStart + ":00");
-    fallbackEnd.setHours(fallbackEnd.getHours() + 1);
+    var fallbackEnd = addMinutesToPlain(event.start, event.timeStart, 60);
     return {
-      dateTime: serverISODate(fallbackEnd) + "T" + serverTime(fallbackEnd) + ":00",
-      timeZone: process.env.TZ || "Asia/Manila"
+      dateTime: fallbackEnd.date + "T" + fallbackEnd.time + ":00",
+      timeZone: serverTimeZone(event.dashboardTimeZone || event.timeZone)
     };
   }
   var date = event.end || event.start || serverISODate(new Date());
-  return { date: serverISODate(addServerDays(date + "T00:00:00", 1)) };
+  return { date: serverPlainAddDays(date, 1) };
 }
 
 function dashboardEventToGoogle(event) {
@@ -1492,6 +1541,7 @@ async function handleGoogleCalendarEvents(url, res) {
   }
   var timeMin = url.searchParams.get("timeMin") || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   var timeMax = url.searchParams.get("timeMax") || new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString();
+  var dashboardZone = serverTimeZone(url.searchParams.get("timeZone") || "");
   var query = new URLSearchParams({
     timeMin: timeMin,
     timeMax: timeMax,
@@ -1507,7 +1557,7 @@ async function handleGoogleCalendarEvents(url, res) {
       var data = await googleCalendarRequest("/calendars/" + encodeURIComponent(calendar.id) + "/events?" + query.toString());
       (data.items || [])
         .filter(function (item) { return item.status !== "cancelled"; })
-        .forEach(function (item) { events.push(normalizeGoogleCalendarEvent(item, calendar)); });
+        .forEach(function (item) { events.push(normalizeGoogleCalendarEvent(item, calendar, dashboardZone)); });
     } catch (error) {
       errors.push((calendar.summary || calendar.id) + ": " + (error && error.message ? error.message : String(error)));
     }
@@ -1534,7 +1584,7 @@ async function handleGoogleCalendarUpsert(req, res) {
   var data = googleEventId
     ? await googleCalendarRequest("/calendars/primary/events/" + encodeURIComponent(googleEventId), { method: "PATCH", body: JSON.stringify(payload) })
     : await googleCalendarRequest("/calendars/primary/events", { method: "POST", body: JSON.stringify(payload) });
-  sendJson(res, 200, { ok: true, event: normalizeGoogleCalendarEvent(data) });
+  sendJson(res, 200, { ok: true, event: normalizeGoogleCalendarEvent(data, {}, serverTimeZone(event.dashboardTimeZone || event.timeZone)) });
 }
 
 async function handleGoogleCalendarDelete(url, res) {
