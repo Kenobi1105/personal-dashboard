@@ -215,7 +215,13 @@ var els = {
   taskModalTitle: document.getElementById("taskModalTitle"),
   taskModalInput: document.getElementById("taskModalInput"),
   taskModalDueDate: document.getElementById("taskModalDueDate"),
+  taskModalNotes: document.getElementById("taskModalNotes"),
   taskModalSource: document.getElementById("taskModalSource"),
+  taskModalView: document.getElementById("taskModalView"),
+  taskModalViewDue: document.getElementById("taskModalViewDue"),
+  taskModalViewNotes: document.getElementById("taskModalViewNotes"),
+  taskModalEditFields: document.getElementById("taskModalEditFields"),
+  editTaskButton: document.getElementById("editTaskButton"),
   saveTaskButton: document.getElementById("saveTaskButton"),
   restoreTaskButton: document.getElementById("restoreTaskButton"),
   deleteTaskPermanentlyButton: document.getElementById("deleteTaskPermanentlyButton"),
@@ -2627,6 +2633,7 @@ function ensureChecklistTask(item, eventItem) {
       dueDate: item.dueDate || eventItem.start,
       done: !!item.done,
       completedAt: item.done ? new Date().toISOString() : "",
+      notes: "",
       source: "event",
       eventId: eventItem.id,
       eventTitle: eventTitle(eventItem)
@@ -2637,6 +2644,7 @@ function ensureChecklistTask(item, eventItem) {
     task.dueDate = item.dueDate || eventItem.start;
     task.done = item.done;
     task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
+    if (typeof task.notes !== "string") task.notes = "";
     task.eventId = eventItem.id;
     task.eventTitle = eventTitle(eventItem);
   }
@@ -3329,6 +3337,7 @@ function addTask(title, dueDate, source, eventId, eventTitleValue) {
     dueDate: dueDate || "",
     done: false,
     completedAt: "",
+    notes: "",
     source: source || "dashboard",
     eventId: eventId || null,
     eventTitle: eventTitleValue || ""
@@ -3383,19 +3392,31 @@ function openTaskModal(taskId, options) {
   var task = state.tasks.find(function (item) { return item.id === taskId; });
   if (!task) return;
   var settings = options || {};
+  var editMode = !!settings.edit || !!settings.restore;
   editingTaskId = task.id;
   els.taskModalEyebrow.textContent = task.done ? "Finished Task" : "Task";
-  els.taskModalTitle.textContent = settings.restore ? "Restore Task" : "Edit Task";
+  els.taskModalTitle.textContent = settings.restore ? "Restore Task" : (editMode ? "Edit Task" : task.title || "Task");
   els.taskModalInput.value = task.title || "";
   els.taskModalDueDate.value = settings.restore ? "" : (task.dueDate || "");
+  els.taskModalNotes.value = task.notes || "";
   els.taskModalDueDate.required = !!settings.restore;
   els.taskModalSource.textContent = taskSourceLabel(task);
+  els.taskModalViewDue.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
+  els.taskModalViewNotes.textContent = task.notes || "No notes added.";
   els.taskModal.dataset.restoreMode = settings.restore ? "true" : "false";
-  els.restoreTaskButton.hidden = !task.done;
+  els.taskModal.dataset.mode = editMode ? "edit" : "view";
+  els.taskModalView.hidden = editMode;
+  els.taskModalEditFields.hidden = !editMode;
+  els.editTaskButton.hidden = editMode;
+  els.restoreTaskButton.hidden = !task.done || editMode;
   els.deleteTaskPermanentlyButton.hidden = !task.done;
+  els.saveTaskButton.hidden = !editMode;
   els.saveTaskButton.textContent = settings.restore ? "Restore Task" : "Save Task";
   els.taskModal.showModal();
-  window.setTimeout(function () { els.taskModalInput.focus(); }, 0);
+  window.setTimeout(function () {
+    if (editMode) els.taskModalInput.focus();
+    else els.editTaskButton.focus();
+  }, 0);
 }
 
 function restoreTaskFromModal() {
@@ -3415,6 +3436,7 @@ function restoreTaskFromModal() {
   }
   task.title = title;
   task.dueDate = dueDate;
+  task.notes = els.taskModalNotes.value.trim();
   task.done = false;
   task.completedAt = "";
   syncChecklistCompletion(task);
@@ -4409,6 +4431,29 @@ function isScheduledStatus(status) {
   return /scheduled|not started|pre-game|preview|time tbd/i.test(status || "");
 }
 
+function isLiveGame(game) {
+  return !!game && !isFinishedStatus(game.status) && !isScheduledStatus(game.status);
+}
+
+function gameMood(game, label) {
+  var teams = game && game.competitors ? game.competitors : [];
+  var normalizedLabel = String(label || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  var favorite = teams.find(function (team) {
+    var normalizedTeam = String(team.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return normalizedTeam === normalizedLabel || normalizedTeam.indexOf(normalizedLabel) !== -1 || normalizedLabel.indexOf(normalizedTeam) !== -1;
+  });
+  var opponent = teams.find(function (team) { return team !== favorite; });
+  var favoriteScore = favorite ? Number(favorite.score) : NaN;
+  var opponentScore = opponent ? Number(opponent.score) : NaN;
+  var live = isLiveGame(game);
+  if (!Number.isFinite(favoriteScore) || !Number.isFinite(opponentScore)) return { className: live ? "is-live" : "", message: live ? "Live now" : "Game day" };
+  if (favoriteScore === opponentScore) return { className: live ? "is-live is-tied" : "", message: live ? "All even. Keep pressing." : "Even score" };
+  var winning = favoriteScore > opponentScore;
+  if (live) return { className: "is-live " + (winning ? "is-winning" : "is-losing"), message: winning ? "Leading live" : "Keep fighting" };
+  if (isFinishedStatus(game.status)) return { className: winning ? "is-winner" : "is-loser", message: winning ? "Final win" : "Final" };
+  return { className: winning ? "is-winning" : "is-losing", message: winning ? "In front" : "Game day" };
+}
+
 function liveGameMarker(game) {
   if (!game) return "";
   var status = game.status || "";
@@ -4526,7 +4571,8 @@ function gameLink(game) {
 
 function renderGameCard(game, label, meta) {
   var card = document.createElement("a");
-  card.className = "priority-matchup";
+  var mood = gameMood(game, label);
+  card.className = "priority-matchup " + mood.className;
   card.href = gameLink(game);
   card.target = "_blank";
   card.rel = "noopener";
@@ -4541,12 +4587,15 @@ function renderGameCard(game, label, meta) {
   var hasWinner = Number.isFinite(maxScore) && scores.filter(function (score) { return score === maxScore; }).length === 1;
   var nextLine = meta && meta.nextLabel ? "<span class='next-game-line'>" + escapeHTML(meta.nextLabel) + "</span>" : "";
   card.innerHTML =
-    "<div class='favorite-card-head'><div><strong class='favorite-team-label'>" + escapeHTML(label) + "</strong><span>" + escapeHTML(shortMonthDay(game.date)) + " Game</span></div><span class='score-status'>" + escapeHTML(liveGameMarker(game)) + "</span></div>" +
+    "<div class='favorite-card-head'><div><strong class='favorite-team-label'>" + escapeHTML(label) + "</strong><span>" + escapeHTML(shortMonthDay(game.date)) + " Game</span></div><span class='score-status'>" + (isLiveGame(game) ? "<i class='live-pulse' aria-hidden='true'></i>" : "") + escapeHTML(liveGameMarker(game)) + "</span></div>" +
     "<div class='matchup-teams'>" + teams.map(function (team) {
       var score = Number(team.score);
       var winner = hasWinner && score === maxScore;
-      return "<div class='matchup-team'>" + teamLogo(team) + "<span>" + escapeHTML(team.name) + "</span><strong class='" + (winner ? "winning-score" : "") + "'>" + escapeHTML(team.score) + "</strong></div>";
-    }).join("") + "</div>" + nextLine;
+      var normalizedTeam = String(team.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      var normalizedLabel = String(label || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      var favorite = normalizedTeam === normalizedLabel || normalizedTeam.indexOf(normalizedLabel) !== -1 || normalizedLabel.indexOf(normalizedTeam) !== -1;
+      return "<div class='matchup-team" + (favorite ? " favorite-team" : "") + "'>" + teamLogo(team) + "<span>" + escapeHTML(team.name) + "</span><strong class='" + (winner ? "winning-score" : "") + "'>" + escapeHTML(team.score) + "</strong></div>";
+    }).join("") + "</div><span class='favorite-momentum'>" + escapeHTML(mood.message) + "</span>" + nextLine;
   return card;
 }
 
@@ -4929,9 +4978,12 @@ function renderStandingsTable(entries) {
   return table;
 }
 
-async function loadSport(sport) {
-  sportsData[sport] = null;
-  renderScoreboard();
+async function loadSport(sport, options) {
+  var settings = options || {};
+  if (!settings.quiet) {
+    sportsData[sport] = null;
+    renderScoreboard();
+  }
   try {
     var response = await dashboardFetch("/api/sports/" + sport + "?ts=" + Date.now(), { cache: "no-store" });
     sportsData[sport] = await readDashboardJson(response, sport.toUpperCase() + " scoreboard");
@@ -4946,6 +4998,13 @@ async function loadSport(sport) {
     showToast("Scoreboard feed needs attention. See the sports panel.");
   }
   renderScoreboard();
+}
+
+function refreshLiveSportIfNeeded() {
+  var data = sportsData[currentSport];
+  var priorityGames = data && data.priorityGames ? data.priorityGames : [];
+  var active = priorityGames.some(function (item) { return isLiveGame(item.game); });
+  if (active) loadSport(currentSport, { quiet: true });
 }
 
 function renderAll() {
@@ -5153,6 +5212,10 @@ document.addEventListener("keydown", function (event) {
       editingScheduleFromDate = "";
       els.scheduleModal.close();
     }
+    else if (els.eventDetailModal.open) {
+      closeDeleteScopeMenu();
+      els.eventDetailModal.close();
+    }
     else closeDayDrawer();
   }
 });
@@ -5160,7 +5223,7 @@ document.addEventListener("keydown", function (event) {
 document.addEventListener("pointerdown", function (event) {
   if (els.moduleMenu && !els.moduleMenu.hasAttribute("hidden") && !event.target.closest(".mobile-module-menu")) closeModuleMenu();
   if (activeDeleteMenu && !activeDeleteMenu.contains(event.target)) closeDeleteScopeMenu();
-  if (els.eventModal.open || els.scheduleModal.open || els.settingsModal.open) return;
+  if (els.eventModal.open || els.scheduleModal.open || els.settingsModal.open || els.eventDetailModal.open || els.taskModal.open) return;
   if (!els.dayDrawer.classList.contains("open")) return;
   if (els.dayDrawer.contains(event.target)) return;
   if (event.target.closest(".day-cell")) return;
@@ -5322,6 +5385,9 @@ els.finishedTasksButton.addEventListener("click", function () {
 els.restoreTaskButton.addEventListener("click", function () {
   if (editingTaskId) openTaskModal(editingTaskId, { restore: true });
 });
+els.editTaskButton.addEventListener("click", function () {
+  if (editingTaskId) openTaskModal(editingTaskId, { edit: true });
+});
 els.deleteTaskPermanentlyButton.addEventListener("click", function () {
   var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
   permanentlyDeleteTask(task);
@@ -5333,6 +5399,7 @@ els.taskModalForm.addEventListener("submit", function (event) {
     els.taskModal.close();
     return;
   }
+  if (els.taskModal.dataset.mode !== "edit") return;
   if (els.taskModal.dataset.restoreMode === "true") {
     restoreTaskFromModal();
     return;
@@ -5347,6 +5414,7 @@ els.taskModalForm.addEventListener("submit", function (event) {
   }
   task.title = title;
   task.dueDate = els.taskModalDueDate.value;
+  task.notes = els.taskModalNotes.value.trim();
   syncChecklistCompletion(task);
   saveState();
   editingTaskId = null;
@@ -5633,6 +5701,7 @@ try {
   setInterval(loadNews, 5 * 60 * 1000);
   setInterval(loadRssFeeds, 30 * 60 * 1000);
   setInterval(function () { refreshGoogleCalendar(false); }, 10 * 60 * 1000);
+  setInterval(refreshLiveSportIfNeeded, 60 * 1000);
   setInterval(renderGreeting, 1000);
 } catch (error) {
   document.body.dataset.appError = error && error.stack ? error.stack : String(error);

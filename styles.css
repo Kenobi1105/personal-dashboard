@@ -1391,6 +1391,12 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   box-shadow: 0 16px 32px rgba(73, 53, 72, 0.13);
   transform: translateY(-1px);
 }
+.priority-matchup.is-live { border-color: #6f7d5c; box-shadow: 0 16px 34px rgba(111, 125, 92, 0.24); }
+.priority-matchup.is-live.is-winning,
+.priority-matchup.is-winner { background: #fbfdf7; border-color: #6f7d5c; }
+.priority-matchup.is-live.is-losing,
+.priority-matchup.is-loser { background: #fffaf6; border-color: #c77d5b; }
+.priority-matchup.is-live.is-tied { border-color: #8c7a94; }
 .priority-matchups { display: grid; gap: 7px; }
 .mlb-scoreboard .priority-matchups { gap: 10px; }
 .mlb-scoreboard .priority-matchup {
@@ -1419,7 +1425,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 }
 .score-label,
 .score-status { color: var(--muted); font-size: 0.72rem; font-weight: 900; }
-.score-status { justify-self: end; text-align: right; padding-top: 2px; }
+.score-status { justify-self: end; display: inline-flex; align-items: center; gap: 5px; text-align: right; padding-top: 2px; }
+.live-pulse { width: 7px; height: 7px; border-radius: 50%; background: #6f7d5c; box-shadow: 0 0 0 0 rgba(111, 125, 92, 0.54); animation: live-pulse 1.65s ease-out infinite; }
+.priority-matchup.is-live.is-losing .live-pulse { background: #b0634a; box-shadow: 0 0 0 0 rgba(176, 99, 74, 0.5); }
 .game-result-label,
 .next-game-line { color: var(--signature); font-size: 0.78rem; font-weight: 900; }
 .next-game-line { padding-top: 2px; color: var(--sage); }
@@ -1456,6 +1464,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .matchup-team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .matchup-team strong { justify-self: end; padding-right: 8px; color: var(--signature); font-size: 1.78rem; font-weight: 500; line-height: 1; }
 .matchup-team strong.winning-score { font-size: 2.45rem; font-weight: 900; }
+.matchup-team.favorite-team { padding: 4px 6px; border-radius: 6px; background: rgba(240, 208, 143, 0.25); }
+.priority-matchup.is-live.is-winning .matchup-team.favorite-team { background: rgba(111, 125, 92, 0.12); }
+.priority-matchup.is-live.is-losing .matchup-team.favorite-team { background: rgba(176, 99, 74, 0.1); }
+.favorite-momentum { color: var(--sage); font-size: 0.76rem; font-weight: 900; letter-spacing: 0; }
+.priority-matchup.is-live.is-losing .favorite-momentum { color: #a75442; }
+@keyframes live-pulse { 70% { box-shadow: 0 0 0 7px rgba(111, 125, 92, 0); } 100% { box-shadow: 0 0 0 0 rgba(111, 125, 92, 0); } }
+@media (prefers-reduced-motion: reduce) { .live-pulse { animation: none; } }
 .mlb-scoreboard .matchup-team span { font-size: 1rem; }
 .mlb-scoreboard .matchup-team span {
   white-space: normal;
@@ -1951,6 +1966,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .modal-card { display: grid; gap: 6px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
 .task-modal-card { gap: 10px; }
 .task-modal-card label { display: grid; gap: 4px; color: var(--signature); font-weight: 900; font-size: 0.74rem; }
+.task-modal-edit-fields { display: grid; gap: 10px; }
+.task-modal-edit-fields textarea { resize: vertical; min-height: 88px; }
+.task-modal-view { display: grid; gap: 10px; }
+.task-view-due { margin: 0; color: var(--sage); font-size: 0.82rem; font-weight: 900; }
+.task-view-notes { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: rgba(247, 243, 233, 0.5); }
+.task-view-notes .eyebrow { margin: 0; }
+.task-view-notes > p:last-child { margin: 0; color: var(--ink); line-height: 1.45; white-space: pre-wrap; }
 .task-modal-source { margin: -2px 0 0; color: var(--muted); font-size: 0.74rem; }
 .modal-actions { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .modal-spacer { flex: 1; }

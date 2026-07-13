@@ -580,25 +580,38 @@
         <div class="panel-heading tight-heading">
           <div>
             <p class="eyebrow" id="taskModalEyebrow">Task</p>
-            <h2 id="taskModalTitle">Edit Task</h2>
+            <h2 id="taskModalTitle">Task</h2>
           </div>
           <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close task editor">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
           </button>
         </div>
-        <label>Task
-          <input id="taskModalInput" type="text" required>
-        </label>
-        <label>Due Date
-          <input id="taskModalDueDate" type="date">
-        </label>
-        <p class="task-modal-source" id="taskModalSource"></p>
+        <section class="task-modal-view" id="taskModalView">
+          <p class="task-view-due" id="taskModalViewDue"></p>
+          <p class="task-modal-source" id="taskModalSource"></p>
+          <div class="task-view-notes">
+            <p class="eyebrow">Notes</p>
+            <p id="taskModalViewNotes">No notes added.</p>
+          </div>
+        </section>
+        <div class="task-modal-edit-fields" id="taskModalEditFields" hidden>
+          <label>Task
+            <input id="taskModalInput" type="text" required>
+          </label>
+          <label>Due Date
+            <input id="taskModalDueDate" type="date">
+          </label>
+          <label>Notes
+            <textarea id="taskModalNotes" rows="4" placeholder="Add notes for this task"></textarea>
+          </label>
+        </div>
         <div class="modal-actions">
           <button class="text-button danger-button" id="deleteTaskPermanentlyButton" type="button" hidden>Delete Permanently</button>
           <span class="modal-spacer"></span>
-          <button class="text-button" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button class="text-button" value="cancel" type="submit" formnovalidate>Close</button>
+          <button class="text-button" id="editTaskButton" type="button">Edit</button>
           <button class="text-button" id="restoreTaskButton" type="button" hidden>Restore</button>
-          <button class="accent-button" value="default" type="submit" id="saveTaskButton">Save Task</button>
+          <button class="accent-button" value="default" type="submit" id="saveTaskButton" hidden>Save Task</button>
         </div>
       </form>
     </dialog>
