@@ -206,6 +206,8 @@ var els = {
   taskForm: document.getElementById("taskForm"),
   taskInput: document.getElementById("taskInput"),
   taskDueDate: document.getElementById("taskDueDate"),
+  taskGroupForm: document.getElementById("taskGroupForm"),
+  taskGroupInput: document.getElementById("taskGroupInput"),
   taskList: document.getElementById("taskList"),
   activeTasksButton: document.getElementById("activeTasksButton"),
   finishedTasksButton: document.getElementById("finishedTasksButton"),
@@ -780,6 +782,7 @@ function seedState() {
     ],
     plans: [],
     tasks: [],
+    taskGroups: [],
     templates: [],
     activeTemplateId: null,
     rssFeeds: [],
@@ -868,7 +871,19 @@ function loadState() {
       plan.draft = true;
       return normalizeEvent(plan);
     });
-    loaded.tasks = loaded.tasks || [];
+    loaded.tasks = (loaded.tasks || []).map(function (task, index) {
+      task.groupId = task.groupId || "";
+      task.sortOrder = typeof task.sortOrder === "number" ? task.sortOrder : index;
+      return task;
+    });
+    loaded.taskGroups = (loaded.taskGroups || []).map(function (group, index) {
+      return {
+        id: group.id || id("task-group"),
+        name: group.name || "Untitled group",
+        collapsed: !!group.collapsed,
+        sortOrder: typeof group.sortOrder === "number" ? group.sortOrder : index
+      };
+    });
     loaded.templates = loaded.templates || [];
     loaded.activeTemplateId = loaded.activeTemplateId || null;
     loaded.rssFeeds = (loaded.rssFeeds || []).slice(0, 10);
@@ -894,6 +909,7 @@ var editingEventId = null;
 var viewingEventId = null;
 var editingTaskId = null;
 var taskView = "active";
+var taskModalOpenSource = "";
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -1087,6 +1103,7 @@ function syncableStateSnapshot() {
     events: state.events,
     plans: state.plans,
     tasks: state.tasks,
+    taskGroups: state.taskGroups,
     templates: state.templates,
     activeTemplateId: state.activeTemplateId,
     rssFeeds: state.rssFeeds,
@@ -1104,7 +1121,19 @@ function mergeCloudState(remote) {
   state.settings = Object.assign({}, state.settings, remote.settings || {});
   state.events = (remote.events || state.events || []).map(normalizeEvent);
   state.plans = (remote.plans || state.plans || []).map(normalizeEvent);
-  state.tasks = remote.tasks || state.tasks || [];
+  state.tasks = (remote.tasks || state.tasks || []).map(function (task, index) {
+    task.groupId = task.groupId || "";
+    task.sortOrder = typeof task.sortOrder === "number" ? task.sortOrder : index;
+    return task;
+  });
+  state.taskGroups = (remote.taskGroups || state.taskGroups || []).map(function (group, index) {
+    return {
+      id: group.id || id("task-group"),
+      name: group.name || "Untitled group",
+      collapsed: !!group.collapsed,
+      sortOrder: typeof group.sortOrder === "number" ? group.sortOrder : index
+    };
+  });
   state.templates = remote.templates || state.templates || [];
   state.activeTemplateId = remote.activeTemplateId || state.activeTemplateId || null;
   state.rssFeeds = remote.rssFeeds || state.rssFeeds || [];
@@ -2636,7 +2665,9 @@ function ensureChecklistTask(item, eventItem) {
       notes: "",
       source: "event",
       eventId: eventItem.id,
-      eventTitle: eventTitle(eventItem)
+      eventTitle: eventTitle(eventItem),
+      groupId: "",
+      sortOrder: -Date.now()
     };
     state.tasks.unshift(task);
   } else {
@@ -3338,6 +3369,8 @@ function addTask(title, dueDate, source, eventId, eventTitleValue) {
     done: false,
     completedAt: "",
     notes: "",
+    groupId: "",
+    sortOrder: -Date.now(),
     source: source || "dashboard",
     eventId: eventId || null,
     eventTitle: eventTitleValue || ""
@@ -3345,6 +3378,80 @@ function addTask(title, dueDate, source, eventId, eventTitleValue) {
   saveState();
   renderTasks();
   renderCalendar();
+}
+
+function createTaskGroup(name) {
+  var cleanName = String(name || "").trim();
+  if (!cleanName) {
+    showToast("Name the task group first.");
+    if (els.taskGroupInput) els.taskGroupInput.focus();
+    return;
+  }
+  var duplicate = (state.taskGroups || []).some(function (group) {
+    return group.name.toLowerCase() === cleanName.toLowerCase();
+  });
+  if (duplicate) {
+    showToast("That task group already exists.");
+    return;
+  }
+  state.taskGroups.push({ id: id("task-group"), name: cleanName, collapsed: false, sortOrder: state.taskGroups.length });
+  saveState();
+  renderTasks();
+  els.taskGroupInput.value = "";
+  showToast("Task group created.");
+}
+
+function orderedTaskGroups() {
+  return (state.taskGroups || []).slice().sort(function (left, right) {
+    return (left.sortOrder || 0) - (right.sortOrder || 0);
+  });
+}
+
+function orderedTasksForGroup(groupId) {
+  return state.tasks.filter(function (task) {
+    return (task.groupId || "") === (groupId || "");
+  }).sort(function (left, right) {
+    return (left.sortOrder || 0) - (right.sortOrder || 0);
+  });
+}
+
+function moveTaskToGroup(taskId, groupId, targetTaskId, placeAfter) {
+  var task = state.tasks.find(function (item) { return item.id === taskId; });
+  if (!task) return;
+  var destination = groupId || "";
+  var ordered = orderedTasksForGroup(destination).filter(function (item) { return item.id !== taskId; });
+  task.groupId = destination;
+  var position = ordered.length;
+  if (targetTaskId) {
+    var targetIndex = ordered.findIndex(function (item) { return item.id === targetTaskId; });
+    if (targetIndex >= 0) position = targetIndex + (placeAfter ? 1 : 0);
+  }
+  ordered.splice(position, 0, task);
+  ordered.forEach(function (item, index) { item.sortOrder = index; });
+  saveState();
+  renderTasks();
+}
+
+function toggleTaskGroup(groupId) {
+  var group = state.taskGroups.find(function (item) { return item.id === groupId; });
+  if (!group) return;
+  group.collapsed = !group.collapsed;
+  saveState();
+  renderTasks();
+}
+
+function deleteTaskGroup(groupId) {
+  var group = state.taskGroups.find(function (item) { return item.id === groupId; });
+  if (!group) return;
+  if (!window.confirm("Delete the \"" + group.name + "\" group? Its tasks will move to Ungrouped.")) return;
+  state.tasks.forEach(function (task) {
+    if (task.groupId === groupId) task.groupId = "";
+  });
+  state.taskGroups = state.taskGroups.filter(function (item) { return item.id !== groupId; });
+  orderedTasksForGroup("").forEach(function (task, index) { task.sortOrder = index; });
+  saveState();
+  renderTasks();
+  showToast("Task group removed. Its tasks are still saved.");
 }
 
 function taskSourceLabel(task) {
@@ -3393,6 +3500,7 @@ function openTaskModal(taskId, options) {
   if (!task) return;
   var settings = options || {};
   var editMode = !!settings.edit || !!settings.restore;
+  taskModalOpenSource = settings.source || "";
   editingTaskId = task.id;
   els.taskModalEyebrow.textContent = task.done ? "Finished Task" : "Task";
   els.taskModalTitle.textContent = settings.restore ? "Restore Task" : (editMode ? "Edit Task" : task.title || "Task");
@@ -3408,7 +3516,7 @@ function openTaskModal(taskId, options) {
   els.taskModalView.hidden = editMode;
   els.taskModalEditFields.hidden = !editMode;
   els.editTaskButton.hidden = editMode;
-  els.restoreTaskButton.hidden = !task.done || editMode;
+  els.restoreTaskButton.hidden = !task.done || editMode || taskModalOpenSource !== "finished";
   els.deleteTaskPermanentlyButton.hidden = !task.done;
   els.saveTaskButton.hidden = !editMode;
   els.saveTaskButton.textContent = settings.restore ? "Restore Task" : "Save Task";
@@ -3457,12 +3565,22 @@ function renderTasks() {
   els.finishedTasksButton.classList.toggle("active", completedView);
   els.finishedTasksButton.setAttribute("aria-selected", String(completedView));
 
-  if (!visibleTasks.length) {
+  if (!visibleTasks.length && (completedView || !(state.taskGroups || []).length)) {
     els.taskList.innerHTML = "<li class='task-empty'><span class='empty-state'>" + (completedView ? "No finished tasks yet." : "No saved tasks yet.") + "</span></li>";
     return;
   }
-  visibleTasks.slice(0, 8).forEach(function (task) {
+
+  var groups = orderedTaskGroups().map(function (group) {
+    return { id: group.id, name: group.name, collapsed: !!group.collapsed };
+  });
+  var ungroupedVisible = visibleTasks.some(function (task) { return !(task.groupId || ""); });
+  if (ungroupedVisible || !groups.length) groups.unshift({ id: "", name: "Ungrouped", collapsed: false, implicit: true });
+
+  function appendTaskCard(list, task, groupId) {
     var li = document.createElement("li");
+    li.className = "task-card";
+    li.dataset.taskId = task.id;
+    li.draggable = !completedView;
     if (task.done) li.classList.add("done");
 
     var checkbox = document.createElement("input");
@@ -3484,7 +3602,7 @@ function renderTasks() {
     var dueLabel = document.createElement("small");
     dueLabel.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
     titleWrap.append(eventTitleLabel, taskTitleLabel, dueLabel);
-    titleWrap.addEventListener("click", function () { openTaskModal(task.id); });
+    titleWrap.addEventListener("click", function () { openTaskModal(task.id, { source: taskView }); });
 
     var remove = document.createElement("button");
     remove.type = "button";
@@ -3496,7 +3614,84 @@ function renderTasks() {
     });
 
     li.append(checkbox, titleWrap, remove);
-    els.taskList.appendChild(li);
+    if (!completedView) {
+      li.addEventListener("dragstart", function (event) {
+        li.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", task.id);
+      });
+      li.addEventListener("dragend", function () { li.classList.remove("dragging"); });
+      li.addEventListener("dragover", function (event) {
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+        li.classList.add("drag-over");
+      });
+      li.addEventListener("dragleave", function () { li.classList.remove("drag-over"); });
+      li.addEventListener("drop", function (event) {
+        event.preventDefault();
+        li.classList.remove("drag-over");
+        var draggedId = event.dataTransfer.getData("text/plain");
+        if (!draggedId || draggedId === task.id) return;
+        var rect = li.getBoundingClientRect();
+        moveTaskToGroup(draggedId, groupId, task.id, event.clientY > rect.top + (rect.height / 2));
+      });
+    }
+    list.appendChild(li);
+  }
+
+  groups.forEach(function (group) {
+    var matchingTasks = visibleTasks.filter(function (task) { return (task.groupId || "") === group.id; });
+    if (completedView && !matchingTasks.length) return;
+    var groupItem = document.createElement("li");
+    groupItem.className = "task-group" + (group.collapsed ? " collapsed" : "");
+    groupItem.dataset.groupId = group.id;
+    var header = document.createElement("div");
+    header.className = "task-group-header";
+    var toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "task-group-toggle";
+    toggle.setAttribute("aria-expanded", String(!group.collapsed));
+    toggle.innerHTML = "<span class='task-group-chevron' aria-hidden='true'></span><span>" + escapeHTML(group.name) + "</span><small>" + matchingTasks.length + "</small>";
+    toggle.addEventListener("click", function () {
+      if (!group.implicit) toggleTaskGroup(group.id);
+    });
+    header.appendChild(toggle);
+    if (!group.implicit) {
+      var deleteGroup = document.createElement("button");
+      deleteGroup.type = "button";
+      deleteGroup.className = "trash-button task-group-delete";
+      deleteGroup.innerHTML = trashIcon();
+      deleteGroup.setAttribute("aria-label", "Delete " + group.name + " group");
+      deleteGroup.addEventListener("click", function () { deleteTaskGroup(group.id); });
+      header.appendChild(deleteGroup);
+    }
+    groupItem.appendChild(header);
+    var list = document.createElement("ul");
+    list.className = "task-group-list";
+    if (!completedView) {
+      list.addEventListener("dragover", function (event) {
+        event.preventDefault();
+        list.classList.add("task-group-drop-target");
+      });
+      list.addEventListener("dragleave", function (event) {
+        if (!list.contains(event.relatedTarget)) list.classList.remove("task-group-drop-target");
+      });
+      list.addEventListener("drop", function (event) {
+        event.preventDefault();
+        list.classList.remove("task-group-drop-target");
+        var draggedId = event.dataTransfer.getData("text/plain");
+        if (draggedId) moveTaskToGroup(draggedId, group.id);
+      });
+    }
+    matchingTasks.forEach(function (task) { appendTaskCard(list, task, group.id); });
+    if (!matchingTasks.length && !completedView) {
+      var empty = document.createElement("p");
+      empty.className = "task-group-empty";
+      empty.textContent = "Drop tasks here";
+      list.appendChild(empty);
+    }
+    if (!group.collapsed) groupItem.appendChild(list);
+    els.taskList.appendChild(groupItem);
   });
 }
 
@@ -5374,6 +5569,10 @@ els.taskForm.addEventListener("submit", function (event) {
   els.taskInput.value = "";
   els.taskDueDate.value = "";
 });
+els.taskGroupForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+  createTaskGroup(els.taskGroupInput.value);
+});
 els.activeTasksButton.addEventListener("click", function () {
   taskView = "active";
   renderTasks();
@@ -5383,10 +5582,10 @@ els.finishedTasksButton.addEventListener("click", function () {
   renderTasks();
 });
 els.restoreTaskButton.addEventListener("click", function () {
-  if (editingTaskId) openTaskModal(editingTaskId, { restore: true });
+  if (editingTaskId) openTaskModal(editingTaskId, { restore: true, source: "finished" });
 });
 els.editTaskButton.addEventListener("click", function () {
-  if (editingTaskId) openTaskModal(editingTaskId, { edit: true });
+  if (editingTaskId) openTaskModal(editingTaskId, { edit: true, source: taskModalOpenSource });
 });
 els.deleteTaskPermanentlyButton.addEventListener("click", function () {
   var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
@@ -5418,7 +5617,7 @@ els.taskModalForm.addEventListener("submit", function (event) {
   syncChecklistCompletion(task);
   saveState();
   renderAll();
-  openTaskModal(task.id);
+  openTaskModal(task.id, { source: taskModalOpenSource });
   showToast("Task saved.");
 });
 els.templateForm.addEventListener("submit", createTemplate);

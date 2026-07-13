@@ -148,6 +148,10 @@
                 <input id="taskDueDate" type="date" aria-label="Task due date">
                 <button class="accent-button small-control" type="submit">Add</button>
               </form>
+              <form class="task-group-form" id="taskGroupForm">
+                <input id="taskGroupInput" type="text" placeholder="New task group" aria-label="New task group name">
+                <button class="text-button small-control" type="submit">Create group</button>
+              </form>
               <ul class="task-list compact-list" id="taskList"></ul>
             </article>
 
@@ -609,7 +613,7 @@
           <button class="text-button danger-button" id="deleteTaskPermanentlyButton" type="button" hidden>Delete Permanently</button>
           <span class="modal-spacer"></span>
           <button class="text-button" value="cancel" type="submit" formnovalidate>Close</button>
-          <button class="text-button" id="editTaskButton" type="button">Edit</button>
+          <button class="accent-button" id="editTaskButton" type="button">Edit</button>
           <button class="text-button" id="restoreTaskButton" type="button" hidden>Restore</button>
           <button class="accent-button" value="default" type="submit" id="saveTaskButton" hidden>Save Task</button>
         </div>
