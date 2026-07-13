@@ -138,6 +138,10 @@
                   <p class="eyebrow">Tasks</p>
                   <h2>Main Task List</h2>
                 </div>
+                <div class="task-view-tabs" role="tablist" aria-label="Task views">
+                  <button class="text-button small-control active" id="activeTasksButton" type="button" role="tab" aria-selected="true">Active</button>
+                  <button class="text-button small-control" id="finishedTasksButton" type="button" role="tab" aria-selected="false">Finished</button>
+                </div>
               </div>
               <form class="task-form" id="taskForm">
                 <input id="taskInput" type="text" placeholder="Add a dashboard task">
@@ -569,6 +573,34 @@
           <button class="accent-button" id="eventDetailEdit" type="button">Edit Event</button>
         </div>
       </article>
+    </dialog>
+
+    <dialog class="task-modal" id="taskModal">
+      <form method="dialog" class="modal-card task-modal-card" id="taskModalForm" novalidate>
+        <div class="panel-heading tight-heading">
+          <div>
+            <p class="eyebrow" id="taskModalEyebrow">Task</p>
+            <h2 id="taskModalTitle">Edit Task</h2>
+          </div>
+          <button class="icon-button" value="cancel" type="submit" formnovalidate aria-label="Close task editor">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Z"/><path d="M19 6.4 6.4 19 5 17.6 17.6 5 19 6.4Z"/></svg>
+          </button>
+        </div>
+        <label>Task
+          <input id="taskModalInput" type="text" required>
+        </label>
+        <label>Due Date
+          <input id="taskModalDueDate" type="date">
+        </label>
+        <p class="task-modal-source" id="taskModalSource"></p>
+        <div class="modal-actions">
+          <button class="text-button danger-button" id="deleteTaskPermanentlyButton" type="button" hidden>Delete Permanently</button>
+          <span class="modal-spacer"></span>
+          <button class="text-button" value="cancel" type="submit" formnovalidate>Cancel</button>
+          <button class="text-button" id="restoreTaskButton" type="button" hidden>Restore</button>
+          <button class="accent-button" value="default" type="submit" id="saveTaskButton">Save Task</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog class="settings-modal" id="settingsModal">

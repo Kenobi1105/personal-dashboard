@@ -207,6 +207,18 @@ var els = {
   taskInput: document.getElementById("taskInput"),
   taskDueDate: document.getElementById("taskDueDate"),
   taskList: document.getElementById("taskList"),
+  activeTasksButton: document.getElementById("activeTasksButton"),
+  finishedTasksButton: document.getElementById("finishedTasksButton"),
+  taskModal: document.getElementById("taskModal"),
+  taskModalForm: document.getElementById("taskModalForm"),
+  taskModalEyebrow: document.getElementById("taskModalEyebrow"),
+  taskModalTitle: document.getElementById("taskModalTitle"),
+  taskModalInput: document.getElementById("taskModalInput"),
+  taskModalDueDate: document.getElementById("taskModalDueDate"),
+  taskModalSource: document.getElementById("taskModalSource"),
+  saveTaskButton: document.getElementById("saveTaskButton"),
+  restoreTaskButton: document.getElementById("restoreTaskButton"),
+  deleteTaskPermanentlyButton: document.getElementById("deleteTaskPermanentlyButton"),
   templateForm: document.getElementById("templateForm"),
   templateName: document.getElementById("templateName"),
   templateList: document.getElementById("templateList"),
@@ -874,6 +886,8 @@ var selectedDate = dashboardTodayISO();
 var eventModalMode = "create";
 var editingEventId = null;
 var viewingEventId = null;
+var editingTaskId = null;
+var taskView = "active";
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -1935,7 +1949,7 @@ function handleGoogleCalendarReturnMessage() {
 
 function getTaskDeadlineItems() {
   return state.tasks
-    .filter(function (task) { return !!task.dueDate; })
+    .filter(function (task) { return !task.done && !!task.dueDate; })
     .map(function (task) {
       return {
         id: task.id,
@@ -2434,14 +2448,33 @@ function renderDayDrawer() {
   taskGroup.innerHTML = "<h3>Tasks Due</h3>";
   var taskEvents = document.createElement("div");
   taskEvents.className = "drawer-events";
-  var dueTasks = state.tasks.filter(function (task) { return task.dueDate === selectedDate; });
+  var dueTasks = state.tasks.filter(function (task) { return !task.done && task.dueDate === selectedDate; });
   if (!dueTasks.length) {
     taskEvents.innerHTML = "<p class='empty-state'>No task deadlines.</p>";
   } else {
     dueTasks.forEach(function (task) {
       var card = document.createElement("div");
-      card.className = "drawer-event";
-      card.innerHTML = "<strong>" + task.title + "</strong><span>" + (task.eventTitle ? task.eventTitle + " / " : "") + "Due " + displayDate(task.dueDate) + "</span>";
+      card.className = "drawer-event drawer-task";
+
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!task.done;
+      checkbox.setAttribute("aria-label", "Mark " + task.title + " complete");
+      checkbox.addEventListener("change", function () {
+        setTaskCompletion(task, checkbox.checked);
+      });
+
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "drawer-event-button";
+      var taskName = document.createElement("strong");
+      taskName.textContent = task.title;
+      var taskMeta = document.createElement("span");
+      taskMeta.textContent = (task.eventTitle ? task.eventTitle + " / " : "") + "Due " + displayDate(task.dueDate);
+      button.append(taskName, taskMeta);
+      button.addEventListener("click", function () { openTaskModal(task.id); });
+
+      card.append(checkbox, button);
       taskEvents.appendChild(card);
     });
   }
@@ -2593,6 +2626,7 @@ function ensureChecklistTask(item, eventItem) {
       title: title,
       dueDate: item.dueDate || eventItem.start,
       done: !!item.done,
+      completedAt: item.done ? new Date().toISOString() : "",
       source: "event",
       eventId: eventItem.id,
       eventTitle: eventTitle(eventItem)
@@ -2602,6 +2636,7 @@ function ensureChecklistTask(item, eventItem) {
     task.title = title;
     task.dueDate = item.dueDate || eventItem.start;
     task.done = item.done;
+    task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
     task.eventId = eventItem.id;
     task.eventTitle = eventTitle(eventItem);
   }
@@ -2622,6 +2657,7 @@ function syncTaskFromChecklist(item) {
   task.title = item.title;
   task.dueDate = item.dueDate;
   task.done = item.done;
+  task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
   task.eventTitle = els.eventTitle.value.trim() || task.eventTitle;
   saveState();
 }
@@ -3292,6 +3328,7 @@ function addTask(title, dueDate, source, eventId, eventTitleValue) {
     title: cleanTitle,
     dueDate: dueDate || "",
     done: false,
+    completedAt: "",
     source: source || "dashboard",
     eventId: eventId || null,
     eventTitle: eventTitleValue || ""
@@ -3301,13 +3338,108 @@ function addTask(title, dueDate, source, eventId, eventTitleValue) {
   renderCalendar();
 }
 
-function renderTasks() {
-  els.taskList.innerHTML = "";
-  if (!state.tasks.length) {
-    els.taskList.innerHTML = "<li><span></span><span class='empty-state'>No saved tasks yet.</span><span></span></li>";
+function taskSourceLabel(task) {
+  if (task.eventTitle) return "From event: " + task.eventTitle;
+  return task.source === "event" ? "Event checklist item" : "Dashboard task";
+}
+
+function syncChecklistCompletion(task) {
+  state.events.forEach(function (event) {
+    (event.checklist || []).forEach(function (item) {
+      if (item.taskId === task.id) item.done = !!task.done;
+    });
+  });
+}
+
+function setTaskCompletion(task, done) {
+  if (!task) return;
+  task.done = !!done;
+  task.completedAt = done ? new Date().toISOString() : "";
+  syncChecklistCompletion(task);
+  saveState();
+  renderAll();
+}
+
+function permanentlyDeleteTask(task) {
+  if (!task) return;
+  if (!window.confirm("Permanently delete \"" + task.title + "\"? This cannot be undone.")) return;
+  state.tasks = state.tasks.filter(function (item) { return item.id !== task.id; });
+  state.events.forEach(function (event) {
+    (event.checklist || []).forEach(function (item) {
+      if (item.taskId === task.id) {
+        item.promoted = false;
+        item.taskId = null;
+      }
+    });
+  });
+  saveState();
+  if (els.taskModal.open) els.taskModal.close();
+  editingTaskId = null;
+  renderAll();
+  showToast("Task permanently deleted.");
+}
+
+function openTaskModal(taskId, options) {
+  var task = state.tasks.find(function (item) { return item.id === taskId; });
+  if (!task) return;
+  var settings = options || {};
+  editingTaskId = task.id;
+  els.taskModalEyebrow.textContent = task.done ? "Finished Task" : "Task";
+  els.taskModalTitle.textContent = settings.restore ? "Restore Task" : "Edit Task";
+  els.taskModalInput.value = task.title || "";
+  els.taskModalDueDate.value = settings.restore ? "" : (task.dueDate || "");
+  els.taskModalDueDate.required = !!settings.restore;
+  els.taskModalSource.textContent = taskSourceLabel(task);
+  els.taskModal.dataset.restoreMode = settings.restore ? "true" : "false";
+  els.restoreTaskButton.hidden = !task.done;
+  els.deleteTaskPermanentlyButton.hidden = !task.done;
+  els.saveTaskButton.textContent = settings.restore ? "Restore Task" : "Save Task";
+  els.taskModal.showModal();
+  window.setTimeout(function () { els.taskModalInput.focus(); }, 0);
+}
+
+function restoreTaskFromModal() {
+  var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
+  if (!task) return;
+  var dueDate = els.taskModalDueDate.value;
+  if (!dueDate) {
+    showToast("Choose a new due date before restoring this task.");
+    els.taskModalDueDate.focus();
     return;
   }
-  state.tasks.slice(0, 8).forEach(function (task) {
+  var title = els.taskModalInput.value.trim();
+  if (!title) {
+    showToast("Task title is required.");
+    els.taskModalInput.focus();
+    return;
+  }
+  task.title = title;
+  task.dueDate = dueDate;
+  task.done = false;
+  task.completedAt = "";
+  syncChecklistCompletion(task);
+  saveState();
+  els.taskModal.close();
+  editingTaskId = null;
+  taskView = "active";
+  renderAll();
+  showToast("Task restored.");
+}
+
+function renderTasks() {
+  els.taskList.innerHTML = "";
+  var completedView = taskView === "finished";
+  var visibleTasks = state.tasks.filter(function (task) { return completedView ? !!task.done : !task.done; });
+  els.activeTasksButton.classList.toggle("active", !completedView);
+  els.activeTasksButton.setAttribute("aria-selected", String(!completedView));
+  els.finishedTasksButton.classList.toggle("active", completedView);
+  els.finishedTasksButton.setAttribute("aria-selected", String(completedView));
+
+  if (!visibleTasks.length) {
+    els.taskList.innerHTML = "<li class='task-empty'><span class='empty-state'>" + (completedView ? "No finished tasks yet." : "No saved tasks yet.") + "</span></li>";
+    return;
+  }
+  visibleTasks.slice(0, 8).forEach(function (task) {
     var li = document.createElement("li");
     if (task.done) li.classList.add("done");
 
@@ -3316,32 +3448,29 @@ function renderTasks() {
     checkbox.checked = task.done;
     checkbox.setAttribute("aria-label", "Mark task complete");
     checkbox.addEventListener("change", function () {
-      task.done = checkbox.checked;
-      saveState();
-      renderTasks();
+      setTaskCompletion(task, checkbox.checked);
     });
 
-    var titleWrap = document.createElement("span");
-    titleWrap.className = "task-title";
-    titleWrap.innerHTML = (task.eventTitle ? "<strong>" + task.eventTitle + "</strong>" : "") + "<span>" + task.title + "</span>" + (task.dueDate ? "<small>Due " + displayDate(task.dueDate) + "</small>" : "<small>No due date</small>");
+    var titleWrap = document.createElement("button");
+    titleWrap.type = "button";
+    titleWrap.className = "task-title task-edit-button";
+    var eventTitleLabel = document.createElement("strong");
+    eventTitleLabel.textContent = task.eventTitle || "";
+    eventTitleLabel.hidden = !task.eventTitle;
+    var taskTitleLabel = document.createElement("span");
+    taskTitleLabel.textContent = task.title;
+    var dueLabel = document.createElement("small");
+    dueLabel.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
+    titleWrap.append(eventTitleLabel, taskTitleLabel, dueLabel);
+    titleWrap.addEventListener("click", function () { openTaskModal(task.id); });
 
     var remove = document.createElement("button");
     remove.type = "button";
     remove.className = "delete-button trash-button";
     remove.innerHTML = trashIcon();
-    remove.setAttribute("aria-label", "Delete task");
+    remove.setAttribute("aria-label", task.done ? "Permanently delete task" : "Delete task");
     remove.addEventListener("click", function () {
-      state.tasks = state.tasks.filter(function (item) { return item.id !== task.id; });
-      state.events.forEach(function (event) {
-        event.checklist.forEach(function (item) {
-          if (item.taskId === task.id) {
-            item.promoted = false;
-            item.taskId = null;
-          }
-        });
-      });
-      saveState();
-      renderAll();
+      permanentlyDeleteTask(task);
     });
 
     li.append(checkbox, titleWrap, remove);
@@ -4864,6 +4993,12 @@ els.obsidianButton.addEventListener("click", openVaultPlaceholder);
 els.settingsModal.addEventListener("click", function (event) {
   if (event.target === els.settingsModal) els.settingsModal.close();
 });
+els.taskModal.addEventListener("click", function (event) {
+  if (event.target === els.taskModal) {
+    editingTaskId = null;
+    els.taskModal.close();
+  }
+});
 els.eventModal.addEventListener("click", function (event) {
   if (event.target === els.eventModal) closeEventModal();
 });
@@ -5132,6 +5267,7 @@ els.eventTypeInput.addEventListener("keydown", function (event) {
 submitFormOnEnter(els.eventForm, ".form-button");
 submitFormOnEnter(els.scheduleForm, ".accent-button[value='default']");
 submitFormOnEnter(els.taskForm, "button[type='submit']");
+submitFormOnEnter(els.taskModalForm, "#saveTaskButton");
 submitFormOnEnter(els.templateForm, "button[type='submit']");
 submitFormOnEnter(els.rssForm, "button[type='submit']");
 els.deleteEventButton.addEventListener("click", deleteEditingEvent);
@@ -5170,6 +5306,49 @@ els.taskForm.addEventListener("submit", function (event) {
   addTask(els.taskInput.value, els.taskDueDate.value, "dashboard");
   els.taskInput.value = "";
   els.taskDueDate.value = "";
+});
+els.activeTasksButton.addEventListener("click", function () {
+  taskView = "active";
+  renderTasks();
+});
+els.finishedTasksButton.addEventListener("click", function () {
+  taskView = "finished";
+  renderTasks();
+});
+els.restoreTaskButton.addEventListener("click", function () {
+  if (editingTaskId) openTaskModal(editingTaskId, { restore: true });
+});
+els.deleteTaskPermanentlyButton.addEventListener("click", function () {
+  var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
+  permanentlyDeleteTask(task);
+});
+els.taskModalForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+  if (event.submitter && event.submitter.value === "cancel") {
+    editingTaskId = null;
+    els.taskModal.close();
+    return;
+  }
+  if (els.taskModal.dataset.restoreMode === "true") {
+    restoreTaskFromModal();
+    return;
+  }
+  var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
+  if (!task) return;
+  var title = els.taskModalInput.value.trim();
+  if (!title) {
+    showToast("Task title is required.");
+    els.taskModalInput.focus();
+    return;
+  }
+  task.title = title;
+  task.dueDate = els.taskModalDueDate.value;
+  syncChecklistCompletion(task);
+  saveState();
+  editingTaskId = null;
+  els.taskModal.close();
+  renderAll();
+  showToast("Task saved.");
 });
 els.templateForm.addEventListener("submit", createTemplate);
 els.priorityScopeToggle.addEventListener("click", function () {
