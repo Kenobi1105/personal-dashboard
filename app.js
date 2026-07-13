@@ -4577,8 +4577,8 @@ function renderWorldWatch() {
   var heroClose = worldWatchData.url ? "</a>" : "</div>";
   els.worldWatchCard.innerHTML =
     heroOpen +
-      "<div><p class='watch-label'>World Watch Ranking</p><strong class='watch-rank'>#" + escapeHTML(worldWatchData.rank) + "</strong></div>" +
-      "<div class='watch-country'><h3>" + escapeHTML(watchName) + "</h3>" + flag + "</div>" +
+      "<div class='watch-rank-block'><p class='watch-label'>World Watch Ranking</p><strong class='watch-rank'>#" + escapeHTML(worldWatchData.rank) + "</strong></div>" +
+      "<div class='watch-country'><div><p class='watch-country-kicker'>Today's prayer focus</p><h3>" + escapeHTML(watchName) + "</h3></div><div class='watch-flag-frame'>" + flag + "</div></div>" +
     heroClose +
     "<dl class='watch-stats'>" +
       "<div><dt>Christian population</dt><dd>" + escapeHTML(worldWatchData.christianPopulation || "Not listed") + "</dd></div>" +
@@ -4587,7 +4587,7 @@ function renderWorldWatch() {
       "<div><dt>Government</dt><dd>" + escapeHTML(worldWatchData.government || "Not listed") + "</dd></div>" +
       "<div><dt>Leader</dt><dd>" + escapeHTML(worldWatchData.leader || "Not listed") + "</dd></div>" +
     "</dl>" +
-    "<section class='watch-prayer-section'><h4>Prayer Points</h4><ul class='watch-prayers'>" + points + "</ul></section>";
+    "<section class='watch-prayer-section'><div class='watch-prayer-heading'><div><p class='watch-country-kicker'>Stand with the church</p><h4>Pray for " + escapeHTML(watchName) + "</h4></div><span aria-hidden='true' class='watch-prayer-mark'>Pray</span></div><ul class='watch-prayers'>" + points + "</ul></section>";
   var watchLink = els.worldWatchCard.querySelector("[data-world-watch-link]");
   if (watchLink) {
     watchLink.addEventListener("click", function (event) {
