@@ -1061,7 +1061,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 }
 
 .task-view-tabs { display: flex; gap: 4px; }
-.task-view-tabs .small-control.active { color: var(--label); border-color: var(--signature); background: var(--signature); }
+.task-view-tabs .small-control.active { color: #f7f3e9; border-color: var(--signature); background: var(--signature); text-shadow: 0 1px 0 rgba(31, 30, 30, 0.26); }
 .task-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(42px, 1fr)); grid-auto-flow: column; gap: 7px 8px; margin: 8px 0 0; padding: 0; list-style: none; }
 .task-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; min-width: 0; height: 42px; padding: 5px 6px; overflow: hidden; }
 .task-list .task-empty { grid-column: 1 / -1; grid-template-columns: 1fr; height: auto; min-height: 42px; }
@@ -1832,32 +1832,48 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .missions-tab.active { color: var(--background); background: var(--signature); }
 .mission-focus-card {
   display: grid;
-  gap: 9px;
+  gap: 10px;
   min-height: 100%;
   align-content: start;
-  padding: 10px;
+  padding: 13px;
   border: 1px solid rgba(73, 53, 72, 0.22);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.48);
 }
-.mission-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.operation-focus {
+  border-color: rgba(143, 77, 51, 0.36);
+  background: linear-gradient(135deg, rgba(255, 247, 231, 0.98), rgba(244, 219, 169, 0.5));
+  box-shadow: inset 4px 0 0 #ad6346, 0 10px 24px rgba(143, 77, 51, 0.09);
+}
+.joshua-focus {
+  border-color: rgba(83, 108, 81, 0.34);
+  background: linear-gradient(135deg, rgba(244, 248, 237, 0.98), rgba(220, 233, 202, 0.54));
+  box-shadow: inset 4px 0 0 #6f7d5c, 0 10px 24px rgba(65, 89, 59, 0.09);
+}
+.mission-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.mission-focus-label { margin: 0 0 4px; color: #8f4d33; font-size: 0.61rem; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; }
+.joshua-focus .mission-focus-label { color: #5c7353; }
 .mission-head h3 {
-  margin: 0;
+  margin: 2px 0 0;
   color: var(--signature);
   font-family: "League Spartan", "Montserrat", "Arial Black", "Century Gothic", sans-serif;
-  font-size: clamp(1.65rem, 3.1vw, 2.35rem);
+  font-size: clamp(1.8rem, 3.3vw, 2.5rem);
   line-height: 0.94;
 }
-.mission-flag-img { width: 84px; height: 56px; object-fit: cover; border: 1px solid rgba(73, 53, 72, 0.16); border-radius: 5px; box-shadow: 0 4px 10px rgba(73, 53, 72, 0.12); }
+.mission-flag-img { width: 92px; height: 61px; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.82); border-radius: 6px; box-shadow: 0 6px 14px rgba(73, 53, 72, 0.16); }
 .mission-subtitle { margin: 2px 0 0; color: var(--sage); font-size: 0.82rem; font-weight: 900; }
 .mission-focus-card p,
 .mission-focus-card li { color: var(--muted); font-size: 0.86rem; line-height: 1.42; }
 .mission-head .mission-subtitle { color: var(--sage); font-size: 0.82rem; line-height: 1.1; }
-.mission-focus-card ul { margin: 0; padding-left: 18px; }
+.mission-prompt { margin: 0; padding: 8px 10px; border-radius: 6px; color: var(--signature) !important; background: rgba(255, 255, 255, 0.56); font-size: 0.78rem !important; font-weight: 900; }
+.mission-prayer-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mission-prayer-list li { display: grid; grid-template-columns: 21px minmax(0, 1fr); gap: 8px; align-items: start; padding: 5px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.42); }
+.mission-prayer-number { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 999px; color: #fffaf0; background: #ad6346; font-size: 0.65rem; font-weight: 900; line-height: 1; }
+.joshua-focus .mission-prayer-number { background: #6f7d5c; }
 .mission-link {
   justify-self: start;
-  min-height: 24px;
-  padding: 4px 8px;
+  min-height: 27px;
+  padding: 5px 10px;
   font-size: 0.72rem;
   text-decoration: none;
 }

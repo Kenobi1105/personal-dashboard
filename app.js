@@ -4747,14 +4747,18 @@ function missionItemMarkup(item, fallbackTitle) {
   var title = isJoshua ? (item.peopleGroup || item.name || fallbackTitle) : (item.country || item.name || fallbackTitle);
   var subtitle = isJoshua ? item.country : item.peopleGroup;
   var points = (item.prayerPoints || []).length
-    ? "<ul>" + item.prayerPoints.slice(0, 4).map(function (point) { return "<li>" + escapeHTML(point) + "</li>"; }).join("") + "</ul>"
+    ? "<ul class='mission-prayer-list'>" + item.prayerPoints.slice(0, 4).map(function (point, index) { return "<li><span class='mission-prayer-number'>" + (index + 1) + "</span><span>" + escapeHTML(point) + "</span></li>"; }).join("") + "</ul>"
     : "<p>" + escapeHTML(item.summary || "Prayer details are not listed yet.") + "</p>";
-  return "<article class='mission-focus-card'>" +
+  var focusClass = isJoshua ? "joshua-focus" : "operation-focus";
+  var focusLabel = isJoshua ? "Unreached people group" : "Urgent prayer focus";
+  var focusPrompt = isJoshua ? "Pray, send, and help the gospel take root." : "Set apart a moment to intercede for this nation.";
+  return "<article class='mission-focus-card " + focusClass + "'>" +
     "<div class='mission-head'>" +
-      "<div><p class='eyebrow'>" + escapeHTML(item.source || fallbackTitle) + "</p><h3>" + escapeHTML(title) + "</h3>" +
+      "<div><p class='mission-focus-label'>" + escapeHTML(focusLabel) + "</p><p class='eyebrow'>" + escapeHTML(item.source || fallbackTitle) + "</p><h3>" + escapeHTML(title) + "</h3>" +
       (subtitle ? "<p class='mission-subtitle'>" + escapeHTML(subtitle) + "</p>" : "") + "</div>" +
       flag +
     "</div>" +
+    "<p class='mission-prompt'>" + escapeHTML(focusPrompt) + "</p>" +
     points +
     (item.url ? "<a class='text-button mission-link' href='" + escapeHTML(item.url) + "' target='_blank' rel='noopener'>Open full prayer page</a>" : "") +
   "</article>";
