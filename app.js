@@ -5417,9 +5417,8 @@ els.taskModalForm.addEventListener("submit", function (event) {
   task.notes = els.taskModalNotes.value.trim();
   syncChecklistCompletion(task);
   saveState();
-  editingTaskId = null;
-  els.taskModal.close();
   renderAll();
+  openTaskModal(task.id);
   showToast("Task saved.");
 });
 els.templateForm.addEventListener("submit", createTemplate);
