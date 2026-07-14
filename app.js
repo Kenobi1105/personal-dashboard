@@ -209,6 +209,12 @@ var els = {
   taskGroupForm: document.getElementById("taskGroupForm"),
   taskGroupInput: document.getElementById("taskGroupInput"),
   taskList: document.getElementById("taskList"),
+  workPanelEyebrow: document.getElementById("workPanelEyebrow"),
+  workPanelTitle: document.getElementById("workPanelTitle"),
+  tasksWorkspaceButton: document.getElementById("tasksWorkspaceButton"),
+  workflowsWorkspaceButton: document.getElementById("workflowsWorkspaceButton"),
+  tasksWorkspaceView: document.getElementById("tasksWorkspaceView"),
+  workflowsWorkspaceView: document.getElementById("workflowsWorkspaceView"),
   activeTasksButton: document.getElementById("activeTasksButton"),
   finishedTasksButton: document.getElementById("finishedTasksButton"),
   taskModal: document.getElementById("taskModal"),
@@ -909,6 +915,7 @@ var editingEventId = null;
 var viewingEventId = null;
 var editingTaskId = null;
 var taskView = "active";
+var workspaceView = "tasks";
 var taskModalOpenSource = "";
 var modalChecklist = [];
 var selectingPlan = false;
@@ -3516,7 +3523,7 @@ function openTaskModal(taskId, options) {
   els.taskModalView.hidden = editMode;
   els.taskModalEditFields.hidden = !editMode;
   els.editTaskButton.hidden = editMode;
-  els.restoreTaskButton.hidden = !task.done || editMode || taskModalOpenSource !== "finished";
+  els.restoreTaskButton.hidden = !task.done || editMode || taskModalOpenSource !== "finished" || taskView !== "finished";
   els.deleteTaskPermanentlyButton.hidden = !task.done;
   els.saveTaskButton.hidden = !editMode;
   els.saveTaskButton.textContent = settings.restore ? "Restore Task" : "Save Task";
@@ -3693,6 +3700,19 @@ function renderTasks() {
     if (!group.collapsed) groupItem.appendChild(list);
     els.taskList.appendChild(groupItem);
   });
+}
+
+function setWorkspaceView(view) {
+  workspaceView = view === "workflows" ? "workflows" : "tasks";
+  var workflowsActive = workspaceView === "workflows";
+  els.tasksWorkspaceButton.classList.toggle("active", !workflowsActive);
+  els.tasksWorkspaceButton.setAttribute("aria-selected", String(!workflowsActive));
+  els.workflowsWorkspaceButton.classList.toggle("active", workflowsActive);
+  els.workflowsWorkspaceButton.setAttribute("aria-selected", String(workflowsActive));
+  els.tasksWorkspaceView.hidden = workflowsActive;
+  els.workflowsWorkspaceView.hidden = !workflowsActive;
+  els.workPanelEyebrow.textContent = workflowsActive ? "Routines" : "Tasks";
+  els.workPanelTitle.textContent = workflowsActive ? "Workflow Templates" : "Main Task List";
 }
 
 function renderTemplates() {
@@ -5581,6 +5601,8 @@ els.finishedTasksButton.addEventListener("click", function () {
   taskView = "finished";
   renderTasks();
 });
+els.tasksWorkspaceButton.addEventListener("click", function () { setWorkspaceView("tasks"); });
+els.workflowsWorkspaceButton.addEventListener("click", function () { setWorkspaceView("workflows"); });
 els.restoreTaskButton.addEventListener("click", function () {
   if (editingTaskId) openTaskModal(editingTaskId, { restore: true, source: "finished" });
 });

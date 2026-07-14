@@ -132,44 +132,43 @@
               <div id="priorityList" class="priority-list compact-list"></div>
             </article>
 
-            <article class="panel tasks-panel compact-panel">
+            <article class="panel work-panel compact-panel" id="workPanel">
               <div class="panel-heading tight-heading">
                 <div>
-                  <p class="eyebrow">Tasks</p>
-                  <h2>Main Task List</h2>
+                  <p class="eyebrow" id="workPanelEyebrow">Tasks</p>
+                  <h2 id="workPanelTitle">Main Task List</h2>
                 </div>
+                <div class="work-view-tabs" role="tablist" aria-label="Work panel views">
+                  <button class="text-button small-control active" id="tasksWorkspaceButton" type="button" role="tab" aria-selected="true">Tasks</button>
+                  <button class="text-button small-control" id="workflowsWorkspaceButton" type="button" role="tab" aria-selected="false">Workflows</button>
+                </div>
+              </div>
+              <section class="work-panel-view" id="tasksWorkspaceView">
                 <div class="task-view-tabs" role="tablist" aria-label="Task views">
                   <button class="text-button small-control active" id="activeTasksButton" type="button" role="tab" aria-selected="true">Active</button>
                   <button class="text-button small-control" id="finishedTasksButton" type="button" role="tab" aria-selected="false">Finished</button>
                 </div>
-              </div>
-              <form class="task-form" id="taskForm">
-                <input id="taskInput" type="text" placeholder="Add a dashboard task">
-                <input id="taskDueDate" type="date" aria-label="Task due date">
-                <button class="accent-button small-control" type="submit">Add</button>
-              </form>
-              <form class="task-group-form" id="taskGroupForm">
-                <input id="taskGroupInput" type="text" placeholder="New task group" aria-label="New task group name">
-                <button class="text-button small-control" type="submit">Create group</button>
-              </form>
-              <ul class="task-list compact-list" id="taskList"></ul>
-            </article>
-
-            <article class="panel workflow-panel compact-panel">
-              <div class="panel-heading tight-heading">
-                <div>
-                  <p class="eyebrow">Routines</p>
-                  <h2>Workflow Templates</h2>
-                </div>
-              </div>
-              <div class="template-builder">
-                <form class="template-create" id="templateForm">
-                  <input id="templateName" type="text" placeholder="New template name">
-                  <button class="accent-button small-control" type="submit">Create</button>
+                <form class="task-form" id="taskForm">
+                  <input id="taskInput" type="text" placeholder="Add a dashboard task">
+                  <input id="taskDueDate" type="date" aria-label="Task due date">
+                  <button class="accent-button small-control" type="submit">Add</button>
                 </form>
-                <div class="template-list" id="templateList"></div>
-                <div class="active-workflow" id="activeWorkflow"></div>
-              </div>
+                <form class="task-group-form" id="taskGroupForm">
+                  <input id="taskGroupInput" type="text" placeholder="New task group" aria-label="New task group name">
+                  <button class="text-button small-control" type="submit">Create group</button>
+                </form>
+                <ul class="task-list compact-list" id="taskList"></ul>
+              </section>
+              <section class="work-panel-view" id="workflowsWorkspaceView" hidden>
+                <div class="template-builder">
+                  <form class="template-create" id="templateForm">
+                    <input id="templateName" type="text" placeholder="New template name">
+                    <button class="accent-button small-control" type="submit">Create</button>
+                  </form>
+                  <div class="template-list" id="templateList"></div>
+                  <div class="active-workflow" id="activeWorkflow"></div>
+                </div>
+              </section>
             </article>
           </aside>
         </section>
