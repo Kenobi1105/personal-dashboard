@@ -3422,9 +3422,25 @@ function orderedTasksForGroup(groupId) {
   });
 }
 
+function setTaskSortOrder(groupId, tasks) {
+  (tasks || orderedTasksForGroup(groupId)).forEach(function (task, index) {
+    task.sortOrder = index;
+  });
+}
+
+function taskIdFromDrop(event) {
+  var transfer = event && event.dataTransfer;
+  if (transfer) {
+    var taskId = transfer.getData("application/x-dashboard-task") || transfer.getData("text/plain");
+    if (taskId) return taskId;
+  }
+  return draggedTaskId;
+}
+
 function moveTaskToGroup(taskId, groupId, targetTaskId, placeAfter) {
   var task = state.tasks.find(function (item) { return item.id === taskId; });
   if (!task) return;
+  var source = task.groupId || "";
   var destination = groupId || "";
   var ordered = orderedTasksForGroup(destination).filter(function (item) { return item.id !== taskId; });
   task.groupId = destination;
@@ -3434,7 +3450,8 @@ function moveTaskToGroup(taskId, groupId, targetTaskId, placeAfter) {
     if (targetIndex >= 0) position = targetIndex + (placeAfter ? 1 : 0);
   }
   ordered.splice(position, 0, task);
-  ordered.forEach(function (item, index) { item.sortOrder = index; });
+  setTaskSortOrder(destination, ordered);
+  if (source !== destination) setTaskSortOrder(source);
   saveState();
   renderTasks();
 }
@@ -3611,16 +3628,17 @@ function renderTasks() {
 
     li.append(dragHandle, checkbox, titleWrap, remove);
     if (!completedView) {
-      dragHandle.addEventListener("dragstart", function (event) {
-        li.classList.add("dragging");
-        draggedTaskId = task.id;
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", task.id);
-      });
-      dragHandle.addEventListener("dragend", function () {
-        li.classList.remove("dragging");
-        draggedTaskId = "";
-      });
+    dragHandle.addEventListener("dragstart", function (event) {
+      li.classList.add("dragging");
+      draggedTaskId = task.id;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-dashboard-task", task.id);
+      event.dataTransfer.setData("text/plain", task.id);
+    });
+    dragHandle.addEventListener("dragend", function () {
+      li.classList.remove("dragging");
+      window.setTimeout(function () { draggedTaskId = ""; }, 0);
+    });
       li.addEventListener("dragover", function (event) {
         event.preventDefault();
         if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
@@ -3628,13 +3646,13 @@ function renderTasks() {
       });
       li.addEventListener("dragleave", function () { li.classList.remove("drag-over"); });
       li.addEventListener("drop", function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        li.classList.remove("drag-over");
-        var draggedId = event.dataTransfer.getData("text/plain") || draggedTaskId;
-        if (!draggedId || draggedId === task.id) return;
-        var rect = li.getBoundingClientRect();
-        moveTaskToGroup(draggedId, groupId, task.id, event.clientY > rect.top + (rect.height / 2));
+      event.preventDefault();
+      event.stopPropagation();
+      li.classList.remove("drag-over");
+      var draggedId = taskIdFromDrop(event);
+      if (!draggedId || draggedId === task.id) return;
+      var rect = li.getBoundingClientRect();
+      moveTaskToGroup(draggedId, groupId, task.id, event.clientY > rect.top + (rect.height / 2));
       });
     }
     list.appendChild(li);
@@ -3678,12 +3696,12 @@ function renderTasks() {
         if (!list.contains(event.relatedTarget)) list.classList.remove("task-group-drop-target");
       });
       list.addEventListener("drop", function (event) {
-        event.preventDefault();
-        list.classList.remove("task-group-drop-target");
-        if (event.target.closest(".task-card")) return;
-        var draggedId = event.dataTransfer.getData("text/plain") || draggedTaskId;
-        if (draggedId) moveTaskToGroup(draggedId, group.id);
-      });
+      event.preventDefault();
+      list.classList.remove("task-group-drop-target");
+      if (event.target.closest(".task-card")) return;
+      var draggedId = taskIdFromDrop(event);
+      if (draggedId) moveTaskToGroup(draggedId, group.id);
+    });
     }
     matchingTasks.forEach(function (task) { appendTaskCard(list, task, group.id); });
     if (!matchingTasks.length && !completedView) {
