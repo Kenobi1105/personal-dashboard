@@ -1080,7 +1080,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .task-group-list .task-card.dragging { opacity: 0.45; }
 .task-group-list .task-card.drag-over { border-color: var(--accent-deep); box-shadow: 0 2px 0 var(--accent-deep); }
 .task-group-empty { margin: 0; padding: 7px; border: 1px dashed rgba(73, 53, 72, 0.2); border-radius: 6px; color: var(--muted); font-size: 0.66rem; font-weight: 800; text-align: center; }
-.task-list .task-empty { grid-column: 1 / -1; grid-template-columns: 1fr; height: auto; min-height: 42px; }
+.task-list .task-empty { grid-column: 1 / -1; grid-template-columns: 1fr; height: auto; min-height: 42px; margin: 0; padding: 10px 12px; }
 .task-list input[type="checkbox"] { width: 13px; min-height: 13px; accent-color: var(--signature); }
 .task-list li.done span { color: var(--muted); text-decoration: line-through; }
 .task-title { display: grid; gap: 2px; min-width: 0; }

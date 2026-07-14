@@ -231,7 +231,6 @@ var els = {
   taskModalEditFields: document.getElementById("taskModalEditFields"),
   editTaskButton: document.getElementById("editTaskButton"),
   saveTaskButton: document.getElementById("saveTaskButton"),
-  restoreTaskButton: document.getElementById("restoreTaskButton"),
   deleteTaskPermanentlyButton: document.getElementById("deleteTaskPermanentlyButton"),
   templateForm: document.getElementById("templateForm"),
   templateName: document.getElementById("templateName"),
@@ -917,6 +916,7 @@ var editingTaskId = null;
 var taskView = "active";
 var workspaceView = "tasks";
 var taskModalOpenSource = "";
+var draggedTaskId = "";
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -3440,6 +3440,13 @@ function moveTaskToGroup(taskId, groupId, targetTaskId, placeAfter) {
 }
 
 function toggleTaskGroup(groupId) {
+  if (!groupId) {
+    state.settings = state.settings || {};
+    state.settings.ungroupedTasksCollapsed = !state.settings.ungroupedTasksCollapsed;
+    saveState();
+    renderTasks();
+    return;
+  }
   var group = state.taskGroups.find(function (item) { return item.id === groupId; });
   if (!group) return;
   group.collapsed = !group.collapsed;
@@ -3506,61 +3513,30 @@ function openTaskModal(taskId, options) {
   var task = state.tasks.find(function (item) { return item.id === taskId; });
   if (!task) return;
   var settings = options || {};
-  var editMode = !!settings.edit || !!settings.restore;
+  var editMode = !!settings.edit;
   taskModalOpenSource = settings.source || "";
   editingTaskId = task.id;
   els.taskModalEyebrow.textContent = task.done ? "Finished Task" : "Task";
-  els.taskModalTitle.textContent = settings.restore ? "Restore Task" : (editMode ? "Edit Task" : task.title || "Task");
+  els.taskModalTitle.textContent = editMode ? "Edit Task" : task.title || "Task";
   els.taskModalInput.value = task.title || "";
-  els.taskModalDueDate.value = settings.restore ? "" : (task.dueDate || "");
+  els.taskModalDueDate.value = task.dueDate || "";
   els.taskModalNotes.value = task.notes || "";
-  els.taskModalDueDate.required = !!settings.restore;
+  els.taskModalDueDate.required = false;
   els.taskModalSource.textContent = taskSourceLabel(task);
   els.taskModalViewDue.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
   els.taskModalViewNotes.textContent = task.notes || "No notes added.";
-  els.taskModal.dataset.restoreMode = settings.restore ? "true" : "false";
   els.taskModal.dataset.mode = editMode ? "edit" : "view";
   els.taskModalView.hidden = editMode;
   els.taskModalEditFields.hidden = !editMode;
   els.editTaskButton.hidden = editMode;
-  els.restoreTaskButton.hidden = !task.done || editMode || taskModalOpenSource !== "finished" || taskView !== "finished";
   els.deleteTaskPermanentlyButton.hidden = !task.done;
   els.saveTaskButton.hidden = !editMode;
-  els.saveTaskButton.textContent = settings.restore ? "Restore Task" : "Save Task";
+  els.saveTaskButton.textContent = "Save Task";
   els.taskModal.showModal();
   window.setTimeout(function () {
     if (editMode) els.taskModalInput.focus();
     else els.editTaskButton.focus();
   }, 0);
-}
-
-function restoreTaskFromModal() {
-  var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
-  if (!task) return;
-  var dueDate = els.taskModalDueDate.value;
-  if (!dueDate) {
-    showToast("Choose a new due date before restoring this task.");
-    els.taskModalDueDate.focus();
-    return;
-  }
-  var title = els.taskModalInput.value.trim();
-  if (!title) {
-    showToast("Task title is required.");
-    els.taskModalInput.focus();
-    return;
-  }
-  task.title = title;
-  task.dueDate = dueDate;
-  task.notes = els.taskModalNotes.value.trim();
-  task.done = false;
-  task.completedAt = "";
-  syncChecklistCompletion(task);
-  saveState();
-  els.taskModal.close();
-  editingTaskId = null;
-  taskView = "active";
-  renderAll();
-  showToast("Task restored.");
 }
 
 function renderTasks() {
@@ -3581,7 +3557,12 @@ function renderTasks() {
     return { id: group.id, name: group.name, collapsed: !!group.collapsed };
   });
   var ungroupedVisible = visibleTasks.some(function (task) { return !(task.groupId || ""); });
-  if (ungroupedVisible || !groups.length) groups.unshift({ id: "", name: "Ungrouped", collapsed: false, implicit: true });
+  if (ungroupedVisible || !groups.length) groups.unshift({
+    id: "",
+    name: "Ungrouped",
+    collapsed: !!(state.settings && state.settings.ungroupedTasksCollapsed),
+    implicit: true
+  });
 
   function appendTaskCard(list, task, groupId) {
     var li = document.createElement("li");
@@ -3624,10 +3605,14 @@ function renderTasks() {
     if (!completedView) {
       li.addEventListener("dragstart", function (event) {
         li.classList.add("dragging");
+        draggedTaskId = task.id;
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", task.id);
       });
-      li.addEventListener("dragend", function () { li.classList.remove("dragging"); });
+      li.addEventListener("dragend", function () {
+        li.classList.remove("dragging");
+        draggedTaskId = "";
+      });
       li.addEventListener("dragover", function (event) {
         event.preventDefault();
         if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
@@ -3636,8 +3621,9 @@ function renderTasks() {
       li.addEventListener("dragleave", function () { li.classList.remove("drag-over"); });
       li.addEventListener("drop", function (event) {
         event.preventDefault();
+        event.stopPropagation();
         li.classList.remove("drag-over");
-        var draggedId = event.dataTransfer.getData("text/plain");
+        var draggedId = event.dataTransfer.getData("text/plain") || draggedTaskId;
         if (!draggedId || draggedId === task.id) return;
         var rect = li.getBoundingClientRect();
         moveTaskToGroup(draggedId, groupId, task.id, event.clientY > rect.top + (rect.height / 2));
@@ -3660,7 +3646,7 @@ function renderTasks() {
     toggle.setAttribute("aria-expanded", String(!group.collapsed));
     toggle.innerHTML = "<span class='task-group-chevron' aria-hidden='true'></span><span>" + escapeHTML(group.name) + "</span><small>" + matchingTasks.length + "</small>";
     toggle.addEventListener("click", function () {
-      if (!group.implicit) toggleTaskGroup(group.id);
+      toggleTaskGroup(group.id);
     });
     header.appendChild(toggle);
     if (!group.implicit) {
@@ -3686,7 +3672,8 @@ function renderTasks() {
       list.addEventListener("drop", function (event) {
         event.preventDefault();
         list.classList.remove("task-group-drop-target");
-        var draggedId = event.dataTransfer.getData("text/plain");
+        if (event.target.closest(".task-card")) return;
+        var draggedId = event.dataTransfer.getData("text/plain") || draggedTaskId;
         if (draggedId) moveTaskToGroup(draggedId, group.id);
       });
     }
@@ -5603,9 +5590,6 @@ els.finishedTasksButton.addEventListener("click", function () {
 });
 els.tasksWorkspaceButton.addEventListener("click", function () { setWorkspaceView("tasks"); });
 els.workflowsWorkspaceButton.addEventListener("click", function () { setWorkspaceView("workflows"); });
-els.restoreTaskButton.addEventListener("click", function () {
-  if (editingTaskId) openTaskModal(editingTaskId, { restore: true, source: "finished" });
-});
 els.editTaskButton.addEventListener("click", function () {
   if (editingTaskId) openTaskModal(editingTaskId, { edit: true, source: taskModalOpenSource });
 });
@@ -5621,10 +5605,6 @@ els.taskModalForm.addEventListener("submit", function (event) {
     return;
   }
   if (els.taskModal.dataset.mode !== "edit") return;
-  if (els.taskModal.dataset.restoreMode === "true") {
-    restoreTaskFromModal();
-    return;
-  }
   var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
   if (!task) return;
   var title = els.taskModalInput.value.trim();
