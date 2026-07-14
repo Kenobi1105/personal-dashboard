@@ -890,6 +890,12 @@ function loadState() {
         sortOrder: typeof group.sortOrder === "number" ? group.sortOrder : index
       };
     });
+    if (typeof loaded.settings.openTaskGroupId !== "string") {
+      var legacyOpenGroup = loaded.taskGroups.find(function (group) { return !group.collapsed; });
+      loaded.settings.openTaskGroupId = legacyOpenGroup
+        ? legacyOpenGroup.id
+        : (loaded.settings.ungroupedTasksCollapsed ? "" : "__ungrouped__");
+    }
     loaded.templates = loaded.templates || [];
     loaded.activeTemplateId = loaded.activeTemplateId || null;
     loaded.rssFeeds = (loaded.rssFeeds || []).slice(0, 10);
@@ -921,6 +927,7 @@ var draggedTaskId = "";
 var taskPointerDrag = null;
 var workflowPointerDrag = null;
 var modalChecklistPointerDrag = null;
+var eventDetailChecklistPointerDrag = null;
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -2050,19 +2057,36 @@ function viewEvent(eventId) {
   }).join("");
   els.eventDetailNotes.innerHTML = "<h3>Notes</h3><p>" + escapeHTML(item.notes || "No notes yet.") + "</p>";
   var readOnly = isGoogleReadOnlyEvent(item);
-  if (item.checklist && item.checklist.length) {
+  var sourceEvent = state.events.find(function (event) {
+    return event.id === item.id || event.id === item.occurrenceOf;
+  }) || null;
+  var checklistOwner = sourceEvent || item;
+  var canReorderChecklist = !readOnly && !!sourceEvent;
+  if (checklistOwner.checklist && checklistOwner.checklist.length) {
     var checklistHeading = document.createElement("h3");
     checklistHeading.textContent = "Checklist";
     var checklistList = document.createElement("ul");
     checklistList.className = "event-detail-checklist";
-    item.checklist.forEach(function (check) {
+    checklistOwner.checklist.forEach(function (check) {
       var row = document.createElement("li");
-      row.className = check.done ? "done" : "";
-      var label = document.createElement("label");
+      row.className = "event-detail-checklist-row" + (check.done ? " done" : "") + (canReorderChecklist ? " can-reorder" : "");
+      row.dataset.itemId = check.id;
+      if (canReorderChecklist) {
+        var grip = document.createElement("button");
+        grip.type = "button";
+        grip.className = "event-detail-checklist-drag-handle";
+        grip.innerHTML = dragHandleIcon();
+        grip.setAttribute("aria-label", "Reorder " + (check.title || "checklist item"));
+        grip.addEventListener("pointerdown", function (event) {
+          beginEventDetailChecklistPointerDrag(event, sourceEvent, check, row, eventId);
+        });
+        row.appendChild(grip);
+      }
       var toggle = document.createElement("input");
       toggle.type = "checkbox";
       toggle.checked = !!check.done;
-      toggle.disabled = readOnly;
+      toggle.disabled = readOnly || !sourceEvent;
+      toggle.className = "event-detail-checklist-toggle";
       toggle.setAttribute("aria-label", "Mark " + (check.title || "checklist item") + " complete");
       toggle.addEventListener("change", function () {
         check.done = toggle.checked;
@@ -2075,9 +2099,13 @@ function viewEvent(eventId) {
         viewEvent(eventId);
       });
       var text = document.createElement("span");
-      text.textContent = check.title + (check.dueDate ? " Due " + displayDate(check.dueDate) : "");
-      label.append(toggle, text);
-      row.appendChild(label);
+      text.className = "event-detail-check-title";
+      text.textContent = check.title || "Untitled checklist item";
+      var due = document.createElement("small");
+      due.className = "event-detail-check-due";
+      due.textContent = check.dueDate ? "Due " + displayDate(check.dueDate) : "";
+      due.hidden = !check.dueDate;
+      row.append(toggle, text, due);
       checklistList.appendChild(row);
     });
     els.eventDetailChecklist.replaceChildren(checklistHeading, checklistList);
@@ -2090,6 +2118,107 @@ function viewEvent(eventId) {
     els.eventDetailNotes.innerHTML += "<p><a href='" + escapeHTML(item.htmlLink) + "' target='_blank' rel='noopener'>Open in Google Calendar</a></p>";
   }
   if (!els.eventDetailModal.open) els.eventDetailModal.showModal();
+}
+
+function clearEventDetailChecklistPointerDrag(commit) {
+  if (!eventDetailChecklistPointerDrag) return;
+  var drag = eventDetailChecklistPointerDrag;
+  var list = drag.placeholder.parentElement;
+  var nextItemId = "";
+  if (list) {
+    var siblings = Array.prototype.slice.call(list.children);
+    var placeholderIndex = siblings.indexOf(drag.placeholder);
+    for (var index = placeholderIndex + 1; index < siblings.length; index += 1) {
+      if (siblings[index].classList && siblings[index].classList.contains("event-detail-checklist-row")) {
+        nextItemId = siblings[index].dataset.itemId || "";
+        break;
+      }
+    }
+  }
+  if (drag.placeholder.parentElement) drag.placeholder.remove();
+  drag.row.classList.remove("pointer-dragging");
+  drag.row.removeAttribute("style");
+  eventDetailChecklistPointerDrag = null;
+  document.removeEventListener("pointermove", moveEventDetailChecklistPointerDrag);
+  document.removeEventListener("pointerup", finishEventDetailChecklistPointerDrag);
+  document.removeEventListener("pointercancel", cancelEventDetailChecklistPointerDrag);
+  if (!commit) {
+    viewEvent(drag.viewEventId);
+    return;
+  }
+  var ordered = (drag.sourceEvent.checklist || []).filter(function (check) { return check.id !== drag.itemId; });
+  var position = ordered.length;
+  if (nextItemId) {
+    var nextIndex = ordered.findIndex(function (check) { return check.id === nextItemId; });
+    if (nextIndex >= 0) position = nextIndex;
+  }
+  ordered.splice(position, 0, drag.item);
+  drag.sourceEvent.checklist = ordered;
+  ensureEventChecklistTasks(drag.sourceEvent);
+  saveState();
+  renderAll();
+  viewEvent(drag.viewEventId);
+}
+
+function moveEventDetailChecklistPointerDrag(event) {
+  if (!eventDetailChecklistPointerDrag || event.pointerId !== eventDetailChecklistPointerDrag.pointerId) return;
+  var drag = eventDetailChecklistPointerDrag;
+  drag.row.style.left = Math.max(8, event.clientX - drag.offsetX) + "px";
+  drag.row.style.top = Math.max(8, event.clientY - drag.offsetY) + "px";
+  var target = document.elementFromPoint(event.clientX, event.clientY);
+  var list = target && target.closest(".event-detail-checklist");
+  if (!list) return;
+  var rows = Array.prototype.slice.call(list.children).filter(function (row) {
+    return row.classList && row.classList.contains("event-detail-checklist-row");
+  });
+  var nextRow = rows.find(function (row) {
+    var rect = row.getBoundingClientRect();
+    return event.clientY < rect.top + (rect.height / 2);
+  });
+  if (nextRow) list.insertBefore(drag.placeholder, nextRow);
+  else list.appendChild(drag.placeholder);
+}
+
+function finishEventDetailChecklistPointerDrag(event) {
+  if (!eventDetailChecklistPointerDrag || event.pointerId !== eventDetailChecklistPointerDrag.pointerId) return;
+  clearEventDetailChecklistPointerDrag(true);
+}
+
+function cancelEventDetailChecklistPointerDrag(event) {
+  if (!eventDetailChecklistPointerDrag || event.pointerId !== eventDetailChecklistPointerDrag.pointerId) return;
+  clearEventDetailChecklistPointerDrag(false);
+}
+
+function beginEventDetailChecklistPointerDrag(event, sourceEvent, item, row, viewEventId) {
+  if (event.button !== 0 || eventDetailChecklistPointerDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  var rect = row.getBoundingClientRect();
+  var placeholder = document.createElement("li");
+  placeholder.className = "event-detail-check-placeholder";
+  placeholder.style.height = rect.height + "px";
+  row.parentElement.insertBefore(placeholder, row.nextSibling);
+  row.classList.add("pointer-dragging");
+  row.style.width = rect.width + "px";
+  row.style.height = rect.height + "px";
+  row.style.left = rect.left + "px";
+  row.style.top = rect.top + "px";
+  document.body.appendChild(row);
+  eventDetailChecklistPointerDrag = {
+    row: row,
+    item: item,
+    itemId: item.id,
+    sourceEvent: sourceEvent,
+    viewEventId: viewEventId,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    placeholder: placeholder,
+    pointerId: event.pointerId
+  };
+  if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  document.addEventListener("pointermove", moveEventDetailChecklistPointerDrag);
+  document.addEventListener("pointerup", finishEventDetailChecklistPointerDrag);
+  document.addEventListener("pointercancel", cancelEventDetailChecklistPointerDrag);
 }
 
 function isMinistryPriority(item) {
@@ -2820,6 +2949,7 @@ function ensureEventTaskGroup(eventItem) {
     group = {
       id: id("task-group"),
       name: eventTaskGroupName(eventItem),
+      eventId: eventItem.id,
       collapsed: false,
       sortOrder: state.taskGroups.length
     };
@@ -2827,6 +2957,7 @@ function ensureEventTaskGroup(eventItem) {
     eventItem.taskGroupId = group.id;
   } else {
     group.name = eventTaskGroupName(eventItem);
+    group.eventId = eventItem.id;
   }
   return group;
 }
@@ -3845,16 +3976,9 @@ function editWorkflowItem(template, item, row) {
 }
 
 function toggleTaskGroup(groupId) {
-  if (!groupId) {
-    state.settings = state.settings || {};
-    state.settings.ungroupedTasksCollapsed = !state.settings.ungroupedTasksCollapsed;
-    saveState();
-    renderTasks();
-    return;
-  }
-  var group = state.taskGroups.find(function (item) { return item.id === groupId; });
-  if (!group) return;
-  group.collapsed = !group.collapsed;
+  state.settings = state.settings || {};
+  var key = groupId || "__ungrouped__";
+  state.settings.openTaskGroupId = state.settings.openTaskGroupId === key ? "" : key;
   saveState();
   renderTasks();
 }
@@ -3863,6 +3987,8 @@ function deleteTaskGroup(groupId) {
   var group = state.taskGroups.find(function (item) { return item.id === groupId; });
   if (!group) return;
   if (!window.confirm("Delete the \"" + group.name + "\" group? Its tasks will move to Ungrouped.")) return;
+  state.settings = state.settings || {};
+  if (state.settings.openTaskGroupId === groupId) state.settings.openTaskGroupId = "__ungrouped__";
   state.tasks.forEach(function (task) {
     if (task.groupId === groupId) task.groupId = "";
   });
@@ -3956,14 +4082,23 @@ function renderTasks() {
     return;
   }
 
+  state.settings = state.settings || {};
+  var openTaskGroupId = typeof state.settings.openTaskGroupId === "string"
+    ? state.settings.openTaskGroupId
+    : "__ungrouped__";
   var groups = orderedTaskGroups().map(function (group) {
-    return { id: group.id, name: group.name, collapsed: !!group.collapsed };
+    return {
+      id: group.id,
+      name: group.name,
+      eventId: group.eventId || "",
+      collapsed: openTaskGroupId !== group.id
+    };
   });
   var ungroupedVisible = visibleTasks.some(function (task) { return !(task.groupId || ""); });
   if (ungroupedVisible || !groups.length) groups.unshift({
     id: "",
     name: "Ungrouped",
-    collapsed: !!(state.settings && state.settings.ungroupedTasksCollapsed),
+    collapsed: openTaskGroupId !== "__ungrouped__",
     implicit: true
   });
 
@@ -3989,18 +4124,33 @@ function renderTasks() {
       setTaskCompletion(task, checkbox.checked);
     });
 
-    var titleWrap = document.createElement("button");
-    titleWrap.type = "button";
-    titleWrap.className = "task-title task-edit-button";
-    var eventTitleLabel = document.createElement("strong");
-    eventTitleLabel.textContent = task.eventTitle || "";
-    eventTitleLabel.hidden = !task.eventTitle;
+    var titleWrap = document.createElement("div");
+    titleWrap.className = "task-title";
+    if (task.eventTitle) {
+      var eventTitleLabel = document.createElement(task.eventId ? "button" : "strong");
+      eventTitleLabel.textContent = task.eventTitle;
+      if (task.eventId) {
+        eventTitleLabel.type = "button";
+        eventTitleLabel.className = "task-event-link";
+        eventTitleLabel.title = "Open " + task.eventTitle;
+        eventTitleLabel.addEventListener("click", function () {
+          var linkedEvent = findEventForView(task.eventId);
+          if (linkedEvent) viewEvent(linkedEvent.id);
+          else showToast("The linked event is no longer available.");
+        });
+      }
+      titleWrap.appendChild(eventTitleLabel);
+    }
+    var taskButton = document.createElement("button");
+    taskButton.type = "button";
+    taskButton.className = "task-edit-button";
     var taskTitleLabel = document.createElement("span");
     taskTitleLabel.textContent = task.title;
     var dueLabel = document.createElement("small");
     dueLabel.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
-    titleWrap.append(eventTitleLabel, taskTitleLabel, dueLabel);
-    titleWrap.addEventListener("click", function () { openTaskModal(task.id, { source: taskView }); });
+    taskButton.append(taskTitleLabel, dueLabel);
+    taskButton.addEventListener("click", function () { openTaskModal(task.id, { source: taskView }); });
+    titleWrap.appendChild(taskButton);
 
     var remove = document.createElement("button");
     remove.type = "button";
@@ -4034,11 +4184,29 @@ function renderTasks() {
     toggle.type = "button";
     toggle.className = "task-group-toggle";
     toggle.setAttribute("aria-expanded", String(!group.collapsed));
-    toggle.innerHTML = "<span class='task-group-chevron' aria-hidden='true'></span><span>" + escapeHTML(group.name) + "</span><small>" + matchingTasks.length + "</small>";
+    toggle.setAttribute("aria-label", (group.collapsed ? "Expand " : "Collapse ") + group.name);
+    toggle.innerHTML = "<span class='task-group-chevron' aria-hidden='true'></span>";
     toggle.addEventListener("click", function () {
       toggleTaskGroup(group.id);
     });
     header.appendChild(toggle);
+    var linkedEventId = group.eventId || ((matchingTasks.find(function (task) { return !!task.eventId; }) || {}).eventId || "");
+    var groupName = document.createElement(linkedEventId ? "button" : "span");
+    groupName.className = linkedEventId ? "task-group-event-link" : "task-group-name";
+    groupName.textContent = group.name;
+    if (linkedEventId) {
+      groupName.type = "button";
+      groupName.title = "Open " + group.name;
+      groupName.addEventListener("click", function () {
+        var linkedEvent = findEventForView(linkedEventId);
+        if (linkedEvent) viewEvent(linkedEvent.id);
+        else showToast("The linked event is no longer available.");
+      });
+    }
+    var count = document.createElement("small");
+    count.className = "task-group-count";
+    count.textContent = matchingTasks.length;
+    header.append(groupName, count);
     if (!group.implicit) {
       var deleteGroup = document.createElement("button");
       deleteGroup.type = "button";
