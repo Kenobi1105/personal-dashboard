@@ -815,6 +815,7 @@ function createEvent(values) {
     notes: values.notes || "",
     image: values.image || "",
     checklist: values.checklist || [],
+    taskGroupId: values.taskGroupId || "",
     source: values.source || "dashboard",
     readOnly: !!values.readOnly,
     syncStatus: values.syncStatus || "",
@@ -918,6 +919,7 @@ var workspaceView = "tasks";
 var taskModalOpenSource = "";
 var draggedTaskId = "";
 var taskPointerDrag = null;
+var workflowPointerDrag = null;
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -2659,7 +2661,38 @@ function renderModalChecklist() {
   });
 }
 
-function ensureChecklistTask(item, eventItem) {
+function eventTaskGroupName(eventItem) {
+  var parts = String(eventItem.start || dashboardTodayISO()).split("-");
+  var shortDate = parts.length === 3 ? parts[1] + "/" + parts[2] + "/" + parts[0].slice(-2) : dashboardTodayISO();
+  return shortDate + " " + eventTitle(eventItem);
+}
+
+function ensureEventTaskGroup(eventItem) {
+  state.taskGroups = state.taskGroups || [];
+  var hasChecklistItems = (eventItem.checklist || []).some(function (item) {
+    return String(item.title || "").trim();
+  });
+  if (!hasChecklistItems) return null;
+
+  var group = eventItem.taskGroupId
+    ? state.taskGroups.find(function (item) { return item.id === eventItem.taskGroupId; })
+    : null;
+  if (!group) {
+    group = {
+      id: id("task-group"),
+      name: eventTaskGroupName(eventItem),
+      collapsed: false,
+      sortOrder: state.taskGroups.length
+    };
+    state.taskGroups.push(group);
+    eventItem.taskGroupId = group.id;
+  } else {
+    group.name = eventTaskGroupName(eventItem);
+  }
+  return group;
+}
+
+function ensureChecklistTask(item, eventItem, groupId) {
   var title = item.title.trim();
   if (!title) return null;
   var task = item.taskId ? state.tasks.find(function (taskItem) { return taskItem.id === item.taskId; }) : null;
@@ -2674,7 +2707,7 @@ function ensureChecklistTask(item, eventItem) {
       source: "event",
       eventId: eventItem.id,
       eventTitle: eventTitle(eventItem),
-      groupId: "",
+      groupId: groupId || "",
       sortOrder: -Date.now()
     };
     state.tasks.unshift(task);
@@ -2686,6 +2719,7 @@ function ensureChecklistTask(item, eventItem) {
     if (typeof task.notes !== "string") task.notes = "";
     task.eventId = eventItem.id;
     task.eventTitle = eventTitle(eventItem);
+    task.groupId = groupId || "";
   }
   item.promoted = true;
   item.taskId = task.id;
@@ -2693,9 +2727,11 @@ function ensureChecklistTask(item, eventItem) {
 }
 
 function ensureEventChecklistTasks(eventItem) {
-  eventItem.checklist.forEach(function (item) {
-    ensureChecklistTask(item, eventItem);
-  });
+  var group = ensureEventTaskGroup(eventItem);
+  var tasks = (eventItem.checklist || []).map(function (item) {
+    return ensureChecklistTask(item, eventItem, group ? group.id : "");
+  }).filter(Boolean);
+  if (group) setTaskSortOrder(group.id, tasks);
 }
 
 function syncTaskFromChecklist(item) {
@@ -2915,6 +2951,7 @@ async function addEventOrPlan(event) {
     lastSyncedAt: previousEvent ? previousEvent.lastSyncedAt : "",
     scheduleId: previousEvent ? previousEvent.scheduleId : "",
     scheduleCategory: previousEvent ? previousEvent.scheduleCategory : "",
+    taskGroupId: previousEvent ? previousEvent.taskGroupId : "",
     recurring: !!(previousEvent && previousEvent.scheduleId) || nextRepeatRule.frequency !== "none",
     draft: eventModalMode === "plan"
   });
@@ -2958,6 +2995,7 @@ function syncEventTasks(event) {
     task.done = item.done;
     task.eventId = event.id;
     task.eventTitle = eventTitle(event);
+    task.groupId = event.taskGroupId || task.groupId || "";
   });
 }
 
@@ -3532,6 +3570,141 @@ function beginTaskPointerDrag(event, task, card, groupId) {
   document.addEventListener("pointercancel", cancelTaskPointerDrag);
 }
 
+function clearWorkflowPointerDrag(commit) {
+  if (!workflowPointerDrag) return;
+  var drag = workflowPointerDrag;
+  var list = drag.placeholder.parentElement;
+  var nextItemId = "";
+  if (list) {
+    var siblings = Array.prototype.slice.call(list.children);
+    var placeholderIndex = siblings.indexOf(drag.placeholder);
+    for (var index = placeholderIndex + 1; index < siblings.length; index += 1) {
+      if (siblings[index].classList && siblings[index].classList.contains("workflow-item")) {
+        nextItemId = siblings[index].dataset.itemId || "";
+        break;
+      }
+    }
+  }
+  if (drag.placeholder.parentElement) drag.placeholder.remove();
+  drag.card.classList.remove("pointer-dragging");
+  drag.card.removeAttribute("style");
+  workflowPointerDrag = null;
+  document.removeEventListener("pointermove", moveWorkflowPointerDrag);
+  document.removeEventListener("pointerup", finishWorkflowPointerDrag);
+  document.removeEventListener("pointercancel", cancelWorkflowPointerDrag);
+  if (commit) {
+    var ordered = drag.template.items.filter(function (item) { return item.id !== drag.itemId; });
+    var position = ordered.length;
+    if (nextItemId) {
+      var nextIndex = ordered.findIndex(function (item) { return item.id === nextItemId; });
+      if (nextIndex >= 0) position = nextIndex;
+    }
+    ordered.splice(position, 0, drag.item);
+    drag.template.items = ordered;
+    saveState();
+  }
+  renderActiveTemplate();
+}
+
+function moveWorkflowPointerDrag(event) {
+  if (!workflowPointerDrag || event.pointerId !== workflowPointerDrag.pointerId) return;
+  var drag = workflowPointerDrag;
+  drag.card.style.left = Math.max(8, event.clientX - drag.offsetX) + "px";
+  drag.card.style.top = Math.max(8, event.clientY - drag.offsetY) + "px";
+  var target = document.elementFromPoint(event.clientX, event.clientY);
+  var list = target && target.closest(".workflow-items");
+  if (!list) return;
+  var rows = Array.prototype.slice.call(list.children).filter(function (row) {
+    return row.classList && row.classList.contains("workflow-item");
+  });
+  var nextRow = rows.find(function (row) {
+    var rect = row.getBoundingClientRect();
+    return event.clientY < rect.top + (rect.height / 2);
+  });
+  if (nextRow) list.insertBefore(drag.placeholder, nextRow);
+  else list.appendChild(drag.placeholder);
+}
+
+function finishWorkflowPointerDrag(event) {
+  if (!workflowPointerDrag || event.pointerId !== workflowPointerDrag.pointerId) return;
+  clearWorkflowPointerDrag(true);
+}
+
+function cancelWorkflowPointerDrag(event) {
+  if (!workflowPointerDrag || event.pointerId !== workflowPointerDrag.pointerId) return;
+  clearWorkflowPointerDrag(false);
+}
+
+function beginWorkflowPointerDrag(event, template, item, row) {
+  if (event.button !== 0 || workflowPointerDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  var rect = row.getBoundingClientRect();
+  var placeholder = document.createElement("div");
+  placeholder.className = "workflow-drag-placeholder";
+  placeholder.style.height = rect.height + "px";
+  row.parentElement.insertBefore(placeholder, row.nextSibling);
+  row.classList.add("pointer-dragging");
+  row.style.width = rect.width + "px";
+  row.style.height = rect.height + "px";
+  row.style.left = rect.left + "px";
+  row.style.top = rect.top + "px";
+  document.body.appendChild(row);
+  workflowPointerDrag = {
+    card: row,
+    template: template,
+    item: item,
+    itemId: item.id,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    placeholder: placeholder,
+    pointerId: event.pointerId
+  };
+  if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  document.addEventListener("pointermove", moveWorkflowPointerDrag);
+  document.addEventListener("pointerup", finishWorkflowPointerDrag);
+  document.addEventListener("pointercancel", cancelWorkflowPointerDrag);
+}
+
+function editWorkflowItem(template, item, row) {
+  if (row.classList.contains("editing")) return;
+  row.classList.add("editing");
+  var label = row.querySelector(".workflow-item-label");
+  var input = document.createElement("input");
+  input.type = "text";
+  input.className = "workflow-item-input";
+  input.value = item.title;
+  label.replaceWith(input);
+  var finished = false;
+  function finish(save) {
+    if (finished) return;
+    finished = true;
+    var value = input.value.trim();
+    if (save && !value) {
+      showToast("Checklist items need a name.");
+      renderActiveTemplate();
+      return;
+    }
+    if (save) {
+      item.title = value;
+      saveState();
+    }
+    renderActiveTemplate();
+  }
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finish(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener("blur", function () { finish(true); });
+  input.focus();
+  input.select();
+}
+
 function toggleTaskGroup(groupId) {
   if (!groupId) {
     state.settings = state.settings || {};
@@ -3826,9 +3999,22 @@ function renderActiveTemplate() {
     template.items.forEach(function (item) {
       var row = document.createElement("div");
       row.className = "workflow-item";
-      row.addEventListener("click", function () { row.classList.toggle("show-actions"); });
-      var label = document.createElement("span");
+      row.dataset.itemId = item.id;
+      var grip = document.createElement("button");
+      grip.type = "button";
+      grip.className = "workflow-drag-handle";
+      grip.innerHTML = dragHandleIcon();
+      grip.setAttribute("aria-label", "Reorder checklist item");
+      grip.title = "Drag to reorder";
+      grip.addEventListener("pointerdown", function (event) {
+        beginWorkflowPointerDrag(event, template, item, row);
+      });
+      var label = document.createElement("button");
+      label.type = "button";
+      label.className = "workflow-item-label";
       label.textContent = item.title;
+      label.setAttribute("aria-label", "Edit checklist item " + item.title);
+      label.addEventListener("click", function () { editWorkflowItem(template, item, row); });
       var remove = document.createElement("button");
       remove.type = "button";
       remove.className = "delete-button trash-button";
@@ -3839,7 +4025,7 @@ function renderActiveTemplate() {
         saveState();
         renderActiveTemplate();
       });
-      row.append(label, remove);
+      row.append(grip, label, remove);
       list.appendChild(row);
     });
   }
