@@ -917,6 +917,7 @@ var taskView = "active";
 var workspaceView = "tasks";
 var taskModalOpenSource = "";
 var draggedTaskId = "";
+var taskPointerDrag = null;
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -3428,15 +3429,6 @@ function setTaskSortOrder(groupId, tasks) {
   });
 }
 
-function taskIdFromDrop(event) {
-  var transfer = event && event.dataTransfer;
-  if (transfer) {
-    var taskId = transfer.getData("application/x-dashboard-task") || transfer.getData("text/plain");
-    if (taskId) return taskId;
-  }
-  return draggedTaskId;
-}
-
 function moveTaskToGroup(taskId, groupId, targetTaskId, placeAfter) {
   var task = state.tasks.find(function (item) { return item.id === taskId; });
   if (!task) return;
@@ -3454,6 +3446,90 @@ function moveTaskToGroup(taskId, groupId, targetTaskId, placeAfter) {
   if (source !== destination) setTaskSortOrder(source);
   saveState();
   renderTasks();
+}
+
+function clearTaskPointerDrag(commit) {
+  if (!taskPointerDrag) return;
+  var drag = taskPointerDrag;
+  var destinationList = drag.placeholder.parentElement;
+  var destinationGroup = destinationList && destinationList.closest(".task-group");
+  var destinationGroupId = destinationGroup ? (destinationGroup.dataset.groupId || "") : drag.groupId;
+  var nextTaskId = "";
+  if (destinationList) {
+    var siblings = Array.prototype.slice.call(destinationList.children);
+    var placeholderIndex = siblings.indexOf(drag.placeholder);
+    for (var index = placeholderIndex + 1; index < siblings.length; index += 1) {
+      if (siblings[index].classList && siblings[index].classList.contains("task-card")) {
+        nextTaskId = siblings[index].dataset.taskId || "";
+        break;
+      }
+    }
+  }
+  if (drag.placeholder.parentElement) drag.placeholder.remove();
+  drag.card.classList.remove("pointer-dragging");
+  drag.card.removeAttribute("style");
+  taskPointerDrag = null;
+  document.removeEventListener("pointermove", moveTaskPointerDrag);
+  document.removeEventListener("pointerup", finishTaskPointerDrag);
+  document.removeEventListener("pointercancel", cancelTaskPointerDrag);
+  if (commit) moveTaskToGroup(drag.taskId, destinationGroupId, nextTaskId || null, false);
+  else renderTasks();
+}
+
+function moveTaskPointerDrag(event) {
+  if (!taskPointerDrag || event.pointerId !== taskPointerDrag.pointerId) return;
+  var drag = taskPointerDrag;
+  drag.card.style.left = Math.max(8, event.clientX - drag.offsetX) + "px";
+  drag.card.style.top = Math.max(8, event.clientY - drag.offsetY) + "px";
+  var target = document.elementFromPoint(event.clientX, event.clientY);
+  var list = target && target.closest(".task-group-list");
+  if (!list) return;
+  var cards = Array.prototype.slice.call(list.querySelectorAll(":scope > .task-card"));
+  var nextCard = cards.find(function (card) {
+    var rect = card.getBoundingClientRect();
+    return event.clientY < rect.top + (rect.height / 2);
+  });
+  if (nextCard) list.insertBefore(drag.placeholder, nextCard);
+  else list.appendChild(drag.placeholder);
+}
+
+function finishTaskPointerDrag(event) {
+  if (!taskPointerDrag || event.pointerId !== taskPointerDrag.pointerId) return;
+  clearTaskPointerDrag(true);
+}
+
+function cancelTaskPointerDrag(event) {
+  if (!taskPointerDrag || event.pointerId !== taskPointerDrag.pointerId) return;
+  clearTaskPointerDrag(false);
+}
+
+function beginTaskPointerDrag(event, task, card, groupId) {
+  if (event.button !== 0 || task.done || taskPointerDrag) return;
+  event.preventDefault();
+  var rect = card.getBoundingClientRect();
+  var placeholder = document.createElement("li");
+  placeholder.className = "task-drag-placeholder";
+  placeholder.style.height = rect.height + "px";
+  card.parentElement.insertBefore(placeholder, card.nextSibling);
+  card.classList.add("pointer-dragging");
+  card.style.width = rect.width + "px";
+  card.style.height = rect.height + "px";
+  card.style.left = rect.left + "px";
+  card.style.top = rect.top + "px";
+  document.body.appendChild(card);
+  taskPointerDrag = {
+    card: card,
+    groupId: groupId || "",
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    placeholder: placeholder,
+    pointerId: event.pointerId,
+    taskId: task.id
+  };
+  if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  document.addEventListener("pointermove", moveTaskPointerDrag);
+  document.addEventListener("pointerup", finishTaskPointerDrag);
+  document.addEventListener("pointercancel", cancelTaskPointerDrag);
 }
 
 function toggleTaskGroup(groupId) {
@@ -3590,7 +3666,6 @@ function renderTasks() {
     var dragHandle = document.createElement("button");
     dragHandle.type = "button";
     dragHandle.className = "task-drag-handle";
-    dragHandle.draggable = !completedView;
     dragHandle.disabled = completedView;
     dragHandle.title = "Drag to reorder";
     dragHandle.setAttribute("aria-label", "Drag " + task.title + " to reorder");
@@ -3628,31 +3703,8 @@ function renderTasks() {
 
     li.append(dragHandle, checkbox, titleWrap, remove);
     if (!completedView) {
-    dragHandle.addEventListener("dragstart", function (event) {
-      li.classList.add("dragging");
-      draggedTaskId = task.id;
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("application/x-dashboard-task", task.id);
-      event.dataTransfer.setData("text/plain", task.id);
-    });
-    dragHandle.addEventListener("dragend", function () {
-      li.classList.remove("dragging");
-      window.setTimeout(function () { draggedTaskId = ""; }, 0);
-    });
-      li.addEventListener("dragover", function (event) {
-        event.preventDefault();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-        li.classList.add("drag-over");
-      });
-      li.addEventListener("dragleave", function () { li.classList.remove("drag-over"); });
-      li.addEventListener("drop", function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      li.classList.remove("drag-over");
-      var draggedId = taskIdFromDrop(event);
-      if (!draggedId || draggedId === task.id) return;
-      var rect = li.getBoundingClientRect();
-      moveTaskToGroup(draggedId, groupId, task.id, event.clientY > rect.top + (rect.height / 2));
+      dragHandle.addEventListener("pointerdown", function (event) {
+        beginTaskPointerDrag(event, task, li, groupId);
       });
     }
     list.appendChild(li);
@@ -3687,22 +3739,6 @@ function renderTasks() {
     groupItem.appendChild(header);
     var list = document.createElement("ul");
     list.className = "task-group-list";
-    if (!completedView) {
-      list.addEventListener("dragover", function (event) {
-        event.preventDefault();
-        list.classList.add("task-group-drop-target");
-      });
-      list.addEventListener("dragleave", function (event) {
-        if (!list.contains(event.relatedTarget)) list.classList.remove("task-group-drop-target");
-      });
-      list.addEventListener("drop", function (event) {
-      event.preventDefault();
-      list.classList.remove("task-group-drop-target");
-      if (event.target.closest(".task-card")) return;
-      var draggedId = taskIdFromDrop(event);
-      if (draggedId) moveTaskToGroup(draggedId, group.id);
-    });
-    }
     matchingTasks.forEach(function (task) { appendTaskCard(list, task, group.id); });
     if (!matchingTasks.length && !completedView) {
       var empty = document.createElement("p");
