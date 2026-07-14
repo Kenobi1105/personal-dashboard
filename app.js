@@ -3711,7 +3711,9 @@ function renderTasks() {
   }
 
   groups.forEach(function (group) {
-    var matchingTasks = visibleTasks.filter(function (task) { return (task.groupId || "") === group.id; });
+    var matchingTasks = orderedTasksForGroup(group.id).filter(function (task) {
+      return completedView ? !!task.done : !task.done;
+    });
     if (completedView && !matchingTasks.length) return;
     var groupItem = document.createElement("li");
     groupItem.className = "task-group" + (group.collapsed ? " collapsed" : "");
