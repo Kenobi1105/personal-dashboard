@@ -920,6 +920,7 @@ var taskModalOpenSource = "";
 var draggedTaskId = "";
 var taskPointerDrag = null;
 var workflowPointerDrag = null;
+var modalChecklistPointerDrag = null;
 var modalChecklist = [];
 var selectingPlan = false;
 var selectionStart = null;
@@ -2048,14 +2049,41 @@ function viewEvent(eventId) {
     return "<div><span>" + escapeHTML(entry[0]) + "</span><strong>" + escapeHTML(entry[1]) + "</strong></div>";
   }).join("");
   els.eventDetailNotes.innerHTML = "<h3>Notes</h3><p>" + escapeHTML(item.notes || "No notes yet.") + "</p>";
+  var readOnly = isGoogleReadOnlyEvent(item);
   if (item.checklist && item.checklist.length) {
-    els.eventDetailChecklist.innerHTML = "<h3>Checklist</h3><ul>" + item.checklist.map(function (check) {
-      return "<li" + (check.done ? " class='done'" : "") + ">" + escapeHTML(check.title) + (check.dueDate ? " <span>Due " + escapeHTML(displayDate(check.dueDate)) + "</span>" : "") + "</li>";
-    }).join("") + "</ul>";
+    var checklistHeading = document.createElement("h3");
+    checklistHeading.textContent = "Checklist";
+    var checklistList = document.createElement("ul");
+    checklistList.className = "event-detail-checklist";
+    item.checklist.forEach(function (check) {
+      var row = document.createElement("li");
+      row.className = check.done ? "done" : "";
+      var label = document.createElement("label");
+      var toggle = document.createElement("input");
+      toggle.type = "checkbox";
+      toggle.checked = !!check.done;
+      toggle.disabled = readOnly;
+      toggle.setAttribute("aria-label", "Mark " + (check.title || "checklist item") + " complete");
+      toggle.addEventListener("change", function () {
+        check.done = toggle.checked;
+        var linkedTask = check.taskId ? state.tasks.find(function (task) { return task.id === check.taskId; }) : null;
+        if (linkedTask) setTaskCompletion(linkedTask, check.done);
+        else {
+          saveState();
+          renderAll();
+        }
+        viewEvent(eventId);
+      });
+      var text = document.createElement("span");
+      text.textContent = check.title + (check.dueDate ? " Due " + displayDate(check.dueDate) : "");
+      label.append(toggle, text);
+      row.appendChild(label);
+      checklistList.appendChild(row);
+    });
+    els.eventDetailChecklist.replaceChildren(checklistHeading, checklistList);
   } else {
     els.eventDetailChecklist.innerHTML = "<h3>Checklist</h3><p>No checklist items yet.</p>";
   }
-  var readOnly = isGoogleReadOnlyEvent(item);
   els.eventDetailEdit.hidden = readOnly;
   els.eventDetailDelete.hidden = readOnly;
   if (readOnly && item.htmlLink) {
@@ -2625,18 +2653,35 @@ function renderModalChecklist() {
   modalChecklist.forEach(function (item) {
     var row = document.createElement("div");
     row.className = "event-checklist-row" + (item.done ? " done" : "");
+    row.dataset.itemId = item.id;
 
-    var title = document.createElement("button");
-    title.type = "button";
-    title.className = "template-name-button event-checklist-title";
-    title.textContent = item.title;
-    title.addEventListener("click", function () {
-      item.done = !item.done;
+    var grip = document.createElement("button");
+    grip.type = "button";
+    grip.className = "event-checklist-drag-handle";
+    grip.innerHTML = dragHandleIcon();
+    grip.setAttribute("aria-label", "Reorder checklist item");
+    grip.addEventListener("pointerdown", function (event) {
+      beginModalChecklistPointerDrag(event, item, row);
+    });
+
+    var toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.className = "event-checklist-toggle";
+    toggle.checked = !!item.done;
+    toggle.setAttribute("aria-label", "Mark " + (item.title || "checklist item") + " complete");
+    toggle.addEventListener("change", function () {
+      item.done = toggle.checked;
+      if (item.taskId) syncTaskFromChecklist(item);
       renderModalChecklist();
     });
 
+    var title = document.createElement("span");
+    title.className = "event-checklist-title";
+    title.textContent = item.title;
+
     var due = document.createElement("input");
     due.type = "date";
+    due.className = "event-checklist-due";
     due.value = item.dueDate || "";
     due.addEventListener("change", function () {
       item.dueDate = due.value;
@@ -2656,9 +2701,103 @@ function renderModalChecklist() {
       renderCalendar();
     });
 
-    row.append(title, due, remove);
+    row.append(grip, toggle, title, due, remove);
     els.eventChecklist.appendChild(row);
   });
+}
+
+function clearModalChecklistPointerDrag(commit) {
+  if (!modalChecklistPointerDrag) return;
+  var drag = modalChecklistPointerDrag;
+  var list = drag.placeholder.parentElement;
+  var nextItemId = "";
+  if (list) {
+    var siblings = Array.prototype.slice.call(list.children);
+    var placeholderIndex = siblings.indexOf(drag.placeholder);
+    for (var index = placeholderIndex + 1; index < siblings.length; index += 1) {
+      if (siblings[index].classList && siblings[index].classList.contains("event-checklist-row")) {
+        nextItemId = siblings[index].dataset.itemId || "";
+        break;
+      }
+    }
+  }
+  if (drag.placeholder.parentElement) drag.placeholder.remove();
+  drag.row.classList.remove("pointer-dragging");
+  drag.row.removeAttribute("style");
+  modalChecklistPointerDrag = null;
+  document.removeEventListener("pointermove", moveModalChecklistPointerDrag);
+  document.removeEventListener("pointerup", finishModalChecklistPointerDrag);
+  document.removeEventListener("pointercancel", cancelModalChecklistPointerDrag);
+  if (commit) {
+    var ordered = modalChecklist.filter(function (item) { return item.id !== drag.itemId; });
+    var position = ordered.length;
+    if (nextItemId) {
+      var nextIndex = ordered.findIndex(function (item) { return item.id === nextItemId; });
+      if (nextIndex >= 0) position = nextIndex;
+    }
+    ordered.splice(position, 0, drag.item);
+    modalChecklist = ordered;
+  }
+  renderModalChecklist();
+}
+
+function moveModalChecklistPointerDrag(event) {
+  if (!modalChecklistPointerDrag || event.pointerId !== modalChecklistPointerDrag.pointerId) return;
+  var drag = modalChecklistPointerDrag;
+  drag.row.style.left = Math.max(8, event.clientX - drag.offsetX) + "px";
+  drag.row.style.top = Math.max(8, event.clientY - drag.offsetY) + "px";
+  var target = document.elementFromPoint(event.clientX, event.clientY);
+  var list = target && target.closest(".event-checklist");
+  if (!list) return;
+  var rows = Array.prototype.slice.call(list.children).filter(function (row) {
+    return row.classList && row.classList.contains("event-checklist-row");
+  });
+  var nextRow = rows.find(function (row) {
+    var rect = row.getBoundingClientRect();
+    return event.clientY < rect.top + (rect.height / 2);
+  });
+  if (nextRow) list.insertBefore(drag.placeholder, nextRow);
+  else list.appendChild(drag.placeholder);
+}
+
+function finishModalChecklistPointerDrag(event) {
+  if (!modalChecklistPointerDrag || event.pointerId !== modalChecklistPointerDrag.pointerId) return;
+  clearModalChecklistPointerDrag(true);
+}
+
+function cancelModalChecklistPointerDrag(event) {
+  if (!modalChecklistPointerDrag || event.pointerId !== modalChecklistPointerDrag.pointerId) return;
+  clearModalChecklistPointerDrag(false);
+}
+
+function beginModalChecklistPointerDrag(event, item, row) {
+  if (event.button !== 0 || modalChecklistPointerDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  var rect = row.getBoundingClientRect();
+  var placeholder = document.createElement("div");
+  placeholder.className = "event-checklist-drag-placeholder";
+  placeholder.style.height = rect.height + "px";
+  row.parentElement.insertBefore(placeholder, row.nextSibling);
+  row.classList.add("pointer-dragging");
+  row.style.width = rect.width + "px";
+  row.style.height = rect.height + "px";
+  row.style.left = rect.left + "px";
+  row.style.top = rect.top + "px";
+  document.body.appendChild(row);
+  modalChecklistPointerDrag = {
+    row: row,
+    item: item,
+    itemId: item.id,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    placeholder: placeholder,
+    pointerId: event.pointerId
+  };
+  if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  document.addEventListener("pointermove", moveModalChecklistPointerDrag);
+  document.addEventListener("pointerup", finishModalChecklistPointerDrag);
+  document.addEventListener("pointercancel", cancelModalChecklistPointerDrag);
 }
 
 function eventTaskGroupName(eventItem) {
@@ -3761,17 +3900,15 @@ function permanentlyDeleteTask(task) {
   if (!window.confirm("Permanently delete \"" + task.title + "\"? This cannot be undone.")) return;
   state.tasks = state.tasks.filter(function (item) { return item.id !== task.id; });
   state.events.forEach(function (event) {
-    (event.checklist || []).forEach(function (item) {
-      if (item.taskId === task.id) {
-        item.promoted = false;
-        item.taskId = null;
-      }
+    event.checklist = (event.checklist || []).filter(function (item) {
+      return item.taskId !== task.id;
     });
   });
   saveState();
   if (els.taskModal.open) els.taskModal.close();
   editingTaskId = null;
   renderAll();
+  if (els.eventDetailModal.open && viewingEventId) viewEvent(viewingEventId);
   showToast("Task permanently deleted.");
 }
 
