@@ -1076,9 +1076,14 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .task-group-delete:hover { opacity: 1; color: #9e2f2d; }
 .task-group-list { display: grid; gap: 5px; min-height: 10px; margin: 4px 0 0; padding: 0; list-style: none; border-radius: 6px; transition: background 0.16s ease, box-shadow 0.16s ease; }
 .task-group-list.task-group-drop-target { background: rgba(240, 208, 143, 0.28); box-shadow: inset 0 0 0 1px rgba(73, 53, 72, 0.2); }
-.task-group-list .task-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; height: 46px; padding: 7px 8px; overflow: hidden; border: 1px solid rgba(73, 53, 72, 0.1); border-radius: 8px; background: rgba(255, 255, 255, 0.78); box-shadow: 0 3px 10px rgba(73, 53, 72, 0.04); cursor: grab; }
+.task-group-list .task-card { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; height: 46px; padding: 7px 8px; overflow: hidden; border: 1px solid rgba(73, 53, 72, 0.1); border-radius: 8px; background: rgba(255, 255, 255, 0.78); box-shadow: 0 3px 10px rgba(73, 53, 72, 0.04); }
 .task-group-list .task-card.dragging { opacity: 0.45; }
 .task-group-list .task-card.drag-over { border-color: var(--accent-deep); box-shadow: 0 2px 0 var(--accent-deep); }
+.task-drag-handle { display: grid; width: 18px; min-height: 30px; padding: 0; place-items: center; border: 0; color: rgba(73, 53, 72, 0.42); background: transparent; cursor: grab; touch-action: none; }
+.task-drag-handle svg { width: 14px; height: 14px; fill: currentColor; }
+.task-drag-handle:hover, .task-drag-handle:focus-visible { color: var(--signature); background: rgba(240, 208, 143, 0.32); }
+.task-drag-handle:active { cursor: grabbing; }
+.task-drag-handle:disabled { cursor: default; opacity: 0; }
 .task-group-empty { margin: 0; padding: 7px; border: 1px dashed rgba(73, 53, 72, 0.2); border-radius: 6px; color: var(--muted); font-size: 0.66rem; font-weight: 800; text-align: center; }
 .task-list .task-empty { grid-column: 1 / -1; grid-template-columns: 1fr; height: auto; min-height: 42px; margin: 0; padding: 10px 12px; }
 .task-list input[type="checkbox"] { width: 13px; min-height: 13px; accent-color: var(--signature); }

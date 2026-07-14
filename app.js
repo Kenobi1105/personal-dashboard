@@ -3568,8 +3568,16 @@ function renderTasks() {
     var li = document.createElement("li");
     li.className = "task-card";
     li.dataset.taskId = task.id;
-    li.draggable = !completedView;
     if (task.done) li.classList.add("done");
+
+    var dragHandle = document.createElement("button");
+    dragHandle.type = "button";
+    dragHandle.className = "task-drag-handle";
+    dragHandle.draggable = !completedView;
+    dragHandle.disabled = completedView;
+    dragHandle.title = "Drag to reorder";
+    dragHandle.setAttribute("aria-label", "Drag " + task.title + " to reorder");
+    dragHandle.innerHTML = dragHandleIcon();
 
     var checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -3601,15 +3609,15 @@ function renderTasks() {
       permanentlyDeleteTask(task);
     });
 
-    li.append(checkbox, titleWrap, remove);
+    li.append(dragHandle, checkbox, titleWrap, remove);
     if (!completedView) {
-      li.addEventListener("dragstart", function (event) {
+      dragHandle.addEventListener("dragstart", function (event) {
         li.classList.add("dragging");
         draggedTaskId = task.id;
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", task.id);
       });
-      li.addEventListener("dragend", function () {
+      dragHandle.addEventListener("dragend", function () {
         li.classList.remove("dragging");
         draggedTaskId = "";
       });
@@ -5228,6 +5236,10 @@ function renderAll() {
 
 function trashIcon() {
   return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.8 11H7.8L7 9Zm3 2 .3 7h1.5l-.2-7H10Zm3.4 0-.2 7h1.5l.3-7h-1.6Z'/></svg>";
+}
+
+function dragHandleIcon() {
+  return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='8' cy='6' r='1.5'/><circle cx='16' cy='6' r='1.5'/><circle cx='8' cy='12' r='1.5'/><circle cx='16' cy='12' r='1.5'/><circle cx='8' cy='18' r='1.5'/><circle cx='16' cy='18' r='1.5'/></svg>";
 }
 
 function isTypingTarget(target) {
