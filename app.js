@@ -927,6 +927,7 @@ var draggedTaskId = "";
 var taskPointerDrag = null;
 var taskGroupPointerDrag = null;
 var workflowPointerDrag = null;
+var templatePointerDrag = null;
 var modalChecklistPointerDrag = null;
 var eventDetailChecklistPointerDrag = null;
 var modalChecklist = [];
@@ -3926,6 +3927,110 @@ function beginTaskGroupPointerDrag(event, groupItem) {
   document.addEventListener("pointercancel", cancelTaskGroupPointerDrag);
 }
 
+function clearTemplatePointerDrag(commit) {
+  if (!templatePointerDrag) return;
+  var drag = templatePointerDrag;
+  var list = drag.placeholder.parentElement;
+  var nextTemplateId = "";
+
+  if (list) {
+    var siblings = Array.prototype.slice.call(list.children);
+    var placeholderIndex = siblings.indexOf(drag.placeholder);
+    for (var index = placeholderIndex + 1; index < siblings.length; index += 1) {
+      if (siblings[index].classList && siblings[index].classList.contains("template-row")) {
+        nextTemplateId = siblings[index].dataset.templateId || "";
+        break;
+      }
+    }
+  }
+
+  if (drag.placeholder.parentElement) drag.placeholder.remove();
+  drag.card.classList.remove("pointer-dragging");
+  drag.card.removeAttribute("style");
+  if (drag.card.parentElement === document.body) drag.card.remove();
+  templatePointerDrag = null;
+  document.removeEventListener("pointermove", moveTemplatePointerDrag);
+  document.removeEventListener("pointerup", finishTemplatePointerDrag);
+  document.removeEventListener("pointercancel", cancelTemplatePointerDrag);
+
+  if (commit) {
+    var ordered = state.templates.filter(function (template) { return template.id !== drag.templateId; });
+    var position = ordered.length;
+    if (nextTemplateId) {
+      var nextIndex = ordered.findIndex(function (template) { return template.id === nextTemplateId; });
+      if (nextIndex >= 0) position = nextIndex;
+    }
+    ordered.splice(position, 0, drag.template);
+    state.templates = ordered;
+    saveState();
+  }
+
+  renderTemplates();
+  renderActiveTemplate();
+}
+
+function moveTemplatePointerDrag(event) {
+  if (!templatePointerDrag || event.pointerId !== templatePointerDrag.pointerId) return;
+  var drag = templatePointerDrag;
+  drag.card.style.left = Math.max(8, event.clientX - drag.offsetX) + "px";
+  drag.card.style.top = Math.max(8, event.clientY - drag.offsetY) + "px";
+
+  var target = document.elementFromPoint(event.clientX, event.clientY);
+  var list = target && target.closest("#templateList");
+  if (!list) return;
+  var rows = Array.prototype.slice.call(list.children).filter(function (row) {
+    return row.classList && row.classList.contains("template-row");
+  });
+  var nextRow = rows.find(function (row) {
+    var rect = row.getBoundingClientRect();
+    return event.clientY < rect.top + (rect.height / 2);
+  });
+  if (nextRow) list.insertBefore(drag.placeholder, nextRow);
+  else list.appendChild(drag.placeholder);
+}
+
+function finishTemplatePointerDrag(event) {
+  if (!templatePointerDrag || event.pointerId !== templatePointerDrag.pointerId) return;
+  clearTemplatePointerDrag(true);
+}
+
+function cancelTemplatePointerDrag(event) {
+  if (!templatePointerDrag || event.pointerId !== templatePointerDrag.pointerId) return;
+  clearTemplatePointerDrag(false);
+}
+
+function beginTemplatePointerDrag(event, template, row) {
+  if (event.button !== 0 || templatePointerDrag || workflowPointerDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  var rect = row.getBoundingClientRect();
+  var placeholder = document.createElement("div");
+  placeholder.className = "template-drag-placeholder";
+  placeholder.style.height = rect.height + "px";
+  row.parentElement.insertBefore(placeholder, row.nextSibling);
+  row.classList.add("pointer-dragging");
+  row.style.width = rect.width + "px";
+  row.style.height = rect.height + "px";
+  row.style.left = rect.left + "px";
+  row.style.top = rect.top + "px";
+  document.body.appendChild(row);
+
+  templatePointerDrag = {
+    card: row,
+    template: template,
+    templateId: template.id,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    placeholder: placeholder,
+    pointerId: event.pointerId
+  };
+  if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  document.addEventListener("pointermove", moveTemplatePointerDrag);
+  document.addEventListener("pointerup", finishTemplatePointerDrag);
+  document.addEventListener("pointercancel", cancelTemplatePointerDrag);
+}
+
 function clearWorkflowPointerDrag(commit) {
   if (!workflowPointerDrag) return;
   var drag = workflowPointerDrag;
@@ -4353,6 +4458,17 @@ function renderTemplates() {
     state.templates.forEach(function (template) {
       var row = document.createElement("div");
       row.className = "template-row" + (template.id === state.activeTemplateId ? " active" : "");
+      row.dataset.templateId = template.id;
+
+      var grip = document.createElement("button");
+      grip.type = "button";
+      grip.className = "template-drag-handle";
+      grip.innerHTML = dragHandleIcon();
+      grip.setAttribute("aria-label", "Drag to reorder " + template.name);
+      grip.title = "Drag to reorder";
+      grip.addEventListener("pointerdown", function (event) {
+        beginTemplatePointerDrag(event, template, row);
+      });
 
       var name = document.createElement("button");
       name.type = "button";
@@ -4378,7 +4494,7 @@ function renderTemplates() {
         renderActiveTemplate();
       });
 
-      row.append(name, remove);
+      row.append(grip, name, remove);
       els.templateList.appendChild(row);
     });
   }

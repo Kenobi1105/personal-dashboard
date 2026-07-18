@@ -1121,12 +1121,28 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .danger-button { color: #9e2f2d; }
 .trash-button { width: 26px; min-height: 26px; display: inline-grid; place-items: center; }
 
-.template-builder { display: grid; grid-template-columns: minmax(132px, 0.28fr) minmax(0, 0.72fr); gap: 8px; }
-.template-create { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; grid-column: 1 / -1; }
-.template-list { display: grid; gap: 4px; max-height: 150px; overflow: auto; padding-right: 2px; }
+.template-builder {
+  display: grid;
+  grid-template-columns: minmax(132px, 0.28fr) minmax(0, 0.72fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+.template-create { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; grid-column: 1 / -1; grid-row: 1; }
+.template-list {
+  display: grid;
+  grid-column: 1;
+  grid-row: 2;
+  grid-auto-rows: 31px;
+  align-content: start;
+  gap: 4px;
+  max-height: 176px;
+  overflow: auto;
+  padding-right: 2px;
+}
 .template-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   gap: 5px;
   height: 31px;
@@ -1137,6 +1153,39 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   overflow: hidden;
 }
 .template-row.active { border-color: rgba(73, 53, 72, 0.34); background: rgba(73, 53, 72, 0.08); }
+.template-drag-handle {
+  display: grid;
+  width: 18px;
+  min-height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: rgba(73, 53, 72, 0.52);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.template-drag-handle:hover,
+.template-drag-handle:focus-visible {
+  color: var(--signature);
+  background: rgba(240, 208, 143, 0.34);
+  box-shadow: none;
+}
+.template-row.pointer-dragging {
+  position: fixed;
+  z-index: 10001;
+  pointer-events: none;
+  opacity: 0.96;
+  box-shadow: 0 14px 24px rgba(73, 53, 72, 0.2);
+}
+.template-row.pointer-dragging .template-drag-handle { cursor: grabbing; }
+.template-drag-placeholder {
+  min-height: 31px;
+  border: 1px dashed rgba(73, 53, 72, 0.36);
+  border-radius: 7px;
+  background: rgba(240, 208, 143, 0.2);
+}
 .template-name-button {
   min-height: 23px;
   max-height: 23px;
@@ -1151,6 +1200,15 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   white-space: nowrap;
 }
 .active-workflow h3 { margin: 0 0 5px; color: var(--signature); font-family: "League Spartan", "Montserrat", "Arial Black", "Century Gothic", sans-serif; font-size: 0.95rem; line-height: 1; }
+.active-workflow {
+  display: grid;
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 164px;
+  align-self: start;
+  gap: 6px;
+}
 .workflow-items { display: grid; gap: 6px; max-height: 160px; overflow: auto; padding: 4px 2px 2px; }
 .workflow-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px; align-items: center; min-height: 32px; padding: 5px 7px; border-color: rgba(73, 53, 72, 0.1); background: rgba(255, 255, 255, 0.7); box-shadow: 0 3px 9px rgba(73, 53, 72, 0.035); }
 .workflow-drag-handle { display: grid; width: 18px; min-height: 22px; padding: 0; place-items: center; border: 0; color: rgba(73, 53, 72, 0.42); background: transparent; cursor: grab; touch-action: none; }
@@ -2615,6 +2673,12 @@ kbd {
   .event-checklist-due { grid-column: 3 / -1; width: 100%; }
   .language-panel .panel-heading { align-items: start; }
   .language-tabs { justify-content: flex-start; }
+  .template-create,
+  .template-list,
+  .active-workflow {
+    grid-column: auto;
+    grid-row: auto;
+  }
   .calendar-grid { grid-template-columns: repeat(7, minmax(38px, 1fr)); gap: 4px; }
   .split-reader-modal { width: calc(100vw - 14px); height: calc(100vh - 14px); }
   .split-reader-layout { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 1fr) 8px minmax(260px, 1fr); }
