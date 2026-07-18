@@ -1859,7 +1859,7 @@ async function reconnectGoogleCalendar() {
   }
 }
 
-async function loadGoogleCalendarEvents(showNotice) {
+async function loadGoogleCalendarEvents(showNotice, localSyncResult) {
   if (!cloudSession && isHostedDashboard) {
     if (showNotice) showToast("Sign in to dashboard sync first.");
     return;
@@ -1899,11 +1899,23 @@ async function loadGoogleCalendarEvents(showNotice) {
     var rangeText = rangeStart && rangeEnd ? " Range: " + rangeStart + "-" + rangeEnd + "." : "";
     var duplicateText = duplicateCount ? " " + duplicateCount + " duplicate synced event" + (duplicateCount === 1 ? "" : "s") + " hidden." : "";
     var warning = data.errors && data.errors.length ? " Warnings: " + data.errors.slice(0, 2).join(" | ") : "";
+    var localSyncText = "";
+    if (localSyncResult && localSyncResult.attempted) {
+      localSyncText = " " + localSyncResult.synced + " pending dashboard event" + (localSyncResult.synced === 1 ? " was" : "s were") + " uploaded.";
+      if (localSyncResult.failed) localSyncText += " " + localSyncResult.failed + " still pending.";
+    }
     var summary = count
-      ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded; " + rangeLabel + "." + duplicateText + rangeText + warning
-      : "Google Calendar returned " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " for this view; " + rangeLabel + "." + duplicateText + rangeText + warning;
+      ? count + " Google Calendar event" + (count === 1 ? "" : "s") + " loaded; " + rangeLabel + "." + duplicateText + rangeText + localSyncText + warning
+      : "Google Calendar returned " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " for this view; " + rangeLabel + "." + duplicateText + rangeText + localSyncText + warning;
     setCloudStatus("google", data.errors && data.errors.length && !count ? "warn" : "ok", summary);
-    if (showNotice) showToast(count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " returned for this range.");
+    if (showNotice) {
+      var notice = count ? "Google Calendar synced: " + count + " event" + (count === 1 ? "" : "s") + "." : "Google Calendar synced. " + rawCount + " event" + (rawCount === 1 ? "" : "s") + " returned for this range.";
+      if (localSyncResult && localSyncResult.attempted) {
+        notice += " " + localSyncResult.synced + " pending dashboard event" + (localSyncResult.synced === 1 ? " was" : "s were") + " uploaded.";
+        if (localSyncResult.failed) notice += " " + localSyncResult.failed + " still pending.";
+      }
+      showToast(notice);
+    }
   } catch (error) {
     googleCalendarLastMessage = hostedHint("google-calendar/events", error);
     try {
@@ -1971,6 +1983,32 @@ async function syncDashboardEventToGoogle(localEvent, showNotice) {
   }
 }
 
+function getPendingGoogleCalendarEvents() {
+  return state.events.filter(function (event) {
+    if (!canSyncToGoogle(event)) return false;
+    if (event.syncStatus === "syncing") return false;
+    return !event.googleEventId || event.syncStatus === "pending";
+  });
+}
+
+async function syncPendingDashboardEventsToGoogle() {
+  if (!googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) {
+    return { attempted: 0, synced: 0, failed: 0 };
+  }
+
+  var pendingEvents = getPendingGoogleCalendarEvents();
+  var result = { attempted: pendingEvents.length, synced: 0, failed: 0 };
+
+  for (var index = 0; index < pendingEvents.length; index += 1) {
+    var synced = await syncDashboardEventToGoogle(pendingEvents[index], false);
+    if (synced) result.synced += 1;
+    else result.failed += 1;
+    if (!googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) break;
+  }
+
+  return result;
+}
+
 async function deleteGoogleCalendarEvent(localEvent) {
   if (!localEvent || !localEvent.googleEventId || !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) return false;
   try {
@@ -1985,7 +2023,8 @@ async function refreshGoogleCalendar(showNotice) {
   await loadGoogleCalendarStatus();
   if (googleCalendarStatus.connected) {
     await loadGoogleCalendarChoices(false);
-    await loadGoogleCalendarEvents(showNotice);
+    var localSyncResult = await syncPendingDashboardEventsToGoogle();
+    await loadGoogleCalendarEvents(showNotice, localSyncResult);
   }
   else if (showNotice && googleCalendarStatus.configured) showToast("Connect Google Calendar first.");
 }
