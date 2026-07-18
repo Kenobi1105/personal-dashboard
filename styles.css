@@ -1201,7 +1201,8 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 }
 .active-workflow h3 { margin: 0 0 5px; color: var(--signature); font-family: "League Spartan", "Montserrat", "Arial Black", "Century Gothic", sans-serif; font-size: 0.95rem; line-height: 1; }
 .active-workflow {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   grid-column: 2;
   grid-row: 2;
   min-width: 0;
@@ -1209,8 +1210,20 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   align-self: start;
   gap: 6px;
 }
-.workflow-items { display: grid; gap: 6px; max-height: 160px; overflow: auto; padding: 4px 2px 2px; }
-.workflow-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px; align-items: center; min-height: 32px; padding: 5px 7px; border-color: rgba(73, 53, 72, 0.1); background: rgba(255, 255, 255, 0.7); box-shadow: 0 3px 9px rgba(73, 53, 72, 0.035); }
+.workflow-items {
+  display: grid;
+  grid-auto-rows: 40px;
+  gap: 6px;
+  height: 230px;
+  min-height: 230px;
+  max-height: 230px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 4px 4px 2px;
+  scrollbar-gutter: stable;
+  align-content: start;
+}
+.workflow-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 7px; align-items: center; min-height: 40px; height: 40px; padding: 5px 7px; border-color: rgba(73, 53, 72, 0.1); background: rgba(255, 255, 255, 0.7); box-shadow: 0 3px 9px rgba(73, 53, 72, 0.035); }
 .workflow-drag-handle { display: grid; width: 18px; min-height: 22px; padding: 0; place-items: center; border: 0; color: rgba(73, 53, 72, 0.42); background: transparent; cursor: grab; touch-action: none; }
 .workflow-drag-handle svg { width: 13px; height: 13px; fill: currentColor; }
 .workflow-drag-handle:hover, .workflow-drag-handle:focus-visible, .workflow-item.pointer-dragging .workflow-drag-handle { color: var(--signature); background: transparent; }
@@ -1220,12 +1233,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .workflow-item-label:hover, .workflow-item-label:focus-visible { text-decoration: underline; }
 .workflow-item-input { width: 100%; min-height: 24px; padding: 3px 5px; font-size: 0.68rem; }
 .workflow-item.pointer-dragging { position: fixed; z-index: 2100; margin: 0; pointer-events: none; border: 1px solid rgba(73, 53, 72, 0.2); background: rgba(255, 255, 255, 0.98); box-shadow: 0 14px 28px rgba(73, 53, 72, 0.22); transform: rotate(1deg); }
-.workflow-drag-placeholder { min-height: 32px; border: 1px dashed rgba(73, 53, 72, 0.4); border-radius: 7px; background: rgba(240, 208, 143, 0.24); }
-.workflow-item .trash-button { width: 22px; min-height: 22px; }
-.workflow-item .trash-button { opacity: 0; }
-.workflow-item:hover .trash-button,
-.workflow-item:focus-within .trash-button,
-.workflow-extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 7px; }
+.workflow-drag-placeholder { min-height: 40px; border: 1px dashed rgba(73, 53, 72, 0.4); border-radius: 7px; background: rgba(240, 208, 143, 0.24); }
+.workflow-item .trash-button { width: 22px; min-height: 22px; opacity: 1; visibility: visible; color: var(--signature); background: transparent; }
+.workflow-item .trash-button:hover,
+.workflow-item .trash-button:focus-visible { color: var(--ink); background: rgba(240, 208, 143, 0.42); }
+.workflow-extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: auto; }
 
 @media (min-width: 761px) {
   #workflowsWorkspaceView:not([hidden]) {
@@ -1242,19 +1254,21 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   #workflowsWorkspaceView .active-workflow {
     min-height: 0;
     align-self: stretch;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
   }
 
   #workflowsWorkspaceView .workflow-items {
-    min-height: 0;
-    max-height: none;
+    flex: 0 0 230px;
+    min-height: 230px;
+    max-height: 230px;
     overflow-x: hidden;
     overflow-y: auto;
   }
 
   #workflowsWorkspaceView .workflow-extra {
-    align-self: end;
-    margin-top: 0;
+    align-self: stretch;
+    margin-top: auto;
   }
 }
 
@@ -2734,8 +2748,7 @@ kbd {
 
 .workflow-item { grid-template-columns: auto minmax(0, 1fr) auto; }
   .event-detail-meta.no-passage div:last-child { grid-column: auto; }
-  .compact-list,
-  .workflow-items { max-height: none; }
+  .compact-list { max-height: none; }
   .day-drawer { inset: 8px; width: auto; }
   .drawer-card { height: calc(100vh - 16px); }
   .sport-selector { grid-template-columns: repeat(3, minmax(0, 1fr)); }
