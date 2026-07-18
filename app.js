@@ -4093,7 +4093,10 @@ function taskSourceLabel(task) {
 function syncChecklistCompletion(task) {
   state.events.forEach(function (event) {
     (event.checklist || []).forEach(function (item) {
-      if (item.taskId === task.id) item.done = !!task.done;
+      if (item.taskId !== task.id) return;
+      item.title = task.title;
+      item.dueDate = task.dueDate || "";
+      item.done = !!task.done;
     });
   });
 }
@@ -6276,6 +6279,7 @@ els.taskModalForm.addEventListener("submit", function (event) {
   syncChecklistCompletion(task);
   saveState();
   renderAll();
+  if (els.eventDetailModal.open && viewingEventId) viewEvent(viewingEventId);
   openTaskModal(task.id, { source: taskModalOpenSource });
   showToast("Task saved.");
 });
