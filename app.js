@@ -925,6 +925,7 @@ var workspaceView = "tasks";
 var taskModalOpenSource = "";
 var draggedTaskId = "";
 var taskPointerDrag = null;
+var taskGroupPointerDrag = null;
 var workflowPointerDrag = null;
 var modalChecklistPointerDrag = null;
 var eventDetailChecklistPointerDrag = null;
@@ -2103,8 +2104,9 @@ function viewEvent(eventId) {
       text.textContent = check.title || "Untitled checklist item";
       var due = document.createElement("small");
       due.className = "event-detail-check-due";
-      due.textContent = check.dueDate ? "Due " + displayDate(check.dueDate) : "";
-      due.hidden = !check.dueDate;
+    var checklistDate = check.dueDate || item.start || "";
+    due.textContent = checklistDate ? "Due " + displayDate(checklistDate) : "";
+    due.hidden = !checklistDate;
       row.append(toggle, text, due);
       checklistList.appendChild(row);
     });
@@ -3840,6 +3842,90 @@ function beginTaskPointerDrag(event, task, card, groupId) {
   document.addEventListener("pointercancel", cancelTaskPointerDrag);
 }
 
+function setTaskGroupSortOrderFromDom() {
+  var ids = Array.prototype.slice.call(els.taskList.querySelectorAll(":scope > .task-group"))
+    .map(function (groupItem) { return groupItem.dataset.groupId || ""; })
+    .filter(Boolean);
+  ids.forEach(function (groupId, index) {
+    var group = (state.taskGroups || []).find(function (item) { return item.id === groupId; });
+    if (group) group.sortOrder = index;
+  });
+}
+
+function clearTaskGroupPointerDrag(commit) {
+  if (!taskGroupPointerDrag) return;
+  var drag = taskGroupPointerDrag;
+  if (drag.placeholder.parentElement) drag.placeholder.replaceWith(drag.groupItem);
+  else drag.originList.appendChild(drag.groupItem);
+  drag.groupItem.classList.remove("pointer-dragging");
+  drag.groupItem.removeAttribute("style");
+  taskGroupPointerDrag = null;
+  document.removeEventListener("pointermove", moveTaskGroupPointerDrag);
+  document.removeEventListener("pointerup", finishTaskGroupPointerDrag);
+  document.removeEventListener("pointercancel", cancelTaskGroupPointerDrag);
+  if (commit) {
+    setTaskGroupSortOrderFromDom();
+    saveState();
+  }
+  renderTasks();
+}
+
+function moveTaskGroupPointerDrag(event) {
+  if (!taskGroupPointerDrag || event.pointerId !== taskGroupPointerDrag.pointerId) return;
+  var drag = taskGroupPointerDrag;
+  drag.groupItem.style.left = Math.max(8, event.clientX - drag.offsetX) + "px";
+  drag.groupItem.style.top = Math.max(8, event.clientY - drag.offsetY) + "px";
+  var target = document.elementFromPoint(event.clientX, event.clientY);
+  var targetGroup = target && target.closest(".task-group");
+  if (!targetGroup || targetGroup === drag.groupItem || targetGroup.parentElement !== els.taskList || !targetGroup.dataset.groupId) return;
+  var rect = targetGroup.getBoundingClientRect();
+  if (event.clientY < rect.top + (rect.height / 2)) {
+    els.taskList.insertBefore(drag.placeholder, targetGroup);
+  } else {
+    els.taskList.insertBefore(drag.placeholder, targetGroup.nextSibling);
+  }
+}
+
+function finishTaskGroupPointerDrag(event) {
+  if (!taskGroupPointerDrag || event.pointerId !== taskGroupPointerDrag.pointerId) return;
+  clearTaskGroupPointerDrag(true);
+}
+
+function cancelTaskGroupPointerDrag(event) {
+  if (!taskGroupPointerDrag || event.pointerId !== taskGroupPointerDrag.pointerId) return;
+  clearTaskGroupPointerDrag(false);
+}
+
+function beginTaskGroupPointerDrag(event, groupItem) {
+  if (event.button !== 0 || taskGroupPointerDrag || taskPointerDrag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  var rect = groupItem.getBoundingClientRect();
+  var placeholder = document.createElement("li");
+  placeholder.className = "task-group-drag-placeholder";
+  placeholder.style.width = rect.width + "px";
+  placeholder.style.height = rect.height + "px";
+  groupItem.parentElement.insertBefore(placeholder, groupItem.nextSibling);
+  groupItem.classList.add("pointer-dragging");
+  groupItem.style.width = rect.width + "px";
+  groupItem.style.height = rect.height + "px";
+  groupItem.style.left = rect.left + "px";
+  groupItem.style.top = rect.top + "px";
+  document.body.appendChild(groupItem);
+  taskGroupPointerDrag = {
+    groupItem: groupItem,
+    originList: els.taskList,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    placeholder: placeholder,
+    pointerId: event.pointerId
+  };
+  if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  document.addEventListener("pointermove", moveTaskGroupPointerDrag);
+  document.addEventListener("pointerup", finishTaskGroupPointerDrag);
+  document.addEventListener("pointercancel", cancelTaskGroupPointerDrag);
+}
+
 function clearWorkflowPointerDrag(commit) {
   if (!workflowPointerDrag) return;
   var drag = workflowPointerDrag;
@@ -4179,7 +4265,19 @@ function renderTasks() {
     groupItem.className = "task-group" + (group.collapsed ? " collapsed" : "");
     groupItem.dataset.groupId = group.id;
     var header = document.createElement("div");
-    header.className = "task-group-header";
+    header.className = "task-group-header" + (!group.implicit && !completedView ? " can-reorder" : "");
+    if (!group.implicit && !completedView) {
+      var groupDragHandle = document.createElement("button");
+      groupDragHandle.type = "button";
+      groupDragHandle.className = "task-group-drag-handle";
+      groupDragHandle.title = "Drag to reorder group";
+      groupDragHandle.setAttribute("aria-label", "Drag " + group.name + " group to reorder");
+      groupDragHandle.innerHTML = dragHandleIcon();
+      groupDragHandle.addEventListener("pointerdown", function (event) {
+        beginTaskGroupPointerDrag(event, groupItem);
+      });
+      header.appendChild(groupDragHandle);
+    }
     var toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "task-group-toggle";
