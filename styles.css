@@ -1227,6 +1227,37 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .workflow-item:focus-within .trash-button,
 .workflow-extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 7px; }
 
+@media (min-width: 761px) {
+  #workflowsWorkspaceView:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #workflowsWorkspaceView .template-builder {
+    min-height: 0;
+    flex: 1;
+    align-items: stretch;
+  }
+
+  #workflowsWorkspaceView .active-workflow {
+    min-height: 0;
+    align-self: stretch;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  #workflowsWorkspaceView .workflow-items {
+    min-height: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  #workflowsWorkspaceView .workflow-extra {
+    align-self: end;
+    margin-top: 0;
+  }
+}
+
 .secondary-sections { margin-top: 14px; }
 .tools-prayer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; }
 .secondary-sections:has(.rss-panel) { display: grid; grid-template-columns: minmax(0, 0.58fr) minmax(360px, 0.42fr); gap: 8px; align-items: stretch; }
