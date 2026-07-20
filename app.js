@@ -488,6 +488,7 @@ function normalizeRange(a, b) {
 }
 
 function getTimeSlotFromTime(value) {
+  value = normalizeTimeInput(value);
   if (!value) return "Morning";
   var hour = Number(value.split(":")[0]);
   if (hour < 12) return "Morning";
@@ -512,44 +513,86 @@ function formatTimeOption(value) {
 }
 
 function timeToMinutes(value) {
+  value = normalizeTimeInput(value);
   if (!value || value.indexOf(":") === -1) return null;
   var parts = value.split(":").map(Number);
   return (parts[0] * 60) + parts[1];
 }
 
 function minutesToTime(minutes) {
-  var clamped = Math.max(0, Math.min((24 * 60) - 15, minutes));
+  var clamped = Math.max(0, Math.min((24 * 60) - 1, minutes));
   var hour = String(Math.floor(clamped / 60)).padStart(2, "0");
   var minute = String(clamped % 60).padStart(2, "0");
   return hour + ":" + minute;
 }
 
+function normalizeTimeInput(value) {
+  var source = String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+  if (!source) return "";
+  var match = source.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/);
+  if (!match) match = source.match(/^(\d{1,2})(\d{2})(am|pm)?$/);
+  if (!match) return "";
+  var hour = Number(match[1]);
+  var minute = match[2] === undefined ? 0 : Number(match[2]);
+  var suffix = match[3] || "";
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || minute > 59) return "";
+  if (suffix) {
+    if (hour < 1 || hour > 12) return "";
+    if (suffix === "pm" && hour !== 12) hour += 12;
+    if (suffix === "am" && hour === 12) hour = 0;
+  } else if (hour > 23) {
+    return "";
+  }
+  return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+}
+
+function normalizeTimeField(field) {
+  var normalized = normalizeTimeInput(field.value);
+  if (normalized) field.value = normalized;
+  return normalized;
+}
+
+function getValidatedTimeRange(startField, endField) {
+  var start = normalizeTimeField(startField);
+  var end = normalizeTimeField(endField);
+  if (!start || !end) {
+    showToast("Enter valid start and end times, for example 13:50.");
+    return null;
+  }
+  if (timeToMinutes(end) < timeToMinutes(start)) {
+    showToast("End time cannot be earlier than start time.");
+    return null;
+  }
+  return { start: start, end: end };
+}
+
+function populateTimeSuggestions() {
+  var list = document.getElementById("dashboardTimeOptions");
+  if (!list) return;
+  list.innerHTML = "";
+  for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
+    var value = minutesToTime(minutes);
+    var option = document.createElement("option");
+    option.value = value;
+    option.label = formatTimeOption(value);
+    list.appendChild(option);
+  }
+}
+
 function populateTimeSelects() {
-  [els.eventTimeStart, els.eventTimeEnd].forEach(function (select) {
-    var current = select.value || select.dataset.pendingValue || "";
-    select.innerHTML = "";
-    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
-      var hour = String(Math.floor(minutes / 60)).padStart(2, "0");
-      var minute = String(minutes % 60).padStart(2, "0");
-      var value = hour + ":" + minute;
-      var option = document.createElement("option");
-      option.value = value;
-      option.textContent = formatTimeOption(value);
-      select.appendChild(option);
-    }
-    if (current) select.value = current;
+  populateTimeSuggestions();
+  [els.eventTimeStart, els.eventTimeEnd].forEach(function (input) {
+    var current = input.value || input.dataset.pendingValue || "";
+    var normalized = normalizeTimeInput(current);
+    if (normalized) input.value = normalized;
   });
 }
 
 function updateEventEndTimeOptions() {
-  var startMinutes = timeToMinutes(els.eventTimeStart.value);
-  Array.from(els.eventTimeEnd.options).forEach(function (option) {
-    var optionMinutes = timeToMinutes(option.value);
-    option.disabled = startMinutes !== null && optionMinutes !== null && optionMinutes < startMinutes;
-  });
-  var endMinutes = timeToMinutes(els.eventTimeEnd.value);
-  if (startMinutes !== null && (endMinutes === null || endMinutes < startMinutes)) {
-    els.eventTimeEnd.value = els.eventTimeStart.value;
+  var start = normalizeTimeField(els.eventTimeStart);
+  var end = normalizeTimeField(els.eventTimeEnd);
+  if (start && (!end || timeToMinutes(end) < timeToMinutes(start))) {
+    els.eventTimeEnd.value = start;
   }
 }
 
@@ -609,7 +652,8 @@ function handleEventEndDateChange() {
 }
 
 function handleEventStartTimeChange() {
-  var startMinutes = timeToMinutes(els.eventTimeStart.value);
+  var start = normalizeTimeField(els.eventTimeStart);
+  var startMinutes = timeToMinutes(start);
   if (startMinutes === null) return;
   if (lastEventStartTime && els.eventTimeEnd.value) {
     els.eventTimeEnd.value = minutesToTime(startMinutes + lastEventDurationMinutes);
@@ -620,20 +664,17 @@ function handleEventStartTimeChange() {
 }
 
 function handleEventEndTimeChange() {
+  if (els.eventTimeEnd.value && !normalizeTimeField(els.eventTimeEnd)) return;
   updateEventEndTimeOptions();
   rememberEventTimeRange();
   syncEventTimeControls();
 }
 
 function updateScheduleEndTimeOptions() {
-  var startMinutes = timeToMinutes(els.scheduleStartTime.value);
-  Array.from(els.scheduleEndTime.options).forEach(function (option) {
-    var optionMinutes = timeToMinutes(option.value);
-    option.disabled = startMinutes !== null && optionMinutes !== null && optionMinutes < startMinutes;
-  });
-  var endMinutes = timeToMinutes(els.scheduleEndTime.value);
-  if (startMinutes !== null && (endMinutes === null || endMinutes < startMinutes)) {
-    els.scheduleEndTime.value = els.scheduleStartTime.value;
+  var start = normalizeTimeField(els.scheduleStartTime);
+  var end = normalizeTimeField(els.scheduleEndTime);
+  if (start && (!end || timeToMinutes(end) < timeToMinutes(start))) {
+    els.scheduleEndTime.value = start;
   }
 }
 
@@ -669,7 +710,8 @@ function handleScheduleEndDateChange() {
 }
 
 function handleScheduleStartTimeChange() {
-  var startMinutes = timeToMinutes(els.scheduleStartTime.value);
+  var start = normalizeTimeField(els.scheduleStartTime);
+  var startMinutes = timeToMinutes(start);
   if (startMinutes === null) return;
   if (lastScheduleStartTime && els.scheduleEndTime.value) {
     els.scheduleEndTime.value = minutesToTime(startMinutes + lastScheduleDurationMinutes);
@@ -679,6 +721,7 @@ function handleScheduleStartTimeChange() {
 }
 
 function handleScheduleEndTimeChange() {
+  if (els.scheduleEndTime.value && !normalizeTimeField(els.scheduleEndTime)) return;
   updateScheduleEndTimeOptions();
   rememberScheduleTimeRange();
 }
@@ -3071,19 +3114,10 @@ function addTemplateToModalEvent() {
 }
 
 function populateScheduleTimeSelects() {
-  [els.scheduleStartTime, els.scheduleEndTime].forEach(function (select) {
-    var current = select.value || (select === els.scheduleStartTime ? "08:00" : "09:00");
-    select.innerHTML = "";
-    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
-      var hour = String(Math.floor(minutes / 60)).padStart(2, "0");
-      var minute = String(minutes % 60).padStart(2, "0");
-      var value = hour + ":" + minute;
-      var option = document.createElement("option");
-      option.value = value;
-      option.textContent = formatTimeOption(value);
-      select.appendChild(option);
-    }
-    select.value = current;
+  populateTimeSuggestions();
+  [els.scheduleStartTime, els.scheduleEndTime].forEach(function (input) {
+    var fallback = input === els.scheduleStartTime ? "08:00" : "09:00";
+    input.value = normalizeTimeInput(input.value) || fallback;
   });
 }
 
@@ -3168,6 +3202,8 @@ function saveSchedule(event) {
   }
   if (!startDate) return;
   if (parseISO(endDate) < parseISO(startDate)) endDate = startDate;
+  var timeRange = getValidatedTimeRange(els.scheduleStartTime, els.scheduleEndTime);
+  if (!timeRange) return;
 
   var selectedDays = Array.from(els.scheduleForm.querySelectorAll("input[name='scheduleDay']:checked")).map(function (input) {
     return Number(input.value);
@@ -3190,9 +3226,9 @@ function saveSchedule(event) {
       title: title,
       start: iso,
       end: iso,
-      timeSlot: getTimeSlotFromTime(els.scheduleStartTime.value),
-      timeStart: els.scheduleStartTime.value,
-      timeEnd: els.scheduleEndTime.value,
+      timeSlot: getTimeSlotFromTime(timeRange.start),
+      timeStart: timeRange.start,
+      timeEnd: timeRange.end,
       location: location,
       colorKey: selectedScheduleColorKey,
       source: "schedule",
@@ -3233,8 +3269,10 @@ async function addEventOrPlan(event) {
   var end = els.eventEndDate.value || start;
   if (parseISO(end) < parseISO(start)) end = start;
   var allDay = els.eventAllDay.checked || start !== end;
-  var timeStart = allDay ? "" : els.eventTimeStart.value;
-  var timeEnd = allDay ? "" : els.eventTimeEnd.value;
+  var timeRange = allDay ? null : getValidatedTimeRange(els.eventTimeStart, els.eventTimeEnd);
+  if (!allDay && !timeRange) return;
+  var timeStart = allDay ? "" : timeRange.start;
+  var timeEnd = allDay ? "" : timeRange.end;
   var timeSlot = allDay ? "All Day" : getTimeSlotFromTime(timeStart);
   var previousEvent = editingEventId ? state.events.find(function (eventItem) { return eventItem.id === editingEventId; }) : null;
   var nextRepeatRule = eventModalMode === "plan" ? defaultRepeatRule() : repeatRuleFromForm();
@@ -6368,11 +6406,15 @@ els.eventDate.addEventListener("change", handleEventStartDateChange);
 els.eventEndDate.addEventListener("change", handleEventEndDateChange);
 els.eventTimeStart.addEventListener("change", handleEventStartTimeChange);
 els.eventTimeEnd.addEventListener("change", handleEventEndTimeChange);
+els.eventTimeStart.addEventListener("blur", handleEventStartTimeChange);
+els.eventTimeEnd.addEventListener("blur", handleEventEndTimeChange);
 els.eventAllDay.addEventListener("change", syncEventTimeControls);
 els.scheduleStartDate.addEventListener("change", handleScheduleStartDateChange);
 els.scheduleEndDate.addEventListener("change", handleScheduleEndDateChange);
 els.scheduleStartTime.addEventListener("change", handleScheduleStartTimeChange);
 els.scheduleEndTime.addEventListener("change", handleScheduleEndTimeChange);
+els.scheduleStartTime.addEventListener("blur", handleScheduleStartTimeChange);
+els.scheduleEndTime.addEventListener("blur", handleScheduleEndTimeChange);
 els.drawerAddEvent.addEventListener("click", function () { openEventModal({ mode: "create", start: selectedDate, end: selectedDate, timeStart: "08:00", timeEnd: "09:00" }); });
 els.closeDayDrawer.addEventListener("click", closeDayDrawer);
 els.verseToggle.addEventListener("click", function () {

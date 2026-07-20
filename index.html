@@ -408,15 +408,15 @@
           <label>Start Date
             <input id="eventDate" type="date" required>
           </label>
-          <label>Time Start
-            <select id="eventTimeStart"></select>
-          </label>
+                <label>Time Start
+                  <input id="eventTimeStart" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
+                </label>
           <label>End Date
             <input id="eventEndDate" type="date">
           </label>
-          <label>Time End
-            <select id="eventTimeEnd"></select>
-          </label>
+                <label>Time End
+                  <input id="eventTimeEnd" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
+                </label>
         </div>
         <label class="check-label">
           <input id="eventAllDay" type="checkbox">
@@ -538,12 +538,12 @@
           <label>End Date
             <input id="scheduleEndDate" type="date" required>
           </label>
-          <label>Start Time
-            <select id="scheduleStartTime"></select>
-          </label>
-          <label>End Time
-            <select id="scheduleEndTime"></select>
-          </label>
+                <label>Start Time
+                  <input id="scheduleStartTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
+                </label>
+                <label>End Time
+                  <input id="scheduleEndTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
+                </label>
         </div>
 
         <div class="modal-actions">
@@ -789,6 +789,7 @@
       </article>
     </dialog>
 
-    <script src="app.js?v=47"></script>
+  <datalist id="dashboardTimeOptions"></datalist>
+  <script src="app.js?v=48"></script>
   </body>
 </html>

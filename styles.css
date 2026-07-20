@@ -849,7 +849,9 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 .event-type-row { grid-template-columns: repeat(2, minmax(128px, 170px)); }
 .event-text-stack { grid-template-columns: minmax(260px, 1fr); max-width: 430px; }
 .event-date-time-grid { grid-template-columns: minmax(132px, 160px) minmax(118px, 145px); max-width: 330px; }
-.event-date-time-grid.time-disabled select { color: var(--muted); background: rgba(112, 105, 103, 0.12); cursor: not-allowed; }
+.event-date-time-grid.time-disabled select,
+.event-date-time-grid.time-disabled input { color: var(--muted); background: rgba(112, 105, 103, 0.12); cursor: not-allowed; }
+.time-input { font-variant-numeric: tabular-nums; }
 .event-date-time-grid.time-disabled label:nth-child(2),
 .event-date-time-grid.time-disabled label:nth-child(4) { opacity: 0.72; }
 .event-type-manager {
