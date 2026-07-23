@@ -4338,7 +4338,7 @@ function renderPriorityList() {
     els.priorityList.appendChild(div);
   }
   var itemLimit = priorityScope === "month" ? 12 : items.length;
-  if (priorityScope === "week") {
+  if (priorityScope !== "month") {
     var classItems = weeklyClassItems;
     var otherItems = items.filter(function (item) { return !isClassEvent(item); });
     var group = document.createElement("section");
