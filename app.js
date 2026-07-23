@@ -2742,6 +2742,13 @@ function classScheduleTimeLabel(minutes) {
   return start + "-" + end;
 }
 
+function classScheduleTone(item) {
+  var value = String(classScheduleKey(item));
+  var total = 0;
+  for (var index = 0; index < value.length; index += 1) total += value.charCodeAt(index);
+  return total % 4;
+}
+
 function saveClassScheduleBounds(start, end) {
   var startTime = normalizeTimeInput(start) || "08:00";
   var endTime = normalizeTimeInput(end) || "18:00";
@@ -2753,28 +2760,96 @@ function saveClassScheduleBounds(start, end) {
   saveState();
 }
 
-function classDeadlineTargetEvents() {
-  return state.events.filter(isClassEvent).sort(function (a, b) {
-    var dateDelta = String(a.start).localeCompare(String(b.start));
-    if (dateDelta) return dateDelta;
-    var timeDelta = String(a.timeStart || "99:99").localeCompare(String(b.timeStart || "99:99"));
-    if (timeDelta) return timeDelta;
+function classDeadlineCourseKey(event) {
+  return event.scheduleId || ("class-title:" + String(eventTitle(event) || "").trim().toLowerCase()) || event.id;
+}
+
+function classDeadlineSources() {
+  var seen = {};
+  return state.events.filter(isClassEvent).filter(function (event) {
+    var key = classDeadlineCourseKey(event);
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  }).sort(function (a, b) {
     return eventTitle(a).localeCompare(eventTitle(b));
   });
 }
 
+function classDeadlineSeriesEvents(courseKey) {
+  return state.events.filter(function (event) {
+    return isClassEvent(event) && classDeadlineCourseKey(event) === courseKey;
+  }).sort(function (a, b) {
+    var dateDelta = String(a.start).localeCompare(String(b.start));
+    if (dateDelta) return dateDelta;
+    return String(a.timeStart || "99:99").localeCompare(String(b.timeStart || "99:99"));
+  });
+}
+
+function classDeadlineItems(deadline) {
+  return state.events.reduce(function (items, event) {
+    (event.checklist || []).forEach(function (item) {
+      if (item.deadlineId === deadline.id) items.push({ event: event, item: item });
+    });
+    return items;
+  }, []);
+}
+
 function classDeadlineEntries() {
   return (state.settings.classDeadlines || []).map(function (deadline) {
-    var event = state.events.find(function (item) { return item.id === deadline.eventId; });
-    var checklistItem = event && (event.checklist || []).find(function (item) { return item.id === deadline.checklistItemId; });
-    return event && checklistItem ? { deadline: deadline, event: event, checklistItem: checklistItem } : null;
+    var items = classDeadlineItems(deadline);
+    if (!items.length && deadline.eventId && deadline.checklistItemId) {
+      var legacyEvent = state.events.find(function (event) { return event.id === deadline.eventId; });
+      var legacyItem = legacyEvent && (legacyEvent.checklist || []).find(function (item) { return item.id === deadline.checklistItemId; });
+      if (legacyEvent && legacyItem) items.push({ event: legacyEvent, item: legacyItem });
+    }
+    return items.length ? { deadline: deadline, courseKey: deadline.courseKey || classDeadlineCourseKey(items[0].event), event: items[0].event, checklistItem: items[0].item, items: items } : null;
   }).filter(Boolean);
 }
 
+function syncClassDeadlineValues(deadlineId, source) {
+  var record = (state.settings.classDeadlines || []).find(function (item) { return item.id === deadlineId; });
+  if (!record || !source) return;
+  classDeadlineItems(record).forEach(function (entry) {
+    entry.item.title = source.title;
+    entry.item.dueDate = source.dueDate || "";
+    entry.item.dueTime = source.dueTime || "";
+    entry.item.alarm = source.alarm || "none";
+    entry.item.done = !!source.done;
+    if (entry.item.taskId) {
+      var task = state.tasks.find(function (item) { return item.id === entry.item.taskId; });
+      if (task) {
+        task.title = source.title;
+        task.dueDate = source.dueDate || "";
+        task.dueTime = source.dueTime || "";
+        task.alarm = source.alarm || "none";
+        task.done = !!source.done;
+        task.completedAt = source.done ? task.completedAt || new Date().toISOString() : "";
+      }
+    }
+  });
+  record.title = String(source.title || "").replace(new RegExp("^" + record.type + ":\\s*"), "");
+  record.dueDate = source.dueDate || "";
+  record.dueTime = source.dueTime || "";
+  record.alarm = source.alarm || "none";
+}
+
+function setClassDeadlineCompletion(deadlineId, done) {
+  var record = (state.settings.classDeadlines || []).find(function (item) { return item.id === deadlineId; });
+  if (!record) return;
+  var source = classDeadlineItems(record)[0];
+  if (!source) return;
+  source.item.done = !!done;
+  syncClassDeadlineValues(deadlineId, source.item);
+  saveState();
+  renderAll();
+}
+
 function addClassDeadline(values) {
-  var event = state.events.find(function (item) { return item.id === values.eventId; });
-  if (!event || !isClassEvent(event)) {
-    showToast("Choose a class meeting first.");
+  var courseKey = values.courseKey || "";
+  var events = classDeadlineSeriesEvents(courseKey);
+  if (!events.length) {
+    showToast("Choose a class first.");
     return false;
   }
   var title = String(values.title || "").trim();
@@ -2783,48 +2858,50 @@ function addClassDeadline(values) {
     return false;
   }
   var deadlineId = id("class-deadline");
-  var checklistItem = {
-    id: id("check"),
-    title: values.type + ": " + title,
-    dueDate: values.dueDate || "",
-    dueTime: values.dueTime || "",
-    alarm: values.alarm || "none",
-    done: false,
-    promoted: false,
-    taskId: null,
-    deadlineId: deadlineId,
-    deadlineType: values.type
-  };
-  event.checklist = event.checklist || [];
-  event.checklist.push(checklistItem);
-  ensureEventChecklistTasks(event);
-  state.settings.classDeadlines.push({
+  var record = {
     id: deadlineId,
-    eventId: event.id,
-    checklistItemId: checklistItem.id,
+    courseKey: courseKey,
+    eventIds: [],
+    checklistItemIds: [],
     type: values.type,
     title: title,
     dueDate: values.dueDate || "",
-    dueTime: values.dueTime || "",
-    alarm: values.alarm || "none"
+    dueTime: "",
+    alarm: "none"
+  };
+  events.forEach(function (event) {
+    var checklistItem = {
+      id: id("check"),
+      title: values.type + ": " + title,
+      dueDate: values.dueDate || "",
+      dueTime: "",
+      alarm: "none",
+      done: false,
+      promoted: false,
+      taskId: null,
+      deadlineId: deadlineId,
+      deadlineType: values.type
+    };
+    event.checklist = event.checklist || [];
+    event.checklist.push(checklistItem);
+    ensureEventChecklistTasks(event);
+    record.eventIds.push(event.id);
+    record.checklistItemIds.push(checklistItem.id);
   });
+  state.settings.classDeadlines.push(record);
   saveState();
   renderAll();
-  showToast("Deadline added to " + eventTitle(event) + ".");
+  showToast("Deadline added to every " + eventTitle(events[0]) + " class event.");
   return true;
 }
 
 function removeClassDeadline(deadlineId) {
-  var record = (state.settings.classDeadlines || []).find(function (item) { return item.id === deadlineId; });
-  if (!record) return;
-  var event = state.events.find(function (item) { return item.id === record.eventId; });
-  if (event) {
-    var checklistItem = (event.checklist || []).find(function (item) { return item.id === record.checklistItemId; });
-    if (checklistItem && checklistItem.taskId) {
-      state.tasks = state.tasks.filter(function (task) { return task.id !== checklistItem.taskId; });
-    }
-    event.checklist = (event.checklist || []).filter(function (item) { return item.id !== record.checklistItemId; });
-  }
+  state.events.forEach(function (event) {
+    (event.checklist || []).filter(function (item) { return item.deadlineId === deadlineId; }).forEach(function (item) {
+      if (item.taskId) state.tasks = state.tasks.filter(function (task) { return task.id !== item.taskId; });
+    });
+    event.checklist = (event.checklist || []).filter(function (item) { return item.deadlineId !== deadlineId; });
+  });
   state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (item) { return item.id !== deadlineId; });
   saveState();
   renderAll();
@@ -2833,10 +2910,6 @@ function removeClassDeadline(deadlineId) {
 function classDeadlineDueLabel(item) {
   if (!item.dueDate) return "No due date";
   return "Due " + displayDate(item.dueDate) + (item.dueTime ? " at " + formatTimeOption(item.dueTime) : "") + (item.alarm && item.alarm !== "none" ? " · " + alarmLabel(item.alarm) : "");
-}
-
-function classDeadlineCourseKey(event) {
-  return event.scheduleId || event.title || event.id;
 }
 
 function renderClassDeadlinePanel() {
@@ -2862,39 +2935,28 @@ function renderClassDeadlinePanel() {
   title.placeholder = "Deadline title";
   title.setAttribute("aria-label", "Deadline title");
   var target = document.createElement("select");
-  target.setAttribute("aria-label", "Class meeting");
+  target.setAttribute("aria-label", "Class");
   var targetPlaceholder = document.createElement("option");
   targetPlaceholder.value = "";
-  targetPlaceholder.textContent = "Choose class meeting…";
+  targetPlaceholder.textContent = "Choose class…";
   target.appendChild(targetPlaceholder);
-  classDeadlineTargetEvents().forEach(function (item) {
+  classDeadlineSources().forEach(function (item) {
     var option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = eventTitle(item) + " — " + displayDate(item.start) + " / " + eventTimingLabel(item);
+    option.value = classDeadlineCourseKey(item);
+    option.textContent = eventTitle(item);
     target.appendChild(option);
   });
   var dueDate = document.createElement("input");
   dueDate.type = "date";
   dueDate.setAttribute("aria-label", "Deadline due date");
-  var dueTime = document.createElement("input");
-  dueTime.type = "time";
-  dueTime.setAttribute("aria-label", "Deadline due time");
-  var alarm = document.createElement("select");
-  alarm.setAttribute("aria-label", "Deadline alarm");
-  [["none", "No alarm"], ["10", "10 min before"], ["15", "15 min before"], ["30", "30 min before"], ["60", "1 hour before"], ["120", "2 hours before"], ["1440", "1 day before"]].forEach(function (entry) {
-    var option = document.createElement("option");
-    option.value = entry[0];
-    option.textContent = entry[1];
-    alarm.appendChild(option);
-  });
   var add = document.createElement("button");
   add.type = "submit";
-  add.className = "accent-button small-control";
+  add.className = "accent-button small-control class-deadline-add";
   add.textContent = "Add Deadline";
-  form.append(type, title, target, dueDate, dueTime, alarm, add);
+  form.append(type, title, target, dueDate, add);
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    addClassDeadline({ type: type.value, title: title.value, eventId: target.value, dueDate: dueDate.value, dueTime: dueTime.value, alarm: alarm.value });
+    addClassDeadline({ type: type.value, title: title.value, courseKey: target.value, dueDate: dueDate.value });
   });
   panel.appendChild(form);
 
@@ -2904,7 +2966,7 @@ function renderClassDeadlinePanel() {
   var list = document.createElement("div");
   list.className = "class-deadline-list";
   if (!entries.length) {
-    list.innerHTML = "<p class='empty-state'>Add a deadline, then choose the specific class meeting that should receive its checklist item.</p>";
+    list.innerHTML = "<p class='empty-state'>Add a deadline, choose its class, and it will be added to every event in that class series.</p>";
   } else {
     var groups = {};
     entries.forEach(function (entry) {
@@ -2931,18 +2993,12 @@ function renderClassDeadlinePanel() {
         done.checked = !!item.done;
         done.setAttribute("aria-label", "Mark " + item.title + " complete");
         done.addEventListener("change", function () {
-          item.done = done.checked;
-          var task = item.taskId ? state.tasks.find(function (taskItem) { return taskItem.id === item.taskId; }) : null;
-          if (task) setTaskCompletion(task, done.checked);
-          else {
-            saveState();
-            renderAll();
-          }
+          setClassDeadlineCompletion(entry.deadline.id, done.checked);
         });
         var text = document.createElement("button");
         text.type = "button";
         text.className = "class-deadline-item-text";
-        text.innerHTML = "<strong>" + escapeHTML(item.title) + "</strong><span>For " + escapeHTML(displayDate(entry.event.start)) + " · " + escapeHTML(classDeadlineDueLabel(item)) + "</span>";
+        text.innerHTML = "<strong>" + escapeHTML(item.title) + "</strong><span>Every class event · " + escapeHTML(classDeadlineDueLabel(item)) + "</span>";
         text.addEventListener("click", function () { viewEvent(entry.event.id); });
         var remove = document.createElement("button");
         remove.type = "button";
@@ -3090,7 +3146,7 @@ function renderClassScheduleView() {
     var day = parseISO(item.start).getDay();
     var block = document.createElement("button");
     block.type = "button";
-    block.className = "class-schedule-event";
+    block.className = "class-schedule-event tone-" + classScheduleTone(item);
     block.style.gridColumn = String(day + 2);
     block.style.gridRow = String(rowStart + 2) + " / span " + Math.max(1, rowEnd - rowStart);
     block.textContent = eventTitle(item);
@@ -3405,10 +3461,13 @@ function renderModalChecklist() {
     remove.innerHTML = trashIcon();
     remove.setAttribute("aria-label", "Delete checklist item");
     remove.addEventListener("click", function () {
-      if (item.taskId) state.tasks = state.tasks.filter(function (task) { return task.id !== item.taskId; });
       if (item.deadlineId) {
-        state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (deadline) { return deadline.id !== item.deadlineId; });
+        removeClassDeadline(item.deadlineId);
+        modalChecklist = modalChecklist.filter(function (check) { return check.id !== item.id; });
+        renderModalChecklist();
+        return;
       }
+      if (item.taskId) state.tasks = state.tasks.filter(function (task) { return task.id !== item.taskId; });
       modalChecklist = modalChecklist.filter(function (check) { return check.id !== item.id; });
       renderModalChecklist();
       renderTasks();
@@ -3603,6 +3662,7 @@ function syncTaskFromChecklist(item) {
   task.done = item.done;
   task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
   task.eventTitle = els.eventTitle.value.trim() || task.eventTitle;
+  if (item.deadlineId) syncClassDeadlineValues(item.deadlineId, item);
   saveState();
 }
 
@@ -4275,46 +4335,47 @@ function renderPriorityList() {
   if (priorityScope === "week") {
     var classItems = items.filter(isClassEvent);
     var otherItems = items.filter(function (item) { return !isClassEvent(item); });
-    if (classItems.length) {
-      var group = document.createElement("section");
-      group.className = "priority-group" + (priorityClassGroupOpen ? "" : " collapsed");
-      var toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "priority-group-toggle";
-      toggle.setAttribute("aria-expanded", String(priorityClassGroupOpen));
-      toggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'>&#8964;</span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
-      toggle.addEventListener("click", function () {
-        priorityClassGroupOpen = !priorityClassGroupOpen;
-        renderPriorityList();
-      });
-      group.appendChild(toggle);
-      var groupItems = document.createElement("div");
-      groupItems.className = "priority-group-items";
-      classItems.slice(0, itemLimit).forEach(function (item) {
-        var groupItem = document.createElement("div");
-        groupItem.className = "priority-item";
-        var details = document.createElement("button");
-        details.type = "button";
-        details.className = "priority-event-button";
-        details.innerHTML = "<strong>" + escapeHTML(eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + " / " + eventTimingLabel(item) + "</span>";
-        details.addEventListener("click", function () { viewEvent(item.id); });
-        bindEventCardKeyboard(details, item.id);
-        groupItem.appendChild(details);
-        var remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "delete-button trash-button event-card-delete";
-        remove.innerHTML = trashIcon();
-        remove.setAttribute("aria-label", "Delete event");
-        remove.addEventListener("click", function (event) {
-          event.stopPropagation();
-          confirmDeleteEvent(item.id, event.currentTarget);
-        });
-        groupItem.appendChild(remove);
-        groupItems.appendChild(groupItem);
-      });
-      group.appendChild(groupItems);
-      els.priorityList.appendChild(group);
+    var group = document.createElement("section");
+    group.className = "priority-group" + (priorityClassGroupOpen ? "" : " collapsed");
+    var toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "priority-group-toggle";
+    toggle.setAttribute("aria-expanded", String(priorityClassGroupOpen));
+    toggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'>&#8964;</span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
+    toggle.addEventListener("click", function () {
+      priorityClassGroupOpen = !priorityClassGroupOpen;
+      renderPriorityList();
+    });
+    group.appendChild(toggle);
+    var groupItems = document.createElement("div");
+    groupItems.className = "priority-group-items";
+    if (!classItems.length) {
+      groupItems.innerHTML = "<p class='empty-state'>No class events in these seven days.</p>";
     }
+    classItems.slice(0, itemLimit).forEach(function (item) {
+      var groupItem = document.createElement("div");
+      groupItem.className = "priority-item";
+      var details = document.createElement("button");
+      details.type = "button";
+      details.className = "priority-event-button";
+      details.innerHTML = "<strong>" + escapeHTML(eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + " / " + eventTimingLabel(item) + "</span>";
+      details.addEventListener("click", function () { viewEvent(item.id); });
+      bindEventCardKeyboard(details, item.id);
+      groupItem.appendChild(details);
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "delete-button trash-button event-card-delete";
+      remove.innerHTML = trashIcon();
+      remove.setAttribute("aria-label", "Delete event");
+      remove.addEventListener("click", function (event) {
+        event.stopPropagation();
+        confirmDeleteEvent(item.id, event.currentTarget);
+      });
+      groupItem.appendChild(remove);
+      groupItems.appendChild(groupItem);
+    });
+    group.appendChild(groupItems);
+    els.priorityList.appendChild(group);
     otherItems.slice(0, itemLimit).forEach(function (item) {
       appendPriorityItem(item, false);
     });
@@ -4854,6 +4915,7 @@ function taskSourceLabel(task) {
 }
 
 function syncChecklistCompletion(task) {
+  var classDeadlineItem = null;
   state.events.forEach(function (event) {
     (event.checklist || []).forEach(function (item) {
       if (item.taskId !== task.id) return;
@@ -4862,8 +4924,10 @@ function syncChecklistCompletion(task) {
       item.dueTime = task.dueTime || "";
       item.alarm = task.alarm || "none";
       item.done = !!task.done;
+      if (item.deadlineId) classDeadlineItem = item;
     });
   });
+  if (classDeadlineItem) syncClassDeadlineValues(classDeadlineItem.deadlineId, classDeadlineItem);
 }
 
 function setTaskCompletion(task, done) {
@@ -4878,6 +4942,20 @@ function setTaskCompletion(task, done) {
 function permanentlyDeleteTask(task) {
   if (!task) return;
   if (!window.confirm("Permanently delete \"" + task.title + "\"? This cannot be undone.")) return;
+  var deadlineId = "";
+  state.events.some(function (event) {
+    var linkedItem = (event.checklist || []).find(function (item) { return item.taskId === task.id; });
+    if (!linkedItem || !linkedItem.deadlineId) return false;
+    deadlineId = linkedItem.deadlineId;
+    return true;
+  });
+  if (deadlineId) {
+    removeClassDeadline(deadlineId);
+    if (els.taskModal.open) els.taskModal.close();
+    editingTaskId = null;
+    showToast("Class deadline deleted from every event in its series.");
+    return;
+  }
   state.tasks = state.tasks.filter(function (item) { return item.id !== task.id; });
   state.events.forEach(function (event) {
     event.checklist = (event.checklist || []).filter(function (item) {
@@ -4928,6 +5006,7 @@ function openTaskModal(taskId, options) {
 
 function renderTasks() {
   els.taskList.innerHTML = "";
+  els.taskList.style.removeProperty("--task-group-rows");
   var completedView = taskView === "finished";
   var visibleTasks = state.tasks.filter(function (task) { return completedView ? !!task.done : !task.done; });
   els.activeTasksButton.classList.toggle("active", !completedView);
@@ -5030,6 +5109,7 @@ function renderTasks() {
     list.appendChild(li);
   }
 
+  var renderedGroupCount = 0;
   groups.forEach(function (group) {
     var matchingTasks = orderedTasksForGroup(group.id).filter(function (task) {
       return completedView ? !!task.done : !task.done;
@@ -5100,7 +5180,11 @@ function renderTasks() {
     }
     if (!group.collapsed) groupItem.appendChild(list);
     els.taskList.appendChild(groupItem);
+    renderedGroupCount += 1;
   });
+  if (renderedGroupCount) {
+    els.taskList.style.setProperty("--task-group-rows", String(Math.ceil(renderedGroupCount / 2)));
+  }
 }
 
 function setWorkspaceView(view) {
