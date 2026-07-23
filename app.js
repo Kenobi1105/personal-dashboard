@@ -2787,7 +2787,7 @@ function renderClassScheduleView() {
         else next.delete(key);
         state.settings.classScheduleEventIds = Array.from(next);
         saveState();
-        renderClassScheduleView();
+        renderCalendar();
       });
       var text = document.createElement("span");
       text.textContent = eventTitle(item);
@@ -2817,7 +2817,7 @@ function renderClassScheduleView() {
   [startInput, endInput].forEach(function (input) {
     input.addEventListener("change", function () {
       saveClassScheduleBounds(startInput.value, endInput.value);
-      renderClassScheduleView();
+      renderCalendar();
     });
   });
   bounds.append(startLabel, endLabel);
@@ -2836,21 +2836,29 @@ function renderClassScheduleView() {
   var corner = document.createElement("div");
   corner.className = "class-schedule-corner";
   corner.textContent = "Time";
+  corner.style.gridColumn = "1";
+  corner.style.gridRow = "1";
   grid.appendChild(corner);
   ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].forEach(function (day, index) {
     var header = document.createElement("div");
     header.className = "class-schedule-day-header" + (index === 0 ? " sunday" : "");
     header.textContent = day;
+    header.style.gridColumn = String(index + 2);
+    header.style.gridRow = "1";
     grid.appendChild(header);
   });
-  slots.forEach(function (minute) {
+  slots.forEach(function (minute, rowIndex) {
     var time = document.createElement("div");
     time.className = "class-schedule-time";
     time.textContent = classScheduleTimeLabel(minute);
+    time.style.gridColumn = "1";
+    time.style.gridRow = String(rowIndex + 2);
     grid.appendChild(time);
-    WEEKDAYS.forEach(function () {
+    WEEKDAYS.forEach(function (_day, dayIndex) {
       var cell = document.createElement("div");
       cell.className = "class-schedule-slot";
+      cell.style.gridColumn = String(dayIndex + 2);
+      cell.style.gridRow = String(rowIndex + 2);
       grid.appendChild(cell);
     });
   });
