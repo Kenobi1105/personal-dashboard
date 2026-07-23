@@ -151,6 +151,16 @@
                 <form class="task-form" id="taskForm">
                   <input id="taskInput" type="text" placeholder="Add a dashboard task">
                   <input id="taskDueDate" type="date" aria-label="Task due date">
+                  <input id="taskDueTime" type="time" aria-label="Task due time">
+                  <select id="taskAlarm" aria-label="Task alarm">
+                    <option value="none">No alarm</option>
+                    <option value="10">10 min before</option>
+                    <option value="15">15 min before</option>
+                    <option value="30">30 min before</option>
+                    <option value="60">1 hour before</option>
+                    <option value="120">2 hours before</option>
+                    <option value="1440">1 day before</option>
+                  </select>
                   <button class="accent-button small-control" type="submit">Add</button>
                 </form>
                 <form class="task-group-form" id="taskGroupForm">
@@ -379,7 +389,12 @@
             <select id="eventType"></select>
           </label>
           <label>Time Slot
-            <input id="eventTimeSlot" type="text" readonly>
+            <select id="eventTimeSlot">
+              <option value="All Day">All Day</option>
+              <option value="Morning">Morning</option>
+              <option value="Afternoon">Afternoon</option>
+              <option value="Evening">Evening</option>
+            </select>
           </label>
         </div>
         <div class="event-type-manager">
@@ -397,7 +412,7 @@
           <label>Title
             <input id="eventTitle" type="text" placeholder="Prayer meeting, sermon prep, visit">
           </label>
-          <label>Passage
+          <label id="eventPassageLabel">Passage
             <input id="eventPassage" type="text" placeholder="Jn 3:16">
           </label>
           <label>Location
@@ -422,16 +437,24 @@
           <input id="eventAllDay" type="checkbox">
           <span>All Day Event</span>
         </label>
+        <div class="field-row modal-grid compact-event-grid event-alarm-grid">
+          <label>Alarm
+            <select id="eventAlarm">
+              <option value="none">No alarm</option>
+              <option value="10">10 minutes before</option>
+              <option value="15">15 minutes before</option>
+              <option value="30">30 minutes before</option>
+              <option value="60">1 hour before</option>
+              <option value="120">2 hours before</option>
+              <option value="1440">1 day before</option>
+            </select>
+          </label>
+        </div>
         <div class="field-row modal-grid compact-event-grid event-repeat-grid" id="eventRepeatRow">
           <label>Repeat
             <select id="eventRepeat">
-              <option value="none">None</option>
-              <option value="daily">Every Day</option>
-              <option value="weekly">Every Week</option>
-              <option value="biweekly">Every 2 Weeks</option>
-              <option value="monthly">Every Month</option>
-              <option value="yearly">Every Year</option>
-              <option value="custom">Custom</option>
+              <option value="none">Off</option>
+              <option value="custom">On</option>
             </select>
           </label>
           <label id="eventRepeatCustomNumberLabel" hidden>Every
@@ -603,6 +626,20 @@
           </label>
           <label>Due Date
             <input id="taskModalDueDate" type="date">
+          </label>
+          <label>Due Time
+            <input id="taskModalDueTime" type="time">
+          </label>
+          <label>Alarm
+            <select id="taskModalAlarm">
+              <option value="none">No alarm</option>
+              <option value="10">10 minutes before</option>
+              <option value="15">15 minutes before</option>
+              <option value="30">30 minutes before</option>
+              <option value="60">1 hour before</option>
+              <option value="120">2 hours before</option>
+              <option value="1440">1 day before</option>
+            </select>
           </label>
           <label>Notes
             <textarea id="taskModalNotes" rows="4" placeholder="Add notes for this task"></textarea>
@@ -790,6 +827,6 @@
     </dialog>
 
   <datalist id="dashboardTimeOptions"></datalist>
-  <script src="app.js?v=48"></script>
+  <script src="app.js?v=49"></script>
   </body>
 </html>

@@ -962,7 +962,7 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 }
 .schedule-days input { width: 14px; min-height: 14px; accent-color: var(--signature); }
 .inline-form { grid-template-columns: minmax(0, 1fr) auto; }
-.task-form { display: grid; grid-template-columns: minmax(0, 1fr) 106px auto; gap: 5px; }
+.task-form { display: grid; grid-template-columns: minmax(0, 1fr) 106px 88px 122px auto; gap: 5px; }
 .task-group-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 5px; }
 .workflow-start { grid-template-columns: minmax(0, 1fr) auto; margin-top: 7px; }
 

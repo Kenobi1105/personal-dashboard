@@ -144,6 +144,7 @@ var els = {
   eventTimeStart: document.getElementById("eventTimeStart"),
   eventTimeEnd: document.getElementById("eventTimeEnd"),
   eventAllDay: document.getElementById("eventAllDay"),
+  eventAlarm: document.getElementById("eventAlarm"),
   eventRepeatRow: document.getElementById("eventRepeatRow"),
   eventRepeat: document.getElementById("eventRepeat"),
   eventRepeatCustomNumberLabel: document.getElementById("eventRepeatCustomNumberLabel"),
@@ -156,6 +157,7 @@ var els = {
   eventRepeatEndDate: document.getElementById("eventRepeatEndDate"),
   eventLocation: document.getElementById("eventLocation"),
   eventPassage: document.getElementById("eventPassage"),
+  eventPassageLabel: document.getElementById("eventPassageLabel"),
   eventTitle: document.getElementById("eventTitle"),
   eventNotes: document.getElementById("eventNotes"),
   eventTemplateSelect: document.getElementById("eventTemplateSelect"),
@@ -206,6 +208,8 @@ var els = {
   taskForm: document.getElementById("taskForm"),
   taskInput: document.getElementById("taskInput"),
   taskDueDate: document.getElementById("taskDueDate"),
+  taskDueTime: document.getElementById("taskDueTime"),
+  taskAlarm: document.getElementById("taskAlarm"),
   taskGroupForm: document.getElementById("taskGroupForm"),
   taskGroupInput: document.getElementById("taskGroupInput"),
   taskList: document.getElementById("taskList"),
@@ -223,6 +227,8 @@ var els = {
   taskModalTitle: document.getElementById("taskModalTitle"),
   taskModalInput: document.getElementById("taskModalInput"),
   taskModalDueDate: document.getElementById("taskModalDueDate"),
+  taskModalDueTime: document.getElementById("taskModalDueTime"),
+  taskModalAlarm: document.getElementById("taskModalAlarm"),
   taskModalNotes: document.getElementById("taskModalNotes"),
   taskModalSource: document.getElementById("taskModalSource"),
   taskModalView: document.getElementById("taskModalView"),
@@ -305,6 +311,8 @@ var els = {
 };
 
 var DEFAULT_EVENT_TYPES = ["General Event", "Reminder", "Sermon", "Bible Study", "Sermon Prep", "Bible Study Prep", "Class", "Ministry", "Others"];
+var PROTECTED_EVENT_TYPES = ["Sermon", "Bible Study"];
+var deliveredAlarmKeys = {};
 var FALLBACK_NEWS_SOURCES = {
   world: [
     { source: "Reuters", url: "https://www.reutersagency.com/feed/?best-topics=world&post_type=best" },
@@ -512,6 +520,41 @@ function formatTimeOption(value) {
   return hour12 + ":" + minute + " " + suffix;
 }
 
+function alarmLabel(value) {
+  var minutes = Number(value);
+  if (!minutes) return "No alarm";
+  if (minutes === 60) return "1 hour before";
+  if (minutes === 120) return "2 hours before";
+  if (minutes === 1440) return "1 day before";
+  return minutes + " minutes before";
+}
+
+function notifyDashboardAlarm(key, title) {
+  if (deliveredAlarmKeys[key]) return;
+  deliveredAlarmKeys[key] = true;
+  showToast("Alarm: " + title);
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    new Notification("Ministry Dashboard", { body: title });
+  }
+}
+
+function checkDashboardAlarms() {
+  var now = Date.now();
+  function checkItem(item, date, time, title) {
+    var offset = Number(item.alarm || 0);
+    if (!offset || !date || !time) return;
+    var target = new Date(date + "T" + time).getTime() - (offset * 60000);
+    if (Number.isNaN(target) || now < target || now - target > 65000) return;
+    notifyDashboardAlarm(item.id + ":" + date + ":" + item.alarm, title);
+  }
+  state.events.forEach(function (item) {
+    checkItem(item, item.start, item.timeStart, eventTitle(item));
+  });
+  state.tasks.filter(function (item) { return !item.done; }).forEach(function (item) {
+    checkItem(item, item.dueDate, item.dueTime, "Task: " + item.title);
+  });
+}
+
 function timeToMinutes(value) {
   value = normalizeTimeInput(value);
   if (!value || value.indexOf(":") === -1) return null;
@@ -606,6 +649,7 @@ function syncEventTimeControls() {
   els.eventTimeRow.classList.toggle("time-disabled", hideTimes);
   els.eventTimeStart.disabled = hideTimes;
   els.eventTimeEnd.disabled = hideTimes;
+  els.eventTimeSlot.disabled = hideTimes;
   if (hideTimes) {
     els.eventTimeSlot.value = "All Day";
     return;
@@ -614,6 +658,34 @@ function syncEventTimeControls() {
   if (!els.eventTimeEnd.value) els.eventTimeEnd.value = "09:00";
   updateEventEndTimeOptions();
   els.eventTimeSlot.value = getTimeSlotFromTime(els.eventTimeStart.value);
+}
+
+function handleEventTimeSlotChange() {
+  var slot = els.eventTimeSlot.value;
+  if (slot === "All Day") {
+    els.eventAllDay.checked = true;
+    syncEventTimeControls();
+    return;
+  }
+  if (els.eventDate.value && els.eventEndDate.value && els.eventDate.value !== els.eventEndDate.value) {
+    els.eventEndDate.value = els.eventDate.value;
+  }
+  els.eventAllDay.checked = false;
+  els.eventTimeStart.value = defaultTimeForSlot(slot);
+  els.eventTimeEnd.value = minutesToTime(timeToMinutes(els.eventTimeStart.value) + 60);
+  rememberEventTimeRange();
+  syncEventTimeControls();
+}
+
+function isPassageEventType(type) {
+  return PROTECTED_EVENT_TYPES.indexOf(type) > -1;
+}
+
+function syncEventPassageField() {
+  if (!els.eventPassageLabel) return;
+  var showPassage = isPassageEventType(els.eventType.value);
+  els.eventPassageLabel.hidden = !showPassage;
+  els.eventPassage.disabled = !showPassage;
 }
 
 function rememberEventDateRange() {
@@ -751,14 +823,13 @@ function repeatRuleFromForm() {
   if (!els.eventRepeat || eventModalMode === "plan") return defaultRepeatRule();
   var repeat = els.eventRepeat.value || "none";
   if (repeat === "none") return defaultRepeatRule();
-  var rule = { frequency: repeat, interval: 1, unit: "week", endMode: els.eventRepeatEnd.value || "never", endDate: els.eventRepeatEndDate.value || "" };
-  if (repeat === "biweekly") {
-    rule.frequency = "weekly";
-    rule.interval = 2;
-  } else if (repeat === "custom") {
-    rule.interval = Math.max(1, Number(els.eventRepeatCustomNumber.value || 1));
-    rule.unit = els.eventRepeatCustomUnit.value || "week";
-  }
+  var rule = {
+    frequency: "custom",
+    interval: Math.max(1, Number(els.eventRepeatCustomNumber.value || 1)),
+    unit: els.eventRepeatCustomUnit.value || "week",
+    endMode: els.eventRepeatEnd.value || "never",
+    endDate: els.eventRepeatEndDate.value || ""
+  };
   if (rule.endMode === "on" && !rule.endDate) rule.endMode = "never";
   return normalizeRepeatRule(rule);
 }
@@ -766,14 +837,17 @@ function repeatRuleFromForm() {
 function repeatFormValue(rule) {
   var normalized = normalizeRepeatRule(rule);
   if (normalized.frequency === "none") return "none";
-  if (normalized.frequency === "weekly" && normalized.interval === 2) return "biweekly";
   if (normalized.frequency === "custom") return "custom";
-  return normalized.frequency;
+  return "custom";
 }
 
 function applyRepeatRuleToForm(rule) {
   if (!els.eventRepeat) return;
   var normalized = normalizeRepeatRule(rule);
+  if (normalized.frequency === "daily") normalized.unit = "day";
+  if (normalized.frequency === "weekly") normalized.unit = "week";
+  if (normalized.frequency === "monthly") normalized.unit = "month";
+  if (normalized.frequency === "yearly") normalized.unit = "year";
   els.eventRepeat.value = repeatFormValue(normalized);
   els.eventRepeatCustomNumber.value = normalized.interval || 1;
   els.eventRepeatCustomUnit.value = normalized.unit || "week";
@@ -786,10 +860,9 @@ function syncRepeatControls() {
   if (!els.eventRepeat) return;
   var repeat = els.eventRepeat.value || "none";
   var showRepeatMeta = repeat !== "none";
-  var showCustom = repeat === "custom";
   var showEndDate = showRepeatMeta && els.eventRepeatEnd.value === "on";
-  els.eventRepeatCustomNumberLabel.hidden = !showCustom;
-  els.eventRepeatCustomUnitLabel.hidden = !showCustom;
+  els.eventRepeatCustomNumberLabel.hidden = !showRepeatMeta;
+  els.eventRepeatCustomUnitLabel.hidden = !showRepeatMeta;
   els.eventRepeatEndLabel.hidden = !showRepeatMeta;
   els.eventRepeatEndDateLabel.hidden = !showEndDate;
   if (els.eventDate.value) els.eventRepeatEndDate.min = els.eventDate.value;
@@ -845,7 +918,7 @@ function createEvent(values) {
     id: values.id || id(values.draft ? "plan" : "event"),
     googleEventId: values.googleEventId || "",
     googleCalendarId: values.googleCalendarId || "",
-    type: values.type || "General Event",
+    type: values.type || defaultEventType(),
     passage: values.passage || "",
     title: values.title || "",
     start: values.start || dashboardTodayISO(),
@@ -854,6 +927,7 @@ function createEvent(values) {
     timeStart: values.timeStart || "",
     timeEnd: values.timeEnd || "",
     allDay: !!values.allDay,
+    alarm: values.alarm || "none",
     location: values.location || "",
     notes: values.notes || "",
     image: values.image || "",
@@ -2133,6 +2207,7 @@ function viewEvent(eventId) {
     ["Location", item.location || "Not listed"]
   ];
   if (item.passage) meta.splice(2, 0, ["Passage", item.passage]);
+  if (item.alarm && item.alarm !== "none") meta.push(["Alarm", alarmLabel(item.alarm)]);
   if (item.source === "google") meta.push(["Source", "Google Calendar"]);
   else if (item.googleEventId) meta.push(["Sync", "Google Calendar"]);
   els.eventDetailMeta.classList.toggle("no-passage", !item.passage);
@@ -2757,7 +2832,7 @@ function renderDayDrawer() {
       var taskName = document.createElement("strong");
       taskName.textContent = task.title;
       var taskMeta = document.createElement("span");
-      taskMeta.textContent = (task.eventTitle ? task.eventTitle + " / " : "") + "Due " + displayDate(task.dueDate);
+      taskMeta.textContent = (task.eventTitle ? task.eventTitle + " / " : "") + "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "");
       button.append(taskName, taskMeta);
       button.addEventListener("click", function () { openTaskModal(task.id); });
 
@@ -2814,6 +2889,7 @@ function openEventModal(options) {
   els.eventAllDay.checked = !!source.allDay || source.timeSlot === "All Day";
   els.eventLocation.value = source.location || "";
   els.eventPassage.value = source.passage || "";
+  els.eventAlarm.value = source.alarm || "none";
   els.eventTitle.value = source.title || "";
   els.eventNotes.value = source.notes || "";
   selectedEventColorKey = source.colorKey || (eventModalMode === "plan" ? "gold" : "plum");
@@ -2821,6 +2897,7 @@ function openEventModal(options) {
   els.eventRepeatRow.hidden = eventModalMode === "plan";
   applyRepeatRuleToForm(source.repeatRule);
   syncEventTimeControls();
+  syncEventPassageField();
   els.deleteEventButton.hidden = !event;
   els.eventForm.querySelector(".form-button").textContent = eventModalMode === "plan" ? "Create Draft" : event ? "Save Event" : "Add Event";
   rememberEventDateRange();
@@ -3279,7 +3356,7 @@ async function addEventOrPlan(event) {
   var item = createEvent({
     id: editingEventId || id(eventModalMode === "plan" ? "plan" : "event"),
     type: els.eventType.value,
-    passage: els.eventPassage.value.trim(),
+    passage: isPassageEventType(els.eventType.value) ? els.eventPassage.value.trim() : "",
     title: title,
     start: start,
     end: end,
@@ -3287,6 +3364,7 @@ async function addEventOrPlan(event) {
     timeStart: timeStart,
     timeEnd: timeEnd,
     allDay: allDay,
+    alarm: els.eventAlarm.value || "none",
     location: els.eventLocation.value.trim(),
     notes: els.eventNotes.value.trim(),
     image: previousEvent ? previousEvent.image : "",
@@ -3354,18 +3432,23 @@ function defaultEventTitle(type, passage) {
   return type;
 }
 
+function defaultEventType() {
+  var types = state && state.settings ? eventTypes() : DEFAULT_EVENT_TYPES;
+  return types.indexOf("General Event") > -1 ? "General Event" : (types[0] || "Sermon");
+}
+
 function eventTypes() {
-  state.settings.eventTypes = Array.from(new Set(DEFAULT_EVENT_TYPES.concat(state.settings.eventTypes || [])));
+  var configured = Array.isArray(state.settings.eventTypes) && state.settings.eventTypes.length
+    ? state.settings.eventTypes
+    : DEFAULT_EVENT_TYPES;
+  state.settings.eventTypes = Array.from(new Set(configured.concat(PROTECTED_EVENT_TYPES))).filter(Boolean);
   return state.settings.eventTypes;
 }
 
 function renderEventTypes(selected) {
   if (!els.eventType) return;
-  var current = selected || els.eventType.value || "General Event";
-  if (eventTypes().indexOf(current) < 0) {
-    state.settings.eventTypes.push(current);
-    saveState();
-  }
+  var current = selected || els.eventType.value || defaultEventType();
+  if (eventTypes().indexOf(current) < 0) current = defaultEventType();
   els.eventType.innerHTML = "";
   eventTypes().forEach(function (type) {
     var option = document.createElement("option");
@@ -3375,26 +3458,32 @@ function renderEventTypes(selected) {
   });
   els.eventType.value = current;
   renderEventTypeList();
+  syncEventPassageField();
 }
 
 function renderEventTypeList() {
   if (!els.eventTypeList) return;
-  var customTypes = eventTypes().filter(function (type) { return DEFAULT_EVENT_TYPES.indexOf(type) < 0; });
   els.eventTypeList.innerHTML = "";
-  if (!customTypes.length) {
-    els.eventTypeList.innerHTML = "<p class='empty-state'>Custom event types will appear here.</p>";
-    return;
-  }
-  customTypes.forEach(function (type) {
+  eventTypes().forEach(function (type) {
     var row = document.createElement("div");
     row.className = "event-type-chip";
-    row.innerHTML = "<span>" + escapeHTML(type) + "</span><button class='trash-button' type='button' aria-label='Delete " + escapeHTML(type) + "'>x</button>";
-    row.querySelector("button").addEventListener("click", function () {
+    row.innerHTML = "<span>" + escapeHTML(type) + "</span>";
+    if (PROTECTED_EVENT_TYPES.indexOf(type) > -1) {
+      els.eventTypeList.appendChild(row);
+      return;
+    }
+    var remove = document.createElement("button");
+    remove.className = "trash-button";
+    remove.type = "button";
+    remove.setAttribute("aria-label", "Delete " + type);
+    remove.textContent = "x";
+    remove.addEventListener("click", function () {
       state.settings.eventTypes = eventTypes().filter(function (item) { return item !== type; });
-      if (els.eventType.value === type) els.eventType.value = "General Event";
+      if (els.eventType.value === type) els.eventType.value = defaultEventType();
       saveState();
       renderEventTypes(els.eventType.value);
     });
+    row.appendChild(remove);
     els.eventTypeList.appendChild(row);
   });
 }
@@ -3755,13 +3844,15 @@ function renderPriorityList() {
   }
 }
 
-function addTask(title, dueDate, source, eventId, eventTitleValue) {
+function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alarm) {
   var cleanTitle = title.trim();
   if (!cleanTitle) return;
   state.tasks.unshift({
     id: id("task"),
     title: cleanTitle,
     dueDate: dueDate || "",
+    dueTime: dueTime || "",
+    alarm: alarm || "none",
     done: false,
     completedAt: "",
     notes: "",
@@ -4320,10 +4411,14 @@ function openTaskModal(taskId, options) {
   els.taskModalTitle.textContent = editMode ? "Edit Task" : task.title || "Task";
   els.taskModalInput.value = task.title || "";
   els.taskModalDueDate.value = task.dueDate || "";
+  els.taskModalDueTime.value = task.dueTime || "";
+  els.taskModalAlarm.value = task.alarm || "none";
   els.taskModalNotes.value = task.notes || "";
   els.taskModalDueDate.required = false;
   els.taskModalSource.textContent = taskSourceLabel(task);
-  els.taskModalViewDue.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
+  els.taskModalViewDue.textContent = task.dueDate
+    ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm) : "")
+    : "No due date";
   els.taskModalViewNotes.textContent = task.notes || "No notes added.";
   els.taskModal.dataset.mode = editMode ? "edit" : "view";
   els.taskModalView.hidden = editMode;
@@ -4418,7 +4513,9 @@ function renderTasks() {
     var taskTitleLabel = document.createElement("span");
     taskTitleLabel.textContent = task.title;
     var dueLabel = document.createElement("small");
-    dueLabel.textContent = task.dueDate ? "Due " + displayDate(task.dueDate) : "No due date";
+    dueLabel.textContent = task.dueDate
+      ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm) : "")
+      : "No due date";
     taskButton.append(taskTitleLabel, dueLabel);
     taskButton.addEventListener("click", function () { openTaskModal(task.id, { source: taskView }); });
     titleWrap.appendChild(taskButton);
@@ -6409,6 +6506,8 @@ els.eventTimeEnd.addEventListener("change", handleEventEndTimeChange);
 els.eventTimeStart.addEventListener("blur", handleEventStartTimeChange);
 els.eventTimeEnd.addEventListener("blur", handleEventEndTimeChange);
 els.eventAllDay.addEventListener("change", syncEventTimeControls);
+els.eventTimeSlot.addEventListener("change", handleEventTimeSlotChange);
+els.eventType.addEventListener("change", syncEventPassageField);
 els.scheduleStartDate.addEventListener("change", handleScheduleStartDateChange);
 els.scheduleEndDate.addEventListener("change", handleScheduleEndDateChange);
 els.scheduleStartTime.addEventListener("change", handleScheduleStartTimeChange);
@@ -6429,9 +6528,11 @@ els.bibleReaderVerseButton.addEventListener("click", function () {
 });
 els.taskForm.addEventListener("submit", function (event) {
   event.preventDefault();
-  addTask(els.taskInput.value, els.taskDueDate.value, "dashboard");
+  addTask(els.taskInput.value, els.taskDueDate.value, "dashboard", null, "", els.taskDueTime.value, els.taskAlarm.value);
   els.taskInput.value = "";
   els.taskDueDate.value = "";
+  els.taskDueTime.value = "";
+  els.taskAlarm.value = "none";
 });
 els.taskGroupForm.addEventListener("submit", function (event) {
   event.preventDefault();
@@ -6472,6 +6573,8 @@ els.taskModalForm.addEventListener("submit", function (event) {
   }
   task.title = title;
   task.dueDate = els.taskModalDueDate.value;
+  task.dueTime = els.taskModalDueTime.value;
+  task.alarm = els.taskModalAlarm.value || "none";
   task.notes = els.taskModalNotes.value.trim();
   syncChecklistCompletion(task);
   saveState();
@@ -6755,11 +6858,13 @@ try {
   loadLanguagePanel();
   loadSport(currentSport);
   startHeadlineCarousel();
+  checkDashboardAlarms();
   window.setTimeout(runCloudStatusChecks, 1500);
   setInterval(loadNews, 5 * 60 * 1000);
   setInterval(loadRssFeeds, 30 * 60 * 1000);
   setInterval(function () { refreshGoogleCalendar(false); }, 10 * 60 * 1000);
   setInterval(refreshLiveSportIfNeeded, 60 * 1000);
+  setInterval(checkDashboardAlarms, 30 * 1000);
   setInterval(renderGreeting, 1000);
 } catch (error) {
   document.body.dataset.appError = error && error.stack ? error.stack : String(error);
