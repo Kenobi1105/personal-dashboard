@@ -984,7 +984,7 @@ function loadState() {
     loaded.settings.classScheduleStartTime = normalizeTimeInput(loaded.settings.classScheduleStartTime) || "08:00";
     loaded.settings.classScheduleEndTime = normalizeTimeInput(loaded.settings.classScheduleEndTime) || "18:00";
     loaded.settings.classDeadlines = Array.isArray(loaded.settings.classDeadlines) ? loaded.settings.classDeadlines.filter(function (item) {
-      return item && item.id && item.eventId && item.checklistItemId;
+      return item && item.id && ((item.eventId && item.checklistItemId) || (item.courseKey && Array.isArray(item.eventIds) && item.eventIds.length));
     }) : [];
     loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
     loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
@@ -1852,6 +1852,10 @@ async function loadGoogleCalendarStatus() {
 
 function googleCalendarRangeQuery() {
   var range = calendarVisibleRange();
+  var sevenDayStart = zonedDateTimeToDate(dashboardTodayISO(), "00:00", dashboardTimeZone()).toISOString();
+  var sevenDayEnd = zonedDateTimeToDate(toISO(addDays(parseISO(dashboardTodayISO()), 6)), "23:59", dashboardTimeZone()).toISOString();
+  range.timeMin = new Date(range.timeMin).getTime() <= new Date(sevenDayStart).getTime() ? range.timeMin : sevenDayStart;
+  range.timeMax = new Date(range.timeMax).getTime() >= new Date(sevenDayEnd).getTime() ? range.timeMax : sevenDayEnd;
   return {
     range: range,
     query: "?timeMin=" + encodeURIComponent(range.timeMin) + "&timeMax=" + encodeURIComponent(range.timeMax) + "&timeZone=" + encodeURIComponent(dashboardTimeZone())
@@ -4300,7 +4304,7 @@ function renderPriorityList() {
     if (dateDelta) return dateDelta;
     return calendarTimeValue(a).localeCompare(calendarTimeValue(b));
   });
-  if (!items.length && !birthdayItems.length) {
+  if (!items.length && !birthdayItems.length && priorityScope === "month") {
     var message = priorityScope === "month"
       ? "No upcoming teachings this month."
       : "No events in the next seven days.";
