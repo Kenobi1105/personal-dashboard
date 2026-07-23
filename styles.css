@@ -1041,6 +1041,14 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .drawer-event { border: 1px solid var(--line); border-radius: 8px; background: rgba(255, 255, 255, 0.52); }
 .priority-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 50px; padding: 9px 10px; overflow: hidden; border-color: rgba(73, 53, 72, 0.12); background: rgba(255, 255, 255, 0.68); box-shadow: 0 4px 12px rgba(73, 53, 72, 0.05); }
 .priority-item.ministry { border-color: rgba(73, 53, 72, 0.2); background: linear-gradient(90deg, rgba(73, 53, 72, 0.11), rgba(240, 208, 143, 0.24)); }
+.priority-group { overflow: hidden; border: 1px solid rgba(73, 53, 72, 0.16); border-radius: 8px; background: rgba(255, 255, 255, 0.46); }
+.priority-group-toggle { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; width: 100%; gap: 6px; padding: 8px 10px; border: 0; color: var(--signature); background: rgba(78, 100, 126, 0.1); text-align: left; }
+.priority-group-toggle strong { font-size: 0.82rem; }
+.priority-group-toggle small { color: var(--muted); font-size: 0.7rem; font-weight: 800; }
+.priority-group-chevron { font-size: 1rem; line-height: 1; transition: transform 160ms ease; }
+.priority-group.collapsed .priority-group-chevron { transform: rotate(-90deg); }
+.priority-group-items { display: grid; gap: 6px; padding: 6px; }
+.priority-group.collapsed .priority-group-items { display: none; }
 .priority-event-button { min-width: 0; border: 0; padding: 0; color: inherit; background: transparent; text-align: left; }
 .priority-item strong,
 .score-card strong,

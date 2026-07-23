@@ -972,7 +972,10 @@ function loadState() {
     loaded.settings.hideBirthdaysFromCalendar = !!loaded.settings.hideBirthdaysFromCalendar;
     loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
     loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
-    loaded.settings.eventTypes = Array.from(new Set(DEFAULT_EVENT_TYPES.concat(loaded.settings.eventTypes || [])));
+    var storedEventTypes = Array.isArray(loaded.settings.eventTypes) && loaded.settings.eventTypes.length
+      ? loaded.settings.eventTypes
+      : DEFAULT_EVENT_TYPES;
+    loaded.settings.eventTypes = Array.from(new Set(storedEventTypes.concat(PROTECTED_EVENT_TYPES))).filter(Boolean);
     loaded.settings.newsSources = loaded.settings.newsSources || { world: [], philippines: [], theology: [] };
     loaded.settings.customNewsSources = loaded.settings.customNewsSources || { world: [], philippines: [], theology: [] };
     loaded.settings.newsSourceOrder = loaded.settings.newsSourceOrder || { world: [], philippines: [], theology: [] };
@@ -1055,6 +1058,7 @@ var editingScheduleId = null;
 var editingScheduleFromDate = "";
 var currentSport = "mlb";
 var priorityScope = "week";
+var priorityClassGroupOpen = true;
 var lastEventStartDate = "";
 var lastEventRangeDays = 0;
 var lastEventStartTime = "";
@@ -1997,11 +2001,12 @@ async function loadGoogleCalendarEvents(showNotice, localSyncResult) {
     if (!data.ok) return;
     var syncedIds = state.events.reduce(function (ids, event) {
       if (event.source !== "google" && event.googleEventId) ids[event.googleEventId] = true;
+      if (event.source !== "google" && event.googleRecurringEventId) ids[event.googleRecurringEventId] = true;
       return ids;
     }, {});
     var rawGoogleEvents = data.events || [];
     var googleEvents = rawGoogleEvents.map(normalizeEvent).filter(function (event) {
-      return !syncedIds[event.googleEventId];
+      return !syncedIds[event.googleEventId] && !syncedIds[event.googleRecurringEventId];
     });
     state.events = state.events.filter(function (event) { return event.source !== "google"; }).concat(googleEvents);
     saveState();
@@ -2591,7 +2596,7 @@ function renderMonthCalendar() {
     dayNumber.innerHTML = "<span>" + date.getDate() + "</span>" + (hasGoogleItem(iso) ? "<span class='google-pill'>GCal</span>" : "");
     cell.appendChild(dayNumber);
 
-    var visibleItems = allItems.filter(function (item) { return isWithin(iso, item.start, item.end); });
+    var visibleItems = sortCalendarItemsByTime(allItems.filter(function (item) { return isWithin(iso, item.start, item.end); }));
     visibleItems.slice(0, 2).forEach(function (item) { cell.appendChild(renderCalendarPill(item)); });
     if (visibleItems.length > 2) {
       var more = document.createElement("div");
@@ -2609,17 +2614,28 @@ function slotOrder(slot) {
   return index === -1 ? 99 : index;
 }
 
+function calendarTimeValue(item) {
+  if (item.allDay || item.timeSlot === "All Day") return "00:00";
+  if (item.taskDeadline) return item.task && item.task.dueTime ? item.task.dueTime : "23:59";
+  if (item.timeStart) return item.timeStart;
+  return defaultTimeForSlot(item.timeSlot || "Morning");
+}
+
+function sortCalendarItemsByTime(items) {
+  return items.slice().sort(function (a, b) {
+    var timeDelta = calendarTimeValue(a).localeCompare(calendarTimeValue(b));
+    if (timeDelta) return timeDelta;
+    return eventTitle(a).localeCompare(eventTitle(b));
+  });
+}
+
 function scheduledCategoryClass(item) {
   if (!item.scheduleCategory) return "";
   return "schedule-" + item.scheduleCategory.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
 function eventsForDate(dateISO) {
-  return visibleCalendarEvents(dateISO, dateISO).filter(function (item) { return isWithin(dateISO, item.start, item.end); }).sort(function (a, b) {
-    var slotDelta = slotOrder(a.timeSlot) - slotOrder(b.timeSlot);
-    if (slotDelta) return slotDelta;
-    return (a.timeStart || "99:99").localeCompare(b.timeStart || "99:99");
-  });
+  return sortCalendarItemsByTime(visibleCalendarEvents(dateISO, dateISO).filter(function (item) { return isWithin(dateISO, item.start, item.end); }));
 }
 
 function renderScheduleView() {
@@ -3765,6 +3781,10 @@ function isWithinNextDays(item, days) {
   return diff >= 0 && diff <= days;
 }
 
+function isClassEvent(item) {
+  return item.type === "Class" || item.scheduleCategory === "Class";
+}
+
 function isInCurrentCalendarMonth(item) {
   var now = parseISO(dashboardTodayISO());
   var start = parseISO(item.start);
@@ -3773,10 +3793,9 @@ function isInCurrentCalendarMonth(item) {
 
 function renderPriorityList() {
   els.priorityList.innerHTML = "";
-  var days = priorityScope === "month" ? 30 : 7;
   els.priorityTitle.textContent = priorityScope === "month"
     ? "Upcoming Teachings for " + parseISO(dashboardTodayISO()).toLocaleDateString(undefined, { month: "long", year: "numeric" })
-    : "This Week";
+    : "Seven Days";
   els.priorityScopeToggle.textContent = priorityScope === "month" ? "Week" : "Month";
   var items;
   var birthdayItems = [];
@@ -3788,9 +3807,8 @@ function renderPriorityList() {
       return isMinistryPriority(item) && isInCurrentCalendarMonth(item);
     });
   } else {
-    var week = currentWeekRange();
-    var rangeStart = week.start;
-    var rangeEnd = week.end;
+    var rangeStart = dashboardTodayISO();
+    var rangeEnd = toISO(addDays(parseISO(rangeStart), 6));
     var visible = visibleCalendarEvents(rangeStart, rangeEnd);
     var ministry = visible.filter(function (item) { return isMinistryPriority(item); });
     var scoped = visible.filter(function (item) { return !isMinistryPriority(item) && !eventIsBirthday(item); });
@@ -3798,11 +3816,15 @@ function renderPriorityList() {
     birthdayItems = visibleCalendarEvents(rangeStart, rangeEnd, { includeBirthdays: true, onlyBirthdays: true })
       .sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
   }
-  items = items.sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
+  items = items.sort(function (a, b) {
+    var dateDelta = parseISO(a.start) - parseISO(b.start);
+    if (dateDelta) return dateDelta;
+    return calendarTimeValue(a).localeCompare(calendarTimeValue(b));
+  });
   if (!items.length && !birthdayItems.length) {
     var message = priorityScope === "month"
       ? "No upcoming teachings this month."
-      : "No events due for this week.";
+      : "No events in the next seven days.";
     els.priorityList.innerHTML = "<p class='empty-state'>" + message + "</p>";
     return;
   }
@@ -3830,9 +3852,58 @@ function renderPriorityList() {
     }
     els.priorityList.appendChild(div);
   }
-  items.slice(0, priorityScope === "month" ? 12 : 8).forEach(function (item) {
-    appendPriorityItem(item, false);
-  });
+  var itemLimit = priorityScope === "month" ? 12 : items.length;
+  if (priorityScope === "week") {
+    var classItems = items.filter(isClassEvent);
+    var otherItems = items.filter(function (item) { return !isClassEvent(item); });
+    otherItems.slice(0, itemLimit).forEach(function (item) {
+      appendPriorityItem(item, false);
+    });
+    if (classItems.length) {
+      var group = document.createElement("section");
+      group.className = "priority-group" + (priorityClassGroupOpen ? "" : " collapsed");
+      var toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "priority-group-toggle";
+      toggle.setAttribute("aria-expanded", String(priorityClassGroupOpen));
+      toggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'>&#8964;</span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
+      toggle.addEventListener("click", function () {
+        priorityClassGroupOpen = !priorityClassGroupOpen;
+        renderPriorityList();
+      });
+      group.appendChild(toggle);
+      var groupItems = document.createElement("div");
+      groupItems.className = "priority-group-items";
+      classItems.slice(0, itemLimit).forEach(function (item) {
+        var groupItem = document.createElement("div");
+        groupItem.className = "priority-item";
+        var details = document.createElement("button");
+        details.type = "button";
+        details.className = "priority-event-button";
+        details.innerHTML = "<strong>" + escapeHTML(eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + " / " + eventTimingLabel(item) + "</span>";
+        details.addEventListener("click", function () { viewEvent(item.id); });
+        bindEventCardKeyboard(details, item.id);
+        groupItem.appendChild(details);
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "delete-button trash-button event-card-delete";
+        remove.innerHTML = trashIcon();
+        remove.setAttribute("aria-label", "Delete event");
+        remove.addEventListener("click", function (event) {
+          event.stopPropagation();
+          confirmDeleteEvent(item.id, event.currentTarget);
+        });
+        groupItem.appendChild(remove);
+        groupItems.appendChild(groupItem);
+      });
+      group.appendChild(groupItems);
+      els.priorityList.appendChild(group);
+    }
+  } else {
+    items.slice(0, itemLimit).forEach(function (item) {
+      appendPriorityItem(item, false);
+    });
+  }
   if (birthdayItems.length) {
     var heading = document.createElement("h3");
     heading.className = "priority-subheading";
