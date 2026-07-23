@@ -1074,7 +1074,6 @@ var editingScheduleId = null;
 var editingScheduleFromDate = "";
 var currentSport = "mlb";
 var priorityScope = "week";
-var priorityClassGroupOpen = true;
 var lastEventStartDate = "";
 var lastEventRangeDays = 0;
 var lastEventStartTime = "";
@@ -4276,129 +4275,75 @@ function isInCurrentCalendarMonth(item) {
 
 function renderPriorityList() {
   els.priorityList.innerHTML = "";
-  els.priorityTitle.textContent = priorityScope === "month"
+  var isMonthView = priorityScope === "month";
+  els.priorityTitle.textContent = isMonthView
     ? "Upcoming Studies for " + parseISO(dashboardTodayISO()).toLocaleDateString(undefined, { month: "long", year: "numeric" })
     : "Seven Days";
-  els.priorityScopeToggle.textContent = priorityScope === "month" ? "Seven Days" : "Month";
+  els.priorityScopeToggle.textContent = isMonthView ? "Seven Days" : "Month";
   var items;
-  var birthdayItems = [];
-  var weeklyClassItems = [];
-  if (priorityScope === "month") {
-    var monthToday = parseISO(dashboardTodayISO());
-    var monthStart = toISO(new Date(monthToday.getFullYear(), monthToday.getMonth(), 1));
-    var monthEnd = toISO(new Date(monthToday.getFullYear(), monthToday.getMonth() + 1, 0));
+  if (isMonthView) {
+    var today = parseISO(dashboardTodayISO());
+    var monthStart = toISO(new Date(today.getFullYear(), today.getMonth(), 1));
+    var monthEnd = toISO(new Date(today.getFullYear(), today.getMonth() + 1, 0));
     items = visibleCalendarEvents(monthStart, monthEnd).filter(function (item) {
       return isMinistryPriority(item) && isInCurrentCalendarMonth(item);
     });
   } else {
     var rangeStart = dashboardTodayISO();
     var rangeEnd = toISO(addDays(parseISO(rangeStart), 6));
-    var visible = visibleCalendarEvents(rangeStart, rangeEnd);
-    weeklyClassItems = visible.filter(isClassEvent);
-    var ministry = visible.filter(function (item) { return isMinistryPriority(item); });
-    var scoped = visible.filter(function (item) { return !isMinistryPriority(item) && !eventIsBirthday(item); });
-    items = ministry.concat(scoped);
-    birthdayItems = visibleCalendarEvents(rangeStart, rangeEnd, { includeBirthdays: true, onlyBirthdays: true })
-      .sort(function (a, b) { return parseISO(a.start) - parseISO(b.start); });
+    items = visibleCalendarEvents(rangeStart, rangeEnd);
   }
-  items = items.sort(function (a, b) {
+  items.sort(function (a, b) {
     var dateDelta = parseISO(a.start) - parseISO(b.start);
     if (dateDelta) return dateDelta;
     return calendarTimeValue(a).localeCompare(calendarTimeValue(b));
   });
-  if (!items.length && !birthdayItems.length && priorityScope === "month") {
-    var message = priorityScope === "month"
-      ? "No upcoming teachings this month."
-      : "No events in the next seven days.";
-    els.priorityList.innerHTML = "<p class='empty-state'>" + message + "</p>";
+  if (!items.length) {
+    els.priorityList.innerHTML = "<p class='empty-state'>" + (isMonthView ? "No upcoming teachings this month." : "No events in the next seven days.") + "</p>";
     return;
   }
-  function appendPriorityItem(item, birthday) {
+
+  function appendAgendaItem(item, parent, ministry) {
     var div = document.createElement("div");
-    div.className = "priority-item" + (isMinistryPriority(item) ? " ministry" : "") + (birthday ? " birthday-priority" : "");
+    div.className = "priority-item" + (ministry ? " ministry" : "");
     var details = document.createElement("button");
     details.type = "button";
     details.className = "priority-event-button";
-    details.innerHTML = "<strong>" + (birthday ? escapeHTML(birthdayName(item)) : eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + (birthday ? "" : " / " + eventTimingLabel(item)) + "</span>";
+    details.innerHTML = "<strong>" + escapeHTML(eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + " / " + eventTimingLabel(item) + "</span>";
     details.addEventListener("click", function () { viewEvent(item.id); });
     bindEventCardKeyboard(details, item.id);
     div.appendChild(details);
-    if (!birthday) {
-      var remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "delete-button trash-button event-card-delete";
-      remove.innerHTML = trashIcon();
-      remove.setAttribute("aria-label", "Delete event");
-      remove.addEventListener("click", function (event) {
-        event.stopPropagation();
-        confirmDeleteEvent(item.id, event.currentTarget);
-      });
-      div.appendChild(remove);
-    }
-    els.priorityList.appendChild(div);
+    var remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "delete-button trash-button event-card-delete";
+    remove.innerHTML = trashIcon();
+    remove.setAttribute("aria-label", "Delete event");
+    remove.addEventListener("click", function (event) {
+      event.stopPropagation();
+      confirmDeleteEvent(item.id, event.currentTarget);
+    });
+    div.appendChild(remove);
+    parent.appendChild(div);
   }
-  var itemLimit = priorityScope === "month" ? 12 : items.length;
-  if (priorityScope !== "month") {
-    var classItems = weeklyClassItems;
-    var otherItems = items.filter(function (item) { return !isClassEvent(item); });
-    var group = document.createElement("section");
-    group.className = "priority-group" + (priorityClassGroupOpen ? "" : " collapsed");
-    var toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = "priority-group-toggle";
-    toggle.setAttribute("aria-expanded", String(priorityClassGroupOpen));
-    toggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'></span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
-    toggle.addEventListener("click", function () {
-      priorityClassGroupOpen = !priorityClassGroupOpen;
-      renderPriorityList();
-    });
-    group.appendChild(toggle);
-    var groupItems = document.createElement("div");
-    groupItems.className = "priority-group-items";
-    if (!classItems.length) {
-      groupItems.innerHTML = "<p class='empty-state'>No class events in these seven days.</p>";
-    }
-    classItems.slice(0, itemLimit).forEach(function (item) {
-      var groupItem = document.createElement("div");
-      groupItem.className = "priority-item";
-      var details = document.createElement("button");
-      details.type = "button";
-      details.className = "priority-event-button";
-      details.innerHTML = "<strong>" + escapeHTML(eventTitle(item)) + "</strong><span>" + eventDateRangeLabel(item) + " / " + eventTimingLabel(item) + "</span>";
-      details.addEventListener("click", function () { viewEvent(item.id); });
-      bindEventCardKeyboard(details, item.id);
-      groupItem.appendChild(details);
-      var remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "delete-button trash-button event-card-delete";
-      remove.innerHTML = trashIcon();
-      remove.setAttribute("aria-label", "Delete event");
-      remove.addEventListener("click", function (event) {
-        event.stopPropagation();
-        confirmDeleteEvent(item.id, event.currentTarget);
-      });
-      groupItem.appendChild(remove);
-      groupItems.appendChild(groupItem);
-    });
-    group.appendChild(groupItems);
-    els.priorityList.appendChild(group);
-    otherItems.slice(0, itemLimit).forEach(function (item) {
-      appendPriorityItem(item, false);
-    });
-  } else {
-    items.slice(0, itemLimit).forEach(function (item) {
-      appendPriorityItem(item, false);
-    });
+
+  if (isMonthView) {
+    items.slice(0, 12).forEach(function (item) { appendAgendaItem(item, els.priorityList, true); });
+    return;
   }
-  if (birthdayItems.length) {
-    var heading = document.createElement("h3");
-    heading.className = "priority-subheading";
-    heading.textContent = "Birthdays";
-    els.priorityList.appendChild(heading);
-    birthdayItems.slice(0, 8).forEach(function (item) {
-      appendPriorityItem(item, true);
-    });
-  }
+
+  var classItems = items.filter(isClassEvent);
+  var otherItems = items.filter(function (item) { return !isClassEvent(item); });
+  var classGroup = document.createElement("section");
+  classGroup.className = "priority-group priority-class-group";
+  classGroup.innerHTML = "<div class='priority-group-heading'><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small></div>";
+  var classGroupItems = document.createElement("div");
+  classGroupItems.className = "priority-group-items";
+  if (!classItems.length) classGroupItems.innerHTML = "<p class='empty-state'>No class events in these seven days.</p>";
+  classItems.forEach(function (item) { appendAgendaItem(item, classGroupItems, false); });
+  classGroup.appendChild(classGroupItems);
+  els.priorityList.appendChild(classGroup);
+
+  otherItems.forEach(function (item) { appendAgendaItem(item, els.priorityList, false); });
 }
 
 function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alarm) {
