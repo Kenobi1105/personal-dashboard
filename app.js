@@ -4341,7 +4341,7 @@ function renderPriorityList() {
     toggle.type = "button";
     toggle.className = "priority-group-toggle";
     toggle.setAttribute("aria-expanded", String(priorityClassGroupOpen));
-    toggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'>&#8964;</span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
+    toggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'></span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
     toggle.addEventListener("click", function () {
       priorityClassGroupOpen = !priorityClassGroupOpen;
       renderPriorityList();
@@ -5183,7 +5183,7 @@ function renderTasks() {
     renderedGroupCount += 1;
   });
   if (renderedGroupCount) {
-    els.taskList.style.setProperty("--task-group-rows", String(Math.ceil(renderedGroupCount / 2)));
+    els.taskList.style.setProperty("--task-group-rows", String(Math.min(4, renderedGroupCount)));
   }
 }
 
