@@ -180,24 +180,24 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(560px, 0.95fr) minmax(640px, 1.05fr);
+  grid-template-columns: minmax(700px, 1.16fr) minmax(500px, 0.84fr);
   gap: 8px;
   align-items: stretch;
 }
 
 .first-view-stack {
   display: grid;
-  grid-template-columns: minmax(196px, 0.713fr) minmax(330px, 1.287fr);
+  grid-template-columns: minmax(210px, 0.82fr) minmax(290px, 1.18fr);
   gap: 8px;
-  grid-template-rows: minmax(218px, auto) minmax(0, 1fr) minmax(0, 1.26fr);
+  grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
   min-height: 0;
   height: 100%;
 }
 
-.first-view-stack .verse-card { grid-column: 1 / -1; }
-.first-view-stack .priority-card { grid-column: 1; grid-row: 2 / 4; }
-.first-view-stack .work-panel { grid-column: 2; grid-row: 2 / 4; min-height: 0; }
+.first-view-stack .verse-card { grid-column: 1 / -1; grid-row: 1; }
+.first-view-stack .priority-card { grid-column: 1; grid-row: 2; }
+.first-view-stack .work-panel { grid-column: 2; grid-row: 2; min-height: 0; }
 .calendar-panel {
   display: flex;
   flex-direction: column;
@@ -1083,11 +1083,13 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .first-view-stack .priority-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .priority-card .compact-list { height: auto; max-height: none; overflow-y: auto; min-height: 0; flex: 1; }
 .priority-card .compact-list { height: 0; min-height: 0; flex: 1 1 0; }
+.priority-card .priority-group { flex: 0 0 auto; }
 .work-panel { display: flex; flex-direction: column; overflow: hidden; }
 .work-panel-view { min-height: 0; flex: 1; }
 .work-panel-view[hidden] { display: none; }
 #tasksWorkspaceView:not([hidden]) { display: flex; flex-direction: column; gap: 5px; }
 #tasksWorkspaceView .task-list { height: auto; min-height: 0; flex: 1; overflow-y: auto; padding-right: 2px; }
+.work-panel .task-form { grid-template-columns: minmax(0, 1fr) 90px 72px 106px auto; }
 .priority-item,
 .score-card,
 .workflow-item,

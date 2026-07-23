@@ -4282,6 +4282,7 @@ function renderPriorityList() {
   els.priorityScopeToggle.textContent = priorityScope === "month" ? "Seven Days" : "Month";
   var items;
   var birthdayItems = [];
+  var weeklyClassItems = [];
   if (priorityScope === "month") {
     var monthToday = parseISO(dashboardTodayISO());
     var monthStart = toISO(new Date(monthToday.getFullYear(), monthToday.getMonth(), 1));
@@ -4293,6 +4294,7 @@ function renderPriorityList() {
     var rangeStart = dashboardTodayISO();
     var rangeEnd = toISO(addDays(parseISO(rangeStart), 6));
     var visible = visibleCalendarEvents(rangeStart, rangeEnd);
+    weeklyClassItems = visible.filter(isClassEvent);
     var ministry = visible.filter(function (item) { return isMinistryPriority(item); });
     var scoped = visible.filter(function (item) { return !isMinistryPriority(item) && !eventIsBirthday(item); });
     items = ministry.concat(scoped);
@@ -4337,7 +4339,7 @@ function renderPriorityList() {
   }
   var itemLimit = priorityScope === "month" ? 12 : items.length;
   if (priorityScope === "week") {
-    var classItems = items.filter(isClassEvent);
+    var classItems = weeklyClassItems;
     var otherItems = items.filter(function (item) { return !isClassEvent(item); });
     var group = document.createElement("section");
     group.className = "priority-group" + (priorityClassGroupOpen ? "" : " collapsed");
