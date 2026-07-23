@@ -857,6 +857,23 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 .class-schedule-slot { border-right: 1px solid rgba(73, 53, 72, 0.12); border-bottom: 1px solid rgba(73, 53, 72, 0.12); }
 .class-schedule-event { z-index: 1; min-width: 0; margin: 2px; padding: 3px 4px; overflow: hidden; border: 1px solid rgba(78, 100, 126, 0.48); border-radius: 5px; color: var(--signature); background: rgba(92, 130, 168, 0.28); font-size: 0.61rem; font-weight: 900; line-height: 1.14; text-align: left; }
 .class-schedule-event:hover { background: rgba(92, 130, 168, 0.4); }
+.class-deadline-panel { display: grid; gap: 7px; padding: 9px; border: 1px solid rgba(78, 100, 126, 0.2); border-radius: 8px; background: rgba(92, 130, 168, 0.07); }
+.class-deadline-heading { display: flex; align-items: center; justify-content: space-between; }
+.class-deadline-heading .eyebrow { margin: 0; }
+.class-deadline-heading h3 { margin: 1px 0 0; color: var(--signature); font-size: 0.88rem; }
+.class-deadline-form { display: grid; grid-template-columns: 112px minmax(145px, 1fr) minmax(190px, 1.5fr) 122px 90px 122px auto; gap: 5px; align-items: end; }
+.class-deadline-form input,
+.class-deadline-form select { min-width: 0; min-height: 32px; font-size: 0.74rem; }
+.class-deadline-list { display: grid; gap: 6px; max-height: 250px; overflow-y: auto; padding-right: 2px; }
+.class-deadline-group { display: grid; gap: 4px; padding: 6px; border: 1px solid rgba(73, 53, 72, 0.12); border-radius: 7px; background: rgba(255, 255, 255, 0.58); }
+.class-deadline-group-title { padding: 0; border: 0; color: var(--signature); background: transparent; font-size: 0.75rem; font-weight: 900; text-align: left; }
+.class-deadline-item { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 5px; border-radius: 5px; background: rgba(247, 243, 233, 0.72); }
+.class-deadline-item > input { width: 14px; min-height: 14px; accent-color: var(--signature); }
+.class-deadline-item.done { opacity: 0.64; }
+.class-deadline-item.done strong { text-decoration: line-through; }
+.class-deadline-item-text { min-width: 0; padding: 0; border: 0; color: var(--ink); background: transparent; text-align: left; }
+.class-deadline-item-text strong { display: block; font-size: 0.74rem; }
+.class-deadline-item-text span { display: block; margin-top: 1px; color: var(--muted); font-size: 0.68rem; }
 
 .day-cell.has-plan {
   background:
@@ -2719,6 +2736,8 @@ kbd {
   .first-view-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mobile-module-menu { display: block; }
   .study-launch-bar { display: none; }
+  .class-deadline-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .class-deadline-form .accent-button { grid-column: span 2; }
 }
 
 @media (max-width: 760px) {
@@ -2750,6 +2769,11 @@ kbd {
   .task-list { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
   .event-checklist-row { grid-template-columns: auto auto minmax(0, 1fr) auto; }
   .event-checklist-due { grid-column: 3 / -1; width: 100%; }
+  .class-schedule-controls { align-items: stretch; flex-direction: column; }
+  .class-schedule-picker { min-width: 0; }
+  .class-schedule-bounds { justify-content: space-between; }
+  .class-deadline-form { grid-template-columns: 1fr; }
+  .class-deadline-form .accent-button { grid-column: auto; }
   .language-panel .panel-heading { align-items: start; }
   .language-tabs { justify-content: flex-start; }
   .template-create,

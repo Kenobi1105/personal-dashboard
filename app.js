@@ -313,6 +313,7 @@ var els = {
 
 var DEFAULT_EVENT_TYPES = ["General Event", "Reminder", "Sermon", "Bible Study", "Sermon Prep", "Bible Study Prep", "Class", "Ministry", "Others"];
 var PROTECTED_EVENT_TYPES = ["Sermon", "Bible Study"];
+var CLASS_DEADLINE_TYPES = ["Reading", "Assignment", "Report", "Quiz", "Exam", "Paper", "Project"];
 var deliveredAlarmKeys = {};
 var FALLBACK_NEWS_SOURCES = {
   world: [
@@ -905,7 +906,7 @@ function seedState() {
   var sermonDate = toISO(addDays(today, 13));
   var bibleStudyDate = toISO(addDays(today, 3));
   return {
-    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, classScheduleEventIds: [], classScheduleStartTime: "08:00", classScheduleEndTime: "18:00", googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
+    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, classScheduleEventIds: [], classScheduleStartTime: "08:00", classScheduleEndTime: "18:00", classDeadlines: [], googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
     events: [
       createEvent({ type: "Sermon", passage: "Jn 3:16", title: "Sermon: Jn 3:16", start: sermonDate, end: sermonDate, timeSlot: "Morning", source: "dashboard" }),
       createEvent({ type: "Bible Study", passage: "Rom 8:1-11", title: "Bible Study: Rom 8:1-11", start: bibleStudyDate, end: bibleStudyDate, timeSlot: "Evening", source: "dashboard" })
@@ -982,6 +983,9 @@ function loadState() {
     loaded.settings.classScheduleEventIds = Array.isArray(loaded.settings.classScheduleEventIds) ? loaded.settings.classScheduleEventIds.filter(Boolean) : [];
     loaded.settings.classScheduleStartTime = normalizeTimeInput(loaded.settings.classScheduleStartTime) || "08:00";
     loaded.settings.classScheduleEndTime = normalizeTimeInput(loaded.settings.classScheduleEndTime) || "18:00";
+    loaded.settings.classDeadlines = Array.isArray(loaded.settings.classDeadlines) ? loaded.settings.classDeadlines.filter(function (item) {
+      return item && item.id && item.eventId && item.checklistItemId;
+    }) : [];
     loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
     loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
     var storedEventTypes = Array.isArray(loaded.settings.eventTypes) && loaded.settings.eventTypes.length
@@ -2749,6 +2753,213 @@ function saveClassScheduleBounds(start, end) {
   saveState();
 }
 
+function classDeadlineTargetEvents() {
+  return state.events.filter(isClassEvent).sort(function (a, b) {
+    var dateDelta = String(a.start).localeCompare(String(b.start));
+    if (dateDelta) return dateDelta;
+    var timeDelta = String(a.timeStart || "99:99").localeCompare(String(b.timeStart || "99:99"));
+    if (timeDelta) return timeDelta;
+    return eventTitle(a).localeCompare(eventTitle(b));
+  });
+}
+
+function classDeadlineEntries() {
+  return (state.settings.classDeadlines || []).map(function (deadline) {
+    var event = state.events.find(function (item) { return item.id === deadline.eventId; });
+    var checklistItem = event && (event.checklist || []).find(function (item) { return item.id === deadline.checklistItemId; });
+    return event && checklistItem ? { deadline: deadline, event: event, checklistItem: checklistItem } : null;
+  }).filter(Boolean);
+}
+
+function addClassDeadline(values) {
+  var event = state.events.find(function (item) { return item.id === values.eventId; });
+  if (!event || !isClassEvent(event)) {
+    showToast("Choose a class meeting first.");
+    return false;
+  }
+  var title = String(values.title || "").trim();
+  if (!title) {
+    showToast("Add a deadline title.");
+    return false;
+  }
+  var deadlineId = id("class-deadline");
+  var checklistItem = {
+    id: id("check"),
+    title: values.type + ": " + title,
+    dueDate: values.dueDate || "",
+    dueTime: values.dueTime || "",
+    alarm: values.alarm || "none",
+    done: false,
+    promoted: false,
+    taskId: null,
+    deadlineId: deadlineId,
+    deadlineType: values.type
+  };
+  event.checklist = event.checklist || [];
+  event.checklist.push(checklistItem);
+  ensureEventChecklistTasks(event);
+  state.settings.classDeadlines.push({
+    id: deadlineId,
+    eventId: event.id,
+    checklistItemId: checklistItem.id,
+    type: values.type,
+    title: title,
+    dueDate: values.dueDate || "",
+    dueTime: values.dueTime || "",
+    alarm: values.alarm || "none"
+  });
+  saveState();
+  renderAll();
+  showToast("Deadline added to " + eventTitle(event) + ".");
+  return true;
+}
+
+function removeClassDeadline(deadlineId) {
+  var record = (state.settings.classDeadlines || []).find(function (item) { return item.id === deadlineId; });
+  if (!record) return;
+  var event = state.events.find(function (item) { return item.id === record.eventId; });
+  if (event) {
+    var checklistItem = (event.checklist || []).find(function (item) { return item.id === record.checklistItemId; });
+    if (checklistItem && checklistItem.taskId) {
+      state.tasks = state.tasks.filter(function (task) { return task.id !== checklistItem.taskId; });
+    }
+    event.checklist = (event.checklist || []).filter(function (item) { return item.id !== record.checklistItemId; });
+  }
+  state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (item) { return item.id !== deadlineId; });
+  saveState();
+  renderAll();
+}
+
+function classDeadlineDueLabel(item) {
+  if (!item.dueDate) return "No due date";
+  return "Due " + displayDate(item.dueDate) + (item.dueTime ? " at " + formatTimeOption(item.dueTime) : "") + (item.alarm && item.alarm !== "none" ? " · " + alarmLabel(item.alarm) : "");
+}
+
+function classDeadlineCourseKey(event) {
+  return event.scheduleId || event.title || event.id;
+}
+
+function renderClassDeadlinePanel() {
+  var panel = document.createElement("section");
+  panel.className = "class-deadline-panel";
+  var heading = document.createElement("div");
+  heading.className = "class-deadline-heading";
+  heading.innerHTML = "<div><p class='eyebrow'>Master list</p><h3>Class Deadlines</h3></div>";
+  panel.appendChild(heading);
+
+  var form = document.createElement("form");
+  form.className = "class-deadline-form";
+  var type = document.createElement("select");
+  type.setAttribute("aria-label", "Deadline type");
+  CLASS_DEADLINE_TYPES.forEach(function (value) {
+    var option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    type.appendChild(option);
+  });
+  var title = document.createElement("input");
+  title.type = "text";
+  title.placeholder = "Deadline title";
+  title.setAttribute("aria-label", "Deadline title");
+  var target = document.createElement("select");
+  target.setAttribute("aria-label", "Class meeting");
+  var targetPlaceholder = document.createElement("option");
+  targetPlaceholder.value = "";
+  targetPlaceholder.textContent = "Choose class meeting…";
+  target.appendChild(targetPlaceholder);
+  classDeadlineTargetEvents().forEach(function (item) {
+    var option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = eventTitle(item) + " — " + displayDate(item.start) + " / " + eventTimingLabel(item);
+    target.appendChild(option);
+  });
+  var dueDate = document.createElement("input");
+  dueDate.type = "date";
+  dueDate.setAttribute("aria-label", "Deadline due date");
+  var dueTime = document.createElement("input");
+  dueTime.type = "time";
+  dueTime.setAttribute("aria-label", "Deadline due time");
+  var alarm = document.createElement("select");
+  alarm.setAttribute("aria-label", "Deadline alarm");
+  [["none", "No alarm"], ["10", "10 min before"], ["15", "15 min before"], ["30", "30 min before"], ["60", "1 hour before"], ["120", "2 hours before"], ["1440", "1 day before"]].forEach(function (entry) {
+    var option = document.createElement("option");
+    option.value = entry[0];
+    option.textContent = entry[1];
+    alarm.appendChild(option);
+  });
+  var add = document.createElement("button");
+  add.type = "submit";
+  add.className = "accent-button small-control";
+  add.textContent = "Add Deadline";
+  form.append(type, title, target, dueDate, dueTime, alarm, add);
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    addClassDeadline({ type: type.value, title: title.value, eventId: target.value, dueDate: dueDate.value, dueTime: dueTime.value, alarm: alarm.value });
+  });
+  panel.appendChild(form);
+
+  var entries = classDeadlineEntries().sort(function (a, b) {
+    return String(a.checklistItem.dueDate || "9999-99-99").localeCompare(String(b.checklistItem.dueDate || "9999-99-99"));
+  });
+  var list = document.createElement("div");
+  list.className = "class-deadline-list";
+  if (!entries.length) {
+    list.innerHTML = "<p class='empty-state'>Add a deadline, then choose the specific class meeting that should receive its checklist item.</p>";
+  } else {
+    var groups = {};
+    entries.forEach(function (entry) {
+      var courseKey = classDeadlineCourseKey(entry.event);
+      if (!groups[courseKey]) groups[courseKey] = [];
+      groups[courseKey].push(entry);
+    });
+    Object.keys(groups).forEach(function (courseKey) {
+      var groupEntries = groups[courseKey];
+      var group = document.createElement("section");
+      group.className = "class-deadline-group";
+      var groupTitle = document.createElement("button");
+      groupTitle.type = "button";
+      groupTitle.className = "class-deadline-group-title";
+      groupTitle.textContent = eventTitle(groupEntries[0].event);
+      groupTitle.addEventListener("click", function () { viewEvent(groupEntries[0].event.id); });
+      group.appendChild(groupTitle);
+      groupEntries.forEach(function (entry) {
+        var item = entry.checklistItem;
+        var row = document.createElement("div");
+        row.className = "class-deadline-item" + (item.done ? " done" : "");
+        var done = document.createElement("input");
+        done.type = "checkbox";
+        done.checked = !!item.done;
+        done.setAttribute("aria-label", "Mark " + item.title + " complete");
+        done.addEventListener("change", function () {
+          item.done = done.checked;
+          var task = item.taskId ? state.tasks.find(function (taskItem) { return taskItem.id === item.taskId; }) : null;
+          if (task) setTaskCompletion(task, done.checked);
+          else {
+            saveState();
+            renderAll();
+          }
+        });
+        var text = document.createElement("button");
+        text.type = "button";
+        text.className = "class-deadline-item-text";
+        text.innerHTML = "<strong>" + escapeHTML(item.title) + "</strong><span>For " + escapeHTML(displayDate(entry.event.start)) + " · " + escapeHTML(classDeadlineDueLabel(item)) + "</span>";
+        text.addEventListener("click", function () { viewEvent(entry.event.id); });
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "delete-button trash-button";
+        remove.innerHTML = trashIcon();
+        remove.setAttribute("aria-label", "Delete deadline");
+        remove.addEventListener("click", function () { removeClassDeadline(entry.deadline.id); });
+        row.append(done, text, remove);
+        group.appendChild(row);
+      });
+      list.appendChild(group);
+    });
+  }
+  panel.appendChild(list);
+  return panel;
+}
+
 function renderClassScheduleView() {
   var weekStart = startOfWeek(scheduleWeekStart);
   els.monthLabel.textContent = "Class Schedule · " + weekOfYearLabel(weekStart);
@@ -2823,6 +3034,7 @@ function renderClassScheduleView() {
   bounds.append(startLabel, endLabel);
   controls.appendChild(bounds);
   wrapper.appendChild(controls);
+  wrapper.appendChild(renderClassDeadlinePanel());
 
   var startMinutes = timeToMinutes(state.settings.classScheduleStartTime || "08:00");
   var endMinutes = timeToMinutes(state.settings.classScheduleEndTime || "18:00");
@@ -3194,6 +3406,9 @@ function renderModalChecklist() {
     remove.setAttribute("aria-label", "Delete checklist item");
     remove.addEventListener("click", function () {
       if (item.taskId) state.tasks = state.tasks.filter(function (task) { return task.id !== item.taskId; });
+      if (item.deadlineId) {
+        state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (deadline) { return deadline.id !== item.deadlineId; });
+      }
       modalChecklist = modalChecklist.filter(function (check) { return check.id !== item.id; });
       renderModalChecklist();
       renderTasks();
@@ -3341,6 +3556,8 @@ function ensureChecklistTask(item, eventItem, groupId) {
       id: id("task"),
       title: title,
       dueDate: item.dueDate || eventItem.start,
+      dueTime: item.dueTime || "",
+      alarm: item.alarm || "none",
       done: !!item.done,
       completedAt: item.done ? new Date().toISOString() : "",
       notes: "",
@@ -3354,6 +3571,8 @@ function ensureChecklistTask(item, eventItem, groupId) {
   } else {
     task.title = title;
     task.dueDate = item.dueDate || eventItem.start;
+    task.dueTime = item.dueTime || "";
+    task.alarm = item.alarm || "none";
     task.done = item.done;
     task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
     if (typeof task.notes !== "string") task.notes = "";
@@ -3379,6 +3598,8 @@ function syncTaskFromChecklist(item) {
   if (!task) return;
   task.title = item.title;
   task.dueDate = item.dueDate;
+  task.dueTime = item.dueTime || "";
+  task.alarm = item.alarm || "none";
   task.done = item.done;
   task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
   task.eventTitle = els.eventTitle.value.trim() || task.eventTitle;
@@ -3628,6 +3849,8 @@ function syncEventTasks(event) {
     if (!task) return;
     task.title = item.title;
     task.dueDate = item.dueDate;
+    task.dueTime = item.dueTime || "";
+    task.alarm = item.alarm || "none";
     task.done = item.done;
     task.eventId = event.id;
     task.eventTitle = eventTitle(event);
@@ -3716,6 +3939,7 @@ function removeEventById(eventId) {
   if (removed && removed.googleEventId && removed.source !== "google") deleteGoogleCalendarEvent(removed);
   state.events = state.events.filter(function (event) { return event.id !== eventId; });
   state.tasks = state.tasks.filter(function (task) { return task.eventId !== eventId; });
+  state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (deadline) { return deadline.eventId !== eventId; });
   saveState();
 }
 
@@ -3728,6 +3952,7 @@ function removeEventSeries(scheduleId) {
   var removedIds = removedEvents.map(function (event) { return event.id; });
   state.events = state.events.filter(function (event) { return event.scheduleId !== scheduleId; });
   state.tasks = state.tasks.filter(function (task) { return removedIds.indexOf(task.eventId) === -1; });
+  state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (deadline) { return removedIds.indexOf(deadline.eventId) === -1; });
   saveState();
 }
 
@@ -3742,6 +3967,7 @@ function removeScheduleEventsFrom(scheduleId, fromDate) {
     return !(event.scheduleId === scheduleId && event.start >= fromDate);
   });
   state.tasks = state.tasks.filter(function (task) { return removedIds.indexOf(task.eventId) === -1; });
+  state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (deadline) { return removedIds.indexOf(deadline.eventId) === -1; });
   saveState();
 }
 
@@ -4633,6 +4859,8 @@ function syncChecklistCompletion(task) {
       if (item.taskId !== task.id) return;
       item.title = task.title;
       item.dueDate = task.dueDate || "";
+      item.dueTime = task.dueTime || "";
+      item.alarm = task.alarm || "none";
       item.done = !!task.done;
     });
   });
