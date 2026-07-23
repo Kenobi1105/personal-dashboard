@@ -119,6 +119,7 @@ var els = {
   normalModeButton: document.getElementById("normalModeButton"),
   scheduleModeButton: document.getElementById("scheduleModeButton"),
   planningModeButton: document.getElementById("planningModeButton"),
+  classScheduleModeButton: document.getElementById("classScheduleModeButton"),
   birthdayModeButton: document.getElementById("birthdayModeButton"),
   birthdayHideToggle: document.getElementById("birthdayHideToggle"),
   hideBirthdaysFromCalendar: document.getElementById("hideBirthdaysFromCalendar"),
@@ -624,10 +625,18 @@ function populateTimeSuggestions() {
 
 function populateTimeSelects() {
   populateTimeSuggestions();
-  [els.eventTimeStart, els.eventTimeEnd].forEach(function (input) {
-    var current = input.value || input.dataset.pendingValue || "";
-    var normalized = normalizeTimeInput(current);
-    if (normalized) input.value = normalized;
+  [els.eventTimeStart, els.eventTimeEnd].forEach(function (select) {
+    var current = select.value || select.dataset.pendingValue || "";
+    var normalized = normalizeTimeInput(current) || (select === els.eventTimeStart ? "08:00" : "09:00");
+    select.innerHTML = "";
+    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
+      var value = minutesToTime(minutes);
+      var option = document.createElement("option");
+      option.value = value;
+      option.textContent = formatTimeOption(value);
+      select.appendChild(option);
+    }
+    select.value = normalized;
   });
 }
 
@@ -896,7 +905,7 @@ function seedState() {
   var sermonDate = toISO(addDays(today, 13));
   var bibleStudyDate = toISO(addDays(today, 3));
   return {
-    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
+    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, classScheduleEventIds: [], classScheduleStartTime: "08:00", classScheduleEndTime: "18:00", googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
     events: [
       createEvent({ type: "Sermon", passage: "Jn 3:16", title: "Sermon: Jn 3:16", start: sermonDate, end: sermonDate, timeSlot: "Morning", source: "dashboard" }),
       createEvent({ type: "Bible Study", passage: "Rom 8:1-11", title: "Bible Study: Rom 8:1-11", start: bibleStudyDate, end: bibleStudyDate, timeSlot: "Evening", source: "dashboard" })
@@ -970,6 +979,9 @@ function loadState() {
     loaded.settings.readerSplit = loaded.settings.readerSplit || 50;
     loaded.settings.mainReaderSplit = loaded.settings.mainReaderSplit || 62;
     loaded.settings.hideBirthdaysFromCalendar = !!loaded.settings.hideBirthdaysFromCalendar;
+    loaded.settings.classScheduleEventIds = Array.isArray(loaded.settings.classScheduleEventIds) ? loaded.settings.classScheduleEventIds.filter(Boolean) : [];
+    loaded.settings.classScheduleStartTime = normalizeTimeInput(loaded.settings.classScheduleStartTime) || "08:00";
+    loaded.settings.classScheduleEndTime = normalizeTimeInput(loaded.settings.classScheduleEndTime) || "18:00";
     loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
     loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
     var storedEventTypes = Array.isArray(loaded.settings.eventTypes) && loaded.settings.eventTypes.length
@@ -1675,9 +1687,10 @@ function calendarVisibleRange() {
       timeMax: zonedDateTimeToDate(toISO(birthdayEnd), "23:59", dashboardTimeZone()).toISOString()
     };
   }
-  var base = calendarMode === "schedule" ? scheduleWeekStart : new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-  var start = calendarMode === "schedule" ? startOfWeek(base) : addDays(base, -base.getDay());
-  var end = calendarMode === "schedule" ? addDays(start, 7) : addDays(start, 42);
+  var weekMode = calendarMode === "schedule" || calendarMode === "class-schedule";
+  var base = weekMode ? scheduleWeekStart : new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  var start = weekMode ? startOfWeek(base) : addDays(base, -base.getDay());
+  var end = weekMode ? addDays(start, 7) : addDays(start, 42);
   return {
     timeMin: zonedDateTimeToDate(toISO(start), "00:00", dashboardTimeZone()).toISOString(),
     timeMax: zonedDateTimeToDate(toISO(end), "23:59", dashboardTimeZone()).toISOString()
@@ -2405,9 +2418,14 @@ function renderCalendar() {
   generatedOccurrenceMap = {};
   els.calendarPanel.classList.toggle("planning-mode", planningMode);
   els.calendarPanel.classList.toggle("schedule-mode", calendarMode === "schedule");
+  els.calendarPanel.classList.toggle("class-schedule-mode", calendarMode === "class-schedule");
   els.calendarPanel.classList.toggle("birthday-mode", calendarMode === "birthdays");
   if (calendarMode === "schedule") {
     renderScheduleView();
+    return;
+  }
+  if (calendarMode === "class-schedule") {
+    renderClassScheduleView();
     return;
   }
   if (calendarMode === "birthdays") {
@@ -2696,6 +2714,172 @@ function renderScheduleView() {
 
     els.calendarGrid.appendChild(column);
   }
+}
+
+function classScheduleKey(item) {
+  return item.scheduleId || item.id;
+}
+
+function classScheduleSources() {
+  var seen = {};
+  return state.events.filter(isClassEvent).filter(function (item) {
+    var key = classScheduleKey(item);
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  }).sort(function (a, b) {
+    return eventTitle(a).localeCompare(eventTitle(b));
+  });
+}
+
+function classScheduleTimeLabel(minutes) {
+  var start = minutesToTime(minutes).replace(":", "");
+  var end = minutes + 30 >= 24 * 60 ? "2400" : minutesToTime(minutes + 30).replace(":", "");
+  return start + "-" + end;
+}
+
+function saveClassScheduleBounds(start, end) {
+  var startTime = normalizeTimeInput(start) || "08:00";
+  var endTime = normalizeTimeInput(end) || "18:00";
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+    endTime = minutesToTime(Math.min(timeToMinutes(startTime) + 30, (24 * 60) - 1));
+  }
+  state.settings.classScheduleStartTime = startTime;
+  state.settings.classScheduleEndTime = endTime;
+  saveState();
+}
+
+function renderClassScheduleView() {
+  var weekStart = startOfWeek(scheduleWeekStart);
+  els.monthLabel.textContent = "Class Schedule · " + weekOfYearLabel(weekStart);
+  els.monthLabel.classList.toggle("current-month", toISO(weekStart) === toISO(startOfWeek(parseISO(dashboardTodayISO()))));
+
+  var wrapper = document.createElement("section");
+  wrapper.className = "class-schedule-view";
+  var sources = classScheduleSources();
+  var selectedKeys = state.settings.classScheduleEventIds || [];
+  var selectedLookup = selectedKeys.reduce(function (lookup, key) {
+    lookup[key] = true;
+    return lookup;
+  }, {});
+
+  var controls = document.createElement("div");
+  controls.className = "class-schedule-controls";
+  var details = document.createElement("details");
+  details.className = "class-schedule-picker";
+  var summary = document.createElement("summary");
+  summary.textContent = "Classes (" + selectedKeys.length + " selected)";
+  details.appendChild(summary);
+  var checklist = document.createElement("div");
+  checklist.className = "class-schedule-checklist";
+  if (!sources.length) {
+    checklist.innerHTML = "<p class='empty-state'>No Class events are available yet.</p>";
+  } else {
+    sources.forEach(function (item) {
+      var key = classScheduleKey(item);
+      var label = document.createElement("label");
+      var input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = !!selectedLookup[key];
+      input.addEventListener("change", function () {
+        var next = new Set(state.settings.classScheduleEventIds || []);
+        if (input.checked) next.add(key);
+        else next.delete(key);
+        state.settings.classScheduleEventIds = Array.from(next);
+        saveState();
+        renderClassScheduleView();
+      });
+      var text = document.createElement("span");
+      text.textContent = eventTitle(item);
+      label.append(input, text);
+      checklist.appendChild(label);
+    });
+  }
+  details.appendChild(checklist);
+  controls.appendChild(details);
+
+  var bounds = document.createElement("div");
+  bounds.className = "class-schedule-bounds";
+  var startLabel = document.createElement("label");
+  startLabel.textContent = "Start";
+  var startInput = document.createElement("input");
+  startInput.type = "time";
+  startInput.step = "1800";
+  startInput.value = state.settings.classScheduleStartTime || "08:00";
+  startLabel.appendChild(startInput);
+  var endLabel = document.createElement("label");
+  endLabel.textContent = "End";
+  var endInput = document.createElement("input");
+  endInput.type = "time";
+  endInput.step = "1800";
+  endInput.value = state.settings.classScheduleEndTime || "18:00";
+  endLabel.appendChild(endInput);
+  [startInput, endInput].forEach(function (input) {
+    input.addEventListener("change", function () {
+      saveClassScheduleBounds(startInput.value, endInput.value);
+      renderClassScheduleView();
+    });
+  });
+  bounds.append(startLabel, endLabel);
+  controls.appendChild(bounds);
+  wrapper.appendChild(controls);
+
+  var startMinutes = timeToMinutes(state.settings.classScheduleStartTime || "08:00");
+  var endMinutes = timeToMinutes(state.settings.classScheduleEndTime || "18:00");
+  if (endMinutes <= startMinutes) endMinutes = startMinutes + 30;
+  var slots = [];
+  for (var minute = startMinutes; minute < endMinutes; minute += 30) slots.push(minute);
+
+  var grid = document.createElement("div");
+  grid.className = "class-schedule-grid";
+  grid.style.setProperty("--class-schedule-rows", String(slots.length));
+  var corner = document.createElement("div");
+  corner.className = "class-schedule-corner";
+  corner.textContent = "Time";
+  grid.appendChild(corner);
+  ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].forEach(function (day, index) {
+    var header = document.createElement("div");
+    header.className = "class-schedule-day-header" + (index === 0 ? " sunday" : "");
+    header.textContent = day;
+    grid.appendChild(header);
+  });
+  slots.forEach(function (minute) {
+    var time = document.createElement("div");
+    time.className = "class-schedule-time";
+    time.textContent = classScheduleTimeLabel(minute);
+    grid.appendChild(time);
+    WEEKDAYS.forEach(function () {
+      var cell = document.createElement("div");
+      cell.className = "class-schedule-slot";
+      grid.appendChild(cell);
+    });
+  });
+
+  var weekEnd = toISO(addDays(weekStart, 6));
+  var classEvents = visibleCalendarEvents(toISO(weekStart), weekEnd).filter(function (item) {
+    return isClassEvent(item) && selectedLookup[classScheduleKey(item)];
+  });
+  classEvents.forEach(function (item) {
+    if (!item.timeStart) return;
+    var eventStart = timeToMinutes(item.timeStart);
+    var eventEnd = timeToMinutes(item.timeEnd || item.timeStart) || eventStart + 30;
+    if (eventEnd <= eventStart) eventEnd = eventStart + 30;
+    var rowStart = Math.max(0, Math.floor((eventStart - startMinutes) / 30));
+    var rowEnd = Math.min(slots.length, Math.ceil((eventEnd - startMinutes) / 30));
+    if (rowStart >= slots.length || rowEnd <= 0) return;
+    var day = parseISO(item.start).getDay();
+    var block = document.createElement("button");
+    block.type = "button";
+    block.className = "class-schedule-event";
+    block.style.gridColumn = String(day + 2);
+    block.style.gridRow = String(rowStart + 2) + " / span " + Math.max(1, rowEnd - rowStart);
+    block.textContent = eventTitle(item);
+    block.title = eventTitle(item) + " · " + eventTimingLabel(item);
+    block.addEventListener("click", function () { viewEvent(item.id); });
+    grid.appendChild(block);
+  });
+  wrapper.appendChild(grid);
+  els.calendarGrid.appendChild(wrapper);
 }
 
 function renderCalendarPill(item) {
@@ -3716,13 +3900,14 @@ function undoPlan() {
 }
 
 function setMode(nextMode) {
-  calendarMode = nextMode === "schedule" ? "schedule" : nextMode === "planning" ? "planning" : nextMode === "birthdays" ? "birthdays" : "normal";
+  calendarMode = nextMode === "schedule" ? "schedule" : nextMode === "planning" ? "planning" : nextMode === "class-schedule" ? "class-schedule" : nextMode === "birthdays" ? "birthdays" : "normal";
   planningMode = calendarMode === "planning";
   clearSelection();
   closeDayDrawer();
   els.normalModeButton.classList.toggle("active", calendarMode === "normal");
   els.scheduleModeButton.classList.toggle("active", calendarMode === "schedule");
   els.planningModeButton.classList.toggle("active", planningMode);
+  if (els.classScheduleModeButton) els.classScheduleModeButton.classList.toggle("active", calendarMode === "class-schedule");
   if (els.birthdayModeButton) els.birthdayModeButton.classList.toggle("active", calendarMode === "birthdays");
   els.planningHint.hidden = !planningMode;
   els.addScheduleButton.hidden = calendarMode !== "schedule";
@@ -3742,7 +3927,7 @@ function updatePlanButtons() {
 }
 
 function goToCurrentCalendarPeriod() {
-  if (calendarMode === "schedule") {
+  if (calendarMode === "schedule" || calendarMode === "class-schedule") {
     scheduleWeekStart = startOfWeek(parseISO(dashboardTodayISO()));
   } else if (calendarMode === "birthdays") {
     viewDate = parseISO(dashboardTodayISO());
@@ -3753,7 +3938,7 @@ function goToCurrentCalendarPeriod() {
 }
 
 function goToPreviousCalendarPeriod() {
-  if (calendarMode === "schedule") {
+  if (calendarMode === "schedule" || calendarMode === "class-schedule") {
     scheduleWeekStart = addDays(scheduleWeekStart, -7);
   } else if (calendarMode === "birthdays") {
     viewDate = new Date(viewDate.getFullYear() - 1, viewDate.getMonth(), 1);
@@ -3764,7 +3949,7 @@ function goToPreviousCalendarPeriod() {
 }
 
 function goToNextCalendarPeriod() {
-  if (calendarMode === "schedule") {
+  if (calendarMode === "schedule" || calendarMode === "class-schedule") {
     scheduleWeekStart = addDays(scheduleWeekStart, 7);
   } else if (calendarMode === "birthdays") {
     viewDate = new Date(viewDate.getFullYear() + 1, viewDate.getMonth(), 1);
@@ -3794,9 +3979,9 @@ function isInCurrentCalendarMonth(item) {
 function renderPriorityList() {
   els.priorityList.innerHTML = "";
   els.priorityTitle.textContent = priorityScope === "month"
-    ? "Upcoming Teachings for " + parseISO(dashboardTodayISO()).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+    ? "Upcoming Studies for " + parseISO(dashboardTodayISO()).toLocaleDateString(undefined, { month: "long", year: "numeric" })
     : "Seven Days";
-  els.priorityScopeToggle.textContent = priorityScope === "month" ? "Week" : "Month";
+  els.priorityScopeToggle.textContent = priorityScope === "month" ? "Seven Days" : "Month";
   var items;
   var birthdayItems = [];
   if (priorityScope === "month") {
@@ -3856,9 +4041,6 @@ function renderPriorityList() {
   if (priorityScope === "week") {
     var classItems = items.filter(isClassEvent);
     var otherItems = items.filter(function (item) { return !isClassEvent(item); });
-    otherItems.slice(0, itemLimit).forEach(function (item) {
-      appendPriorityItem(item, false);
-    });
     if (classItems.length) {
       var group = document.createElement("section");
       group.className = "priority-group" + (priorityClassGroupOpen ? "" : " collapsed");
@@ -3899,6 +4081,9 @@ function renderPriorityList() {
       group.appendChild(groupItems);
       els.priorityList.appendChild(group);
     }
+    otherItems.slice(0, itemLimit).forEach(function (item) {
+      appendPriorityItem(item, false);
+    });
   } else {
     items.slice(0, itemLimit).forEach(function (item) {
       appendPriorityItem(item, false);
@@ -6227,6 +6412,7 @@ function refreshLiveSportIfNeeded() {
 }
 
 function renderAll() {
+  if (els.hideBirthdaysFromCalendar) els.hideBirthdaysFromCalendar.checked = !!state.settings.hideBirthdaysFromCalendar;
   renderGreeting();
   renderVerseOfDay();
   renderCalendar();
@@ -6420,6 +6606,9 @@ document.addEventListener("keydown", function (event) {
       setMode("planning");
     } else if (event.key === "4") {
       event.preventDefault();
+      setMode("class-schedule");
+    } else if (event.key === "5") {
+      event.preventDefault();
       setMode("birthdays");
     }
   }
@@ -6513,6 +6702,7 @@ if (els.googleCalendarShowAllButton) {
 els.normalModeButton.addEventListener("click", function () { setMode("normal"); });
 els.scheduleModeButton.addEventListener("click", function () { setMode("schedule"); });
 els.planningModeButton.addEventListener("click", function () { setMode("planning"); });
+if (els.classScheduleModeButton) els.classScheduleModeButton.addEventListener("click", function () { setMode("class-schedule"); });
 if (els.birthdayModeButton) els.birthdayModeButton.addEventListener("click", function () { setMode("birthdays"); });
 if (els.hideBirthdaysFromCalendar) {
   els.hideBirthdaysFromCalendar.addEventListener("change", function () {

@@ -72,7 +72,8 @@
                 <button class="mode-chip active" id="normalModeButton" type="button" title="Calendar Mode (Alt+1)">Calendar</button>
                 <button class="mode-chip" id="scheduleModeButton" type="button" title="Scheduler (Alt+2)">Scheduler</button>
                 <button class="mode-chip" id="planningModeButton" type="button" title="Planning Mode (Alt+3)">Planning Mode</button>
-                <button class="mode-chip birthday-mode-chip" id="birthdayModeButton" type="button" title="Birthdays" aria-label="Birthday view">&#127874;</button>
+                <button class="mode-chip" id="classScheduleModeButton" type="button" title="Class Schedule (Alt+4)">Class Schedule</button>
+                <button class="mode-chip birthday-mode-chip" id="birthdayModeButton" type="button" title="Birthdays (Alt+5)" aria-label="Birthday view">&#127874;</button>
               </div>
               <div class="mode-action-row">
                 <button class="accent-button" id="finalizePlansButton" type="button" hidden>Finalize</button>
@@ -423,15 +424,15 @@
           <label>Start Date
             <input id="eventDate" type="date" required>
           </label>
-                <label>Time Start
-                  <input id="eventTimeStart" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
-                </label>
+          <label>Time Start
+            <select id="eventTimeStart" class="time-input"></select>
+          </label>
           <label>End Date
             <input id="eventEndDate" type="date">
           </label>
-                <label>Time End
-                  <input id="eventTimeEnd" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
-                </label>
+          <label>Time End
+            <select id="eventTimeEnd" class="time-input"></select>
+          </label>
         </div>
         <label class="check-label">
           <input id="eventAllDay" type="checkbox">
@@ -728,6 +729,8 @@
             <span>Calendar Mode</span><kbd>Alt+1</kbd>
             <span>Scheduler</span><kbd>Alt+2</kbd>
             <span>Planning Mode</span><kbd>Alt+3</kbd>
+            <span>Class Schedule</span><kbd>Alt+4</kbd>
+            <span>Birthday Viewer</span><kbd>Alt+5</kbd>
             <span>Settings</span><kbd>Ctrl+,</kbd>
             <span>Undo Planning Draft</span><kbd>Ctrl+Z</kbd>
           </div>
@@ -827,6 +830,6 @@
     </dialog>
 
   <datalist id="dashboardTimeOptions"></datalist>
-  <script src="app.js?v=49"></script>
+  <script src="app.js?v=50"></script>
   </body>
 </html>
