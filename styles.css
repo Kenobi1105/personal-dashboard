@@ -862,6 +862,9 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 .class-schedule-event.tone-2 { border-left-color: #617c5a; color: #394e36; background: linear-gradient(135deg, rgba(226, 238, 218, 0.98), rgba(192, 214, 183, 0.84)); }
 .class-schedule-event.tone-3 { border-left-color: #85698d; color: #573c60; background: linear-gradient(135deg, rgba(239, 225, 242, 0.98), rgba(214, 190, 220, 0.84)); }
 .class-schedule-event:hover { z-index: 2; filter: saturate(1.08); box-shadow: 0 7px 16px rgba(49, 72, 88, 0.2); transform: translateY(-1px); }
+.class-schedule-grid { grid-template-columns: 44px repeat(7, minmax(0, 1fr)); grid-template-rows: 30px repeat(var(--class-schedule-rows), 32px); }
+.class-schedule-time { place-items: start center; padding: 3px 1px; font-size: 0.46rem; text-align: center; }
+.class-schedule-event { padding: 3px; font-size: 0.54rem; line-height: 1.12; }
 .class-deadline-panel { display: grid; gap: 7px; padding: 9px; border: 1px solid rgba(78, 100, 126, 0.2); border-radius: 10px; background: linear-gradient(135deg, rgba(223, 235, 245, 0.38), rgba(255, 250, 240, 0.72)); }
 .class-deadline-heading { display: flex; align-items: center; justify-content: space-between; }
 .class-deadline-heading .eyebrow { margin: 0; }
@@ -1077,6 +1080,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .compact-list { height: 100px; overflow: auto; padding-right: 2px; }
 .first-view-stack .priority-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .priority-card .compact-list { height: auto; max-height: none; overflow-y: auto; min-height: 0; flex: 1; }
+.priority-card .compact-list { height: 0; min-height: 0; flex: 1 1 0; }
 .work-panel { display: flex; flex-direction: column; overflow: hidden; }
 .work-panel-view { min-height: 0; flex: 1; }
 .work-panel-view[hidden] { display: none; }
