@@ -54,9 +54,15 @@
                 <h2>Ministry Month</h2>
               </div>
               <div class="calendar-actions">
-                <button class="text-button small-control google-calendar-button" id="googleCalendarButton" type="button">Connect Google Calendar</button>
-                <button class="text-button small-control google-calendar-button" id="googleCalendarSyncButton" type="button" hidden>Sync Google</button>
-                <button class="text-button small-control google-calendar-button" id="googleCalendarReconnectButton" type="button" hidden>Reconnect Google</button>
+                <button class="text-button small-control google-calendar-button" id="googleCalendarButton" type="button" aria-label="Connect Google Calendar" title="Connect Google Calendar">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3H5.5A2.5 2.5 0 0 0 3 8.5v10A2.5 2.5 0 0 0 5.5 21h13a2.5 2.5 0 0 0 2.5-2.5v-10A2.5 2.5 0 0 0 18.5 6H17V3h-2v3H9V3H7Zm-2 7h14v8.5a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5V10Zm3 3v4h3v-4H8Zm5 0v2h4v-2h-4Z"/></svg>
+                </button>
+                <button class="text-button small-control google-calendar-button" id="googleCalendarSyncButton" type="button" hidden aria-label="Sync Google Calendar" title="Sync Google Calendar">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.7 7.2A7 7 0 0 0 5.4 9.4H3l3.7-4 3.7 4H8A5 5 0 0 1 17 8.6l1.7-1.4ZM20.3 18.6l-3.7 4-3.7-4h2.4A5 5 0 0 1 6.3 15.4l-1.7 1.4A7 7 0 0 0 17.9 14h2.4Z"/></svg>
+                </button>
+                <button class="text-button small-control google-calendar-button" id="googleCalendarReconnectButton" type="button" hidden aria-label="Reconnect Google Calendar" title="Reconnect Google Calendar">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 7.6 10.5l-1.9-.6A6 6 0 1 1 12 6c1.6 0 3 .6 4.1 1.6L13 11h7V4l-2.5 2.4A7.9 7.9 0 0 0 12 4Z"/></svg>
+                </button>
                 <button class="text-button icon-text" id="prevMonth" type="button" title="Previous Month (Ctrl+Shift+[)" aria-label="Previous month">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.7 5.3 9 12l6.7 6.7-1.4 1.4L6.2 12l8.1-8.1 1.4 1.4Z"/></svg>
                 </button>
@@ -155,6 +161,7 @@
                   <input id="taskDueTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM" aria-label="Task due time">
                   <select id="taskAlarm" aria-label="Task alarm">
                     <option value="none">No alarm</option>
+                    <option value="on-day">On the day</option>
                     <option value="10">10 min before</option>
                     <option value="15">15 min before</option>
                     <option value="30">30 min before</option>
@@ -162,6 +169,7 @@
                     <option value="120">2 hours before</option>
                     <option value="1440">1 day before</option>
                   </select>
+                  <input id="taskAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="Alarm time" aria-label="Task alarm time" hidden>
                   <button class="accent-button small-control" type="submit">Add</button>
                 </form>
                 <form class="task-group-form" id="taskGroupForm">
@@ -425,13 +433,13 @@
             <input id="eventDate" type="date" required>
           </label>
           <label>Time Start
-            <select id="eventTimeStart" class="time-input"></select>
+            <input id="eventTimeStart" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
           </label>
           <label>End Date
             <input id="eventEndDate" type="date">
           </label>
           <label>Time End
-            <select id="eventTimeEnd" class="time-input"></select>
+            <input id="eventTimeEnd" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
           </label>
         </div>
         <label class="check-label">
@@ -442,6 +450,7 @@
           <label>Alarm
             <select id="eventAlarm">
               <option value="none">No alarm</option>
+              <option value="on-day">On the day</option>
               <option value="10">10 minutes before</option>
               <option value="15">15 minutes before</option>
               <option value="30">30 minutes before</option>
@@ -449,6 +458,9 @@
               <option value="120">2 hours before</option>
               <option value="1440">1 day before</option>
             </select>
+          </label>
+          <label id="eventAlarmTimeLabel" hidden>Alarm Time
+            <input id="eventAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="Alarm time">
           </label>
         </div>
         <div class="field-row modal-grid compact-event-grid event-repeat-grid" id="eventRepeatRow">
@@ -634,6 +646,7 @@
           <label>Alarm
             <select id="taskModalAlarm">
               <option value="none">No alarm</option>
+              <option value="on-day">On the day</option>
               <option value="10">10 minutes before</option>
               <option value="15">15 minutes before</option>
               <option value="30">30 minutes before</option>
@@ -641,6 +654,9 @@
               <option value="120">2 hours before</option>
               <option value="1440">1 day before</option>
             </select>
+          </label>
+          <label id="taskModalAlarmTimeLabel" hidden>Alarm Time
+            <input id="taskModalAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="Alarm time">
           </label>
           <label>Notes
             <textarea id="taskModalNotes" rows="4" placeholder="Add notes for this task"></textarea>

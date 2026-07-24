@@ -147,6 +147,8 @@ var els = {
   eventTimeEnd: document.getElementById("eventTimeEnd"),
   eventAllDay: document.getElementById("eventAllDay"),
   eventAlarm: document.getElementById("eventAlarm"),
+  eventAlarmTimeLabel: document.getElementById("eventAlarmTimeLabel"),
+  eventAlarmTime: document.getElementById("eventAlarmTime"),
   eventRepeatRow: document.getElementById("eventRepeatRow"),
   eventRepeat: document.getElementById("eventRepeat"),
   eventRepeatCustomNumberLabel: document.getElementById("eventRepeatCustomNumberLabel"),
@@ -212,6 +214,7 @@ var els = {
   taskDueDate: document.getElementById("taskDueDate"),
   taskDueTime: document.getElementById("taskDueTime"),
   taskAlarm: document.getElementById("taskAlarm"),
+  taskAlarmTime: document.getElementById("taskAlarmTime"),
   taskGroupForm: document.getElementById("taskGroupForm"),
   taskGroupInput: document.getElementById("taskGroupInput"),
   taskList: document.getElementById("taskList"),
@@ -231,6 +234,8 @@ var els = {
   taskModalDueDate: document.getElementById("taskModalDueDate"),
   taskModalDueTime: document.getElementById("taskModalDueTime"),
   taskModalAlarm: document.getElementById("taskModalAlarm"),
+  taskModalAlarmTimeLabel: document.getElementById("taskModalAlarmTimeLabel"),
+  taskModalAlarmTime: document.getElementById("taskModalAlarmTime"),
   taskModalNotes: document.getElementById("taskModalNotes"),
   taskModalSource: document.getElementById("taskModalSource"),
   taskModalView: document.getElementById("taskModalView"),
@@ -523,7 +528,8 @@ function formatTimeOption(value) {
   return hour12 + ":" + minute + " " + suffix;
 }
 
-function alarmLabel(value) {
+function alarmLabel(value, alarmTime) {
+  if (value === "on-day") return "On the day" + (alarmTime ? " at " + formatTimeOption(alarmTime) : "");
   var minutes = Number(value);
   if (!minutes) return "No alarm";
   if (minutes === 60) return "1 hour before";
@@ -544,11 +550,13 @@ function notifyDashboardAlarm(key, title) {
 function checkDashboardAlarms() {
   var now = Date.now();
   function checkItem(item, date, time, title) {
+    var onDay = item.alarm === "on-day";
     var offset = Number(item.alarm || 0);
-    if (!offset || !date || !time) return;
-    var target = new Date(date + "T" + time).getTime() - (offset * 60000);
+    var alarmTime = normalizeTimeInput(onDay ? item.alarmTime : time);
+    if ((!onDay && !offset) || !date || !alarmTime) return;
+    var target = new Date(date + "T" + alarmTime).getTime() - (onDay ? 0 : offset * 60000);
     if (Number.isNaN(target) || now < target || now - target > 65000) return;
-    notifyDashboardAlarm(item.id + ":" + date + ":" + item.alarm, title);
+    notifyDashboardAlarm(item.id + ":" + date + ":" + item.alarm + ":" + alarmTime, title);
   }
   state.events.forEach(function (item) {
     checkItem(item, item.start, item.timeStart, eventTitle(item));
@@ -631,26 +639,18 @@ function populateTimeSuggestions() {
 
 function populateTimeSelects() {
   populateTimeSuggestions();
-  [els.eventTimeStart, els.eventTimeEnd].forEach(function (select) {
-    var current = select.value || select.dataset.pendingValue || "";
-    var normalized = normalizeTimeInput(current) || (select === els.eventTimeStart ? "08:00" : "09:00");
-    select.innerHTML = "";
-    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
-      var value = minutesToTime(minutes);
-      var option = document.createElement("option");
-      option.value = value;
-      option.textContent = formatTimeOption(value);
-      select.appendChild(option);
-    }
-    select.value = normalized;
+  [els.eventTimeStart, els.eventTimeEnd].forEach(function (input) {
+    var current = input.value || input.dataset.pendingValue || "";
+    var normalized = normalizeTimeInput(current) || (input === els.eventTimeStart ? "08:00" : "09:00");
+    input.value = formatTimeOption(normalized);
   });
 }
 
 function updateEventEndTimeOptions() {
-  var start = normalizeTimeField(els.eventTimeStart);
-  var end = normalizeTimeField(els.eventTimeEnd);
+  var start = normalizeTimeField(els.eventTimeStart, true);
+  var end = normalizeTimeField(els.eventTimeEnd, true);
   if (start && (!end || timeToMinutes(end) < timeToMinutes(start))) {
-    els.eventTimeEnd.value = start;
+    els.eventTimeEnd.value = formatTimeOption(start);
   }
 }
 
@@ -669,8 +669,8 @@ function syncEventTimeControls() {
     els.eventTimeSlot.value = "All Day";
     return;
   }
-  if (!els.eventTimeStart.value) els.eventTimeStart.value = "08:00";
-  if (!els.eventTimeEnd.value) els.eventTimeEnd.value = "09:00";
+  if (!els.eventTimeStart.value) els.eventTimeStart.value = formatTimeOption("08:00");
+  if (!els.eventTimeEnd.value) els.eventTimeEnd.value = formatTimeOption("09:00");
   updateEventEndTimeOptions();
   els.eventTimeSlot.value = getTimeSlotFromTime(els.eventTimeStart.value);
 }
@@ -686,8 +686,8 @@ function handleEventTimeSlotChange() {
     els.eventEndDate.value = els.eventDate.value;
   }
   els.eventAllDay.checked = false;
-  els.eventTimeStart.value = defaultTimeForSlot(slot);
-  els.eventTimeEnd.value = minutesToTime(timeToMinutes(els.eventTimeStart.value) + 60);
+  els.eventTimeStart.value = formatTimeOption(defaultTimeForSlot(slot));
+  els.eventTimeEnd.value = formatTimeOption(minutesToTime(timeToMinutes(els.eventTimeStart.value) + 60));
   rememberEventTimeRange();
   syncEventTimeControls();
 }
@@ -739,7 +739,7 @@ function handleEventEndDateChange() {
 }
 
 function handleEventStartTimeChange() {
-  var start = normalizeTimeField(els.eventTimeStart);
+  var start = normalizeTimeField(els.eventTimeStart, true);
   var startMinutes = timeToMinutes(start);
   if (startMinutes === null) return;
   if (lastEventStartTime && els.eventTimeEnd.value) {
@@ -751,7 +751,7 @@ function handleEventStartTimeChange() {
 }
 
 function handleEventEndTimeChange() {
-  if (els.eventTimeEnd.value && !normalizeTimeField(els.eventTimeEnd)) return;
+  if (els.eventTimeEnd.value && !normalizeTimeField(els.eventTimeEnd, true)) return;
   updateEventEndTimeOptions();
   rememberEventTimeRange();
   syncEventTimeControls();
@@ -876,11 +876,34 @@ function syncRepeatControls() {
   var repeat = els.eventRepeat.value || "none";
   var showRepeatMeta = repeat !== "none";
   var showEndDate = showRepeatMeta && els.eventRepeatEnd.value === "on";
-  els.eventRepeatCustomNumberLabel.hidden = !showRepeatMeta;
-  els.eventRepeatCustomUnitLabel.hidden = !showRepeatMeta;
-  els.eventRepeatEndLabel.hidden = !showRepeatMeta;
-  els.eventRepeatEndDateLabel.hidden = !showEndDate;
+  [els.eventRepeatCustomNumberLabel, els.eventRepeatCustomUnitLabel, els.eventRepeatEndLabel, els.eventRepeatEndDateLabel].forEach(function (label) {
+    label.hidden = false;
+  });
+  els.eventRepeatCustomNumber.disabled = !showRepeatMeta;
+  els.eventRepeatCustomUnit.disabled = !showRepeatMeta;
+  els.eventRepeatEnd.disabled = !showRepeatMeta;
+  els.eventRepeatEndDate.disabled = !showEndDate;
+  els.eventRepeatCustomNumberLabel.classList.toggle("control-disabled", !showRepeatMeta);
+  els.eventRepeatCustomUnitLabel.classList.toggle("control-disabled", !showRepeatMeta);
+  els.eventRepeatEndLabel.classList.toggle("control-disabled", !showRepeatMeta);
+  els.eventRepeatEndDateLabel.classList.toggle("control-disabled", !showEndDate);
   if (els.eventDate.value) els.eventRepeatEndDate.min = els.eventDate.value;
+}
+
+function syncEventAlarmControl() {
+  var onDay = els.eventAlarm.value === "on-day";
+  els.eventAlarmTimeLabel.hidden = !onDay;
+  els.eventAlarmTime.disabled = !onDay;
+  if (onDay && !normalizeTimeInput(els.eventAlarmTime.value)) els.eventAlarmTime.value = formatTimeOption("09:00");
+}
+
+function syncTaskAlarmControl(select, container, input) {
+  var timeInput = input || (container && container.matches("input") ? container : container && container.querySelector("input"));
+  if (!select || !container || !timeInput) return;
+  var onDay = select.value === "on-day";
+  container.hidden = !onDay;
+  timeInput.disabled = !onDay;
+  if (onDay && !normalizeTimeInput(timeInput.value)) timeInput.value = formatTimeOption("09:00");
 }
 
 function eventColor(key) {
@@ -943,6 +966,7 @@ function createEvent(values) {
     timeEnd: values.timeEnd || "",
     allDay: !!values.allDay,
     alarm: values.alarm || "none",
+    alarmTime: normalizeTimeInput(values.alarmTime),
     location: values.location || "",
     notes: values.notes || "",
     image: values.image || "",
@@ -1708,28 +1732,29 @@ function calendarVisibleRange() {
 
 function updateGoogleCalendarControls() {
   if (!els.googleCalendarButton) return;
+  function setGoogleButtonLabel(button, label) {
+    if (!button) return;
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.classList.toggle("is-loading", googleCalendarLoading);
+  }
   els.googleCalendarButton.disabled = googleCalendarLoading;
   if (els.googleCalendarSyncButton) {
     els.googleCalendarSyncButton.disabled = googleCalendarLoading || !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect;
     els.googleCalendarSyncButton.hidden = !googleCalendarStatus.connected || googleCalendarStatus.needsReconnect;
-    els.googleCalendarSyncButton.textContent = googleCalendarLoading ? "Syncing..." : "Sync Google";
-    els.googleCalendarSyncButton.title = "Refresh Google Calendar events for the visible calendar range.";
+    setGoogleButtonLabel(els.googleCalendarSyncButton, googleCalendarLoading ? "Syncing Google Calendar" : "Sync Google Calendar");
   }
   if (els.googleCalendarReconnectButton) {
     els.googleCalendarReconnectButton.disabled = googleCalendarLoading || !googleCalendarStatus.connected;
     els.googleCalendarReconnectButton.hidden = !googleCalendarStatus.connected;
-    els.googleCalendarReconnectButton.textContent = googleCalendarLoading ? "Working..." : "Reconnect Google";
-    els.googleCalendarReconnectButton.title = "Clear the saved Google Calendar permission and ask Google for fresh Calendar access.";
+    setGoogleButtonLabel(els.googleCalendarReconnectButton, googleCalendarLoading ? "Reconnecting Google Calendar" : "Reconnect Google Calendar");
   }
   if (!googleCalendarStatus.configured) {
-    els.googleCalendarButton.textContent = "Connect Google Calendar";
-    els.googleCalendarButton.title = googleCalendarLastMessage || "Google Calendar OAuth is not configured yet.";
+    setGoogleButtonLabel(els.googleCalendarButton, googleCalendarLastMessage || "Google Calendar OAuth is not configured yet.");
   } else if (googleCalendarStatus.connected) {
-    els.googleCalendarButton.textContent = googleCalendarLoading ? "Syncing..." : "Google Connected";
-    els.googleCalendarButton.title = googleCalendarStatus.needsReconnect ? "Use Reconnect Google to approve the latest permissions." : googleCalendarAccountLabel() || "Google Calendar is connected.";
+    setGoogleButtonLabel(els.googleCalendarButton, googleCalendarStatus.needsReconnect ? "Google Calendar needs reconnection" : googleCalendarAccountLabel() || "Google Calendar is connected.");
   } else {
-    els.googleCalendarButton.textContent = "Connect Google Calendar";
-    els.googleCalendarButton.title = "Connect Google Calendar.";
+    setGoogleButtonLabel(els.googleCalendarButton, "Connect Google Calendar");
   }
   renderGoogleCalendarChoices();
 }
@@ -2238,7 +2263,7 @@ function viewEvent(eventId) {
     ["Location", item.location || "Not listed"]
   ];
   if (item.passage) meta.splice(2, 0, ["Passage", item.passage]);
-  if (item.alarm && item.alarm !== "none") meta.push(["Alarm", alarmLabel(item.alarm)]);
+  if (item.alarm && item.alarm !== "none") meta.push(["Alarm", alarmLabel(item.alarm, item.alarmTime)]);
   if (item.source === "google") meta.push(["Source", "Google Calendar"]);
   else if (item.googleEventId) meta.push(["Sync", "Google Calendar"]);
   els.eventDetailMeta.classList.toggle("no-passage", !item.passage);
@@ -2932,7 +2957,7 @@ function removeClassDeadline(deadlineId) {
 
 function classDeadlineDueLabel(item) {
   if (!item.dueDate) return "No due date";
-  return "Due " + displayDate(item.dueDate) + (item.dueTime ? " at " + formatTimeOption(item.dueTime) : "") + (item.alarm && item.alarm !== "none" ? " · " + alarmLabel(item.alarm) : "");
+  return "Due " + displayDate(item.dueDate) + (item.dueTime ? " at " + formatTimeOption(item.dueTime) : "") + (item.alarm && item.alarm !== "none" ? " · " + alarmLabel(item.alarm, item.alarmTime) : "");
 }
 
 function renderClassDeadlinePanel() {
@@ -3402,6 +3427,7 @@ function openEventModal(options) {
   els.eventLocation.value = source.location || "";
   els.eventPassage.value = source.passage || "";
   els.eventAlarm.value = source.alarm || "none";
+  els.eventAlarmTime.value = source.alarmTime ? formatTimeOption(source.alarmTime) : "";
   els.eventTitle.value = source.title || "";
   els.eventNotes.value = source.notes || "";
   selectedEventColorKey = source.colorKey || (eventModalMode === "plan" ? "gold" : "plum");
@@ -3410,6 +3436,7 @@ function openEventModal(options) {
   applyRepeatRuleToForm(source.repeatRule);
   syncEventTimeControls();
   syncEventPassageField();
+  syncEventAlarmControl();
   els.deleteEventButton.hidden = !event;
   els.eventForm.querySelector(".form-button").textContent = eventModalMode === "plan" ? "Create Draft" : event ? "Save Event" : "Add Event";
   rememberEventDateRange();
@@ -3876,6 +3903,13 @@ async function addEventOrPlan(event) {
   var timeStart = allDay ? "" : timeRange.start;
   var timeEnd = allDay ? "" : timeRange.end;
   var timeSlot = allDay ? "All Day" : getTimeSlotFromTime(timeStart);
+  var alarm = els.eventAlarm.value || "none";
+  var alarmTime = alarm === "on-day" ? normalizeTimeInput(els.eventAlarmTime.value) : "";
+  if (alarm === "on-day" && !alarmTime) {
+    showToast("Choose an alarm time for the day of this event.");
+    els.eventAlarmTime.focus();
+    return;
+  }
   var previousEvent = editingEventId ? state.events.find(function (eventItem) { return eventItem.id === editingEventId; }) : null;
   var nextRepeatRule = eventModalMode === "plan" ? defaultRepeatRule() : repeatRuleFromForm();
   var item = createEvent({
@@ -3889,7 +3923,8 @@ async function addEventOrPlan(event) {
     timeStart: timeStart,
     timeEnd: timeEnd,
     allDay: allDay,
-    alarm: els.eventAlarm.value || "none",
+    alarm: alarm,
+    alarmTime: alarmTime,
     location: els.eventLocation.value.trim(),
     notes: els.eventNotes.value.trim(),
     image: previousEvent ? previousEvent.image : "",
@@ -4407,7 +4442,7 @@ function renderPriorityList() {
   otherItems.forEach(function (item) { appendAgendaItem(item, els.priorityList, false); });
 }
 
-function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alarm) {
+function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alarm, alarmTime) {
   var cleanTitle = title.trim();
   if (!cleanTitle) return;
   state.tasks.unshift({
@@ -4416,6 +4451,7 @@ function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alar
     dueDate: dueDate || "",
     dueTime: normalizeTimeInput(dueTime),
     alarm: alarm || "none",
+    alarmTime: alarm === "on-day" ? normalizeTimeInput(alarmTime) : "",
     done: false,
     completedAt: "",
     notes: "",
@@ -4935,6 +4971,7 @@ function syncChecklistCompletion(task) {
       item.dueDate = task.dueDate || "";
       item.dueTime = task.dueTime || "";
       item.alarm = task.alarm || "none";
+      item.alarmTime = task.alarmTime || "";
       item.done = !!task.done;
       if (item.deadlineId) classDeadlineItem = item;
     });
@@ -4995,11 +5032,13 @@ function openTaskModal(taskId, options) {
   els.taskModalDueDate.value = task.dueDate || "";
   els.taskModalDueTime.value = task.dueTime ? formatTimeOption(task.dueTime) : "";
   els.taskModalAlarm.value = task.alarm || "none";
+  els.taskModalAlarmTime.value = task.alarmTime ? formatTimeOption(task.alarmTime) : "";
+  syncTaskAlarmControl(els.taskModalAlarm, els.taskModalAlarmTimeLabel);
   els.taskModalNotes.value = task.notes || "";
   els.taskModalDueDate.required = false;
   els.taskModalSource.textContent = taskSourceLabel(task);
   els.taskModalViewDue.textContent = task.dueDate
-    ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm) : "")
+    ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm, task.alarmTime) : "")
     : "No due date";
   els.taskModalViewNotes.textContent = task.notes || "No notes added.";
   els.taskModal.dataset.mode = editMode ? "edit" : "view";
@@ -5097,7 +5136,7 @@ function renderTasks() {
     taskTitleLabel.textContent = task.title;
     var dueLabel = document.createElement("small");
     dueLabel.textContent = task.dueDate
-      ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm) : "")
+      ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm, task.alarmTime) : "")
       : "No due date";
     taskButton.append(taskTitleLabel, dueLabel);
     taskButton.addEventListener("click", function () { openTaskModal(task.id, { source: taskView }); });
@@ -7099,6 +7138,9 @@ els.eventTimeEnd.addEventListener("change", handleEventEndTimeChange);
 els.eventTimeStart.addEventListener("blur", handleEventStartTimeChange);
 els.eventTimeEnd.addEventListener("blur", handleEventEndTimeChange);
 els.eventAllDay.addEventListener("change", syncEventTimeControls);
+els.eventAlarm.addEventListener("change", syncEventAlarmControl);
+els.eventAlarmTime.addEventListener("change", function () { formatTaskTimeInput(els.eventAlarmTime); });
+els.eventAlarmTime.addEventListener("blur", function () { formatTaskTimeInput(els.eventAlarmTime); });
 els.eventTimeSlot.addEventListener("change", handleEventTimeSlotChange);
 els.eventType.addEventListener("change", syncEventPassageField);
 els.scheduleStartDate.addEventListener("change", handleScheduleStartDateChange);
@@ -7113,8 +7155,14 @@ function formatTaskTimeInput(input) {
 }
 els.taskDueTime.addEventListener("change", function () { formatTaskTimeInput(els.taskDueTime); });
 els.taskDueTime.addEventListener("blur", function () { formatTaskTimeInput(els.taskDueTime); });
+els.taskAlarm.addEventListener("change", function () { syncTaskAlarmControl(els.taskAlarm, els.taskAlarmTime); });
+els.taskAlarmTime.addEventListener("change", function () { formatTaskTimeInput(els.taskAlarmTime); });
+els.taskAlarmTime.addEventListener("blur", function () { formatTaskTimeInput(els.taskAlarmTime); });
 els.taskModalDueTime.addEventListener("change", function () { formatTaskTimeInput(els.taskModalDueTime); });
 els.taskModalDueTime.addEventListener("blur", function () { formatTaskTimeInput(els.taskModalDueTime); });
+els.taskModalAlarm.addEventListener("change", function () { syncTaskAlarmControl(els.taskModalAlarm, els.taskModalAlarmTimeLabel); });
+els.taskModalAlarmTime.addEventListener("change", function () { formatTaskTimeInput(els.taskModalAlarmTime); });
+els.taskModalAlarmTime.addEventListener("blur", function () { formatTaskTimeInput(els.taskModalAlarmTime); });
 els.drawerAddEvent.addEventListener("click", function () { openEventModal({ mode: "create", start: selectedDate, end: selectedDate, timeStart: "08:00", timeEnd: "09:00" }); });
 els.closeDayDrawer.addEventListener("click", closeDayDrawer);
 els.verseToggle.addEventListener("click", function () {
@@ -7129,11 +7177,18 @@ els.bibleReaderVerseButton.addEventListener("click", function () {
 });
 els.taskForm.addEventListener("submit", function (event) {
   event.preventDefault();
-  addTask(els.taskInput.value, els.taskDueDate.value, "dashboard", null, "", els.taskDueTime.value, els.taskAlarm.value);
+  if (els.taskAlarm.value === "on-day" && !normalizeTimeInput(els.taskAlarmTime.value)) {
+    showToast("Choose an alarm time for the day of this task.");
+    els.taskAlarmTime.focus();
+    return;
+  }
+  addTask(els.taskInput.value, els.taskDueDate.value, "dashboard", null, "", els.taskDueTime.value, els.taskAlarm.value, els.taskAlarmTime.value);
   els.taskInput.value = "";
   els.taskDueDate.value = "";
   els.taskDueTime.value = "";
   els.taskAlarm.value = "none";
+  els.taskAlarmTime.value = "";
+  syncTaskAlarmControl(els.taskAlarm, els.taskAlarmTime);
 });
 els.taskGroupForm.addEventListener("submit", function (event) {
   event.preventDefault();
@@ -7176,6 +7231,12 @@ els.taskModalForm.addEventListener("submit", function (event) {
   task.dueDate = els.taskModalDueDate.value;
   task.dueTime = normalizeTimeInput(els.taskModalDueTime.value);
   task.alarm = els.taskModalAlarm.value || "none";
+  task.alarmTime = task.alarm === "on-day" ? normalizeTimeInput(els.taskModalAlarmTime.value) : "";
+  if (task.alarm === "on-day" && !task.alarmTime) {
+    showToast("Choose an alarm time for the day of this task.");
+    els.taskModalAlarmTime.focus();
+    return;
+  }
   task.notes = els.taskModalNotes.value.trim();
   syncChecklistCompletion(task);
   saveState();
