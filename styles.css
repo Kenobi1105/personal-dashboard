@@ -869,7 +869,7 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 .class-schedule-event:hover { z-index: 2; filter: saturate(1.08); box-shadow: 0 7px 16px rgba(49, 72, 88, 0.2); transform: translateY(-1px); }
 .class-schedule-grid { grid-template-columns: 44px repeat(7, minmax(0, 1fr)); grid-template-rows: 30px repeat(var(--class-schedule-rows), 32px); }
 .class-schedule-time { place-items: start center; padding: 3px 1px; font-size: 0.46rem; text-align: center; }
-.class-schedule-event { padding: 3px; font-size: 0.54rem; line-height: 1.12; }
+.class-schedule-event { padding: 3px; font-size: 0.66rem; line-height: 1.18; }
 .class-deadline-panel { display: grid; gap: 7px; padding: 9px; border: 1px solid rgba(78, 100, 126, 0.2); border-radius: 10px; background: linear-gradient(135deg, rgba(223, 235, 245, 0.38), rgba(255, 250, 240, 0.72)); }
 .class-deadline-heading { display: flex; align-items: center; justify-content: space-between; }
 .class-deadline-heading .eyebrow { margin: 0; }
@@ -1074,7 +1074,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .verse-details.hebrew-text dd { text-align: left; }
 .verse-source { margin: 0 0 7px; color: var(--muted); font-family: "Century Gothic", "Avenir Next", Arial, sans-serif; font-size: 0.76rem; direction: ltr; }
 
-.priority-list { display: grid; gap: 7px; align-content: start; min-height: 0; }
+.priority-list { display: grid; grid-auto-rows: max-content; gap: 7px; align-content: start; min-height: 0; }
 .scoreboard {
   display: grid;
   grid-template-rows: auto auto auto;
@@ -1109,6 +1109,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .priority-group-items { max-height: none; overflow: visible; }
 .priority-group.collapsed .priority-group-items { display: none; }
 .priority-event-button { display: block; width: 100%; min-width: 0; border: 0; padding: 0; color: inherit; background: transparent; text-align: left; white-space: normal; }
+.priority-event-button strong,
+.priority-event-button span { white-space: normal; overflow-wrap: anywhere; }
+.priority-event-button strong { line-height: 1.28; }
 .priority-item .event-card-delete { align-self: center; }
 .priority-item strong,
 .score-card strong,

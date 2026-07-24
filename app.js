@@ -109,6 +109,7 @@ var els = {
   googleCalendarRefreshCalendars: document.getElementById("googleCalendarRefreshCalendars"),
   googleCalendarShowAllButton: document.getElementById("googleCalendarShowAllButton"),
   calendarPanel: document.getElementById("calendarPanel"),
+  firstViewStack: document.getElementById("firstViewStack"),
   calendarGrid: document.getElementById("calendarGrid"),
   googleCalendarButton: document.getElementById("googleCalendarButton"),
   googleCalendarSyncButton: document.getElementById("googleCalendarSyncButton"),
@@ -2435,18 +2436,29 @@ function renderCalendar() {
   els.calendarPanel.classList.toggle("birthday-mode", calendarMode === "birthdays");
   if (calendarMode === "schedule") {
     renderScheduleView();
+    syncDashboardPanelHeight();
     return;
   }
   if (calendarMode === "class-schedule") {
     renderClassScheduleView();
+    syncDashboardPanelHeight();
     return;
   }
   if (calendarMode === "birthdays") {
     renderBirthdayView();
+    syncDashboardPanelHeight();
     return;
   }
   renderMonthCalendar();
+  syncDashboardPanelHeight();
 }
+
+function syncDashboardPanelHeight() {
+  if (!els.calendarPanel || !els.firstViewStack) return;
+  els.firstViewStack.style.height = Math.ceil(els.calendarPanel.getBoundingClientRect().height) + "px";
+}
+
+window.addEventListener("resize", syncDashboardPanelHeight);
 
 function birthdayName(item) {
   var title = String(eventTitle(item));
@@ -4288,6 +4300,25 @@ function isClassEvent(item) {
   return item.type === "Class" || item.scheduleCategory === "Class";
 }
 
+function isClassAgendaEvent(item) {
+  var source = state.events.find(function (event) {
+    return event.id === item.id || event.id === item.occurrenceOf;
+  });
+  var categories = [
+    item.type,
+    item.scheduleCategory,
+    item.category,
+    item.eventCategory,
+    source && source.type,
+    source && source.scheduleCategory,
+    source && source.category,
+    source && source.eventCategory
+  ];
+  return categories.some(function (category) {
+    return String(category || "").trim().toLowerCase() === "class";
+  });
+}
+
 function isInCurrentCalendarMonth(item) {
   var now = parseISO(dashboardTodayISO());
   var start = parseISO(item.start);
@@ -4352,8 +4383,8 @@ function renderPriorityList() {
     return;
   }
 
-  var classItems = items.filter(isClassEvent);
-  var otherItems = items.filter(function (item) { return !isClassEvent(item); });
+  var classItems = items.filter(isClassAgendaEvent);
+  var otherItems = items.filter(function (item) { return !isClassAgendaEvent(item); });
   var classGroup = document.createElement("section");
   classGroup.className = "priority-group priority-class-group" + (priorityClassGroupOpen ? "" : " collapsed");
   var classToggle = document.createElement("button");
