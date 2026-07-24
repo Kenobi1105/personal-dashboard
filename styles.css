@@ -182,17 +182,17 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   display: grid;
   grid-template-columns: minmax(700px, 1.16fr) minmax(500px, 0.84fr);
   gap: 8px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .first-view-stack {
   display: grid;
-  grid-template-columns: minmax(210px, 0.82fr) minmax(290px, 1.18fr);
+  grid-template-columns: minmax(230px, 1fr) minmax(250px, 1fr);
   gap: 8px;
   grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
   min-height: 0;
-  height: 100%;
+  height: clamp(760px, calc(100vh - 340px), 1080px);
 }
 
 .first-view-stack .verse-card { grid-column: 1 / -1; grid-row: 1; }
@@ -1015,7 +1015,12 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 }
 .schedule-days input { width: 14px; min-height: 14px; accent-color: var(--signature); }
 .inline-form { grid-template-columns: minmax(0, 1fr) auto; }
-.task-form { display: grid; grid-template-columns: minmax(0, 1fr) 106px 88px 122px auto; gap: 5px; }
+.task-form { display: grid; grid-template-columns: minmax(0, 1fr) 106px auto; grid-template-areas: "task date add" "time alarm add"; gap: 5px; }
+.task-form #taskInput { grid-area: task; }
+.task-form #taskDueDate { grid-area: date; }
+.task-form #taskDueTime { grid-area: time; }
+.task-form #taskAlarm { grid-area: alarm; }
+.task-form button[type="submit"] { grid-area: add; }
 .task-group-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin-top: 5px; }
 .workflow-start { grid-template-columns: minmax(0, 1fr) auto; margin-top: 7px; }
 
@@ -1084,7 +1089,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .work-panel-view[hidden] { display: none; }
 #tasksWorkspaceView:not([hidden]) { display: flex; flex-direction: column; gap: 5px; }
 #tasksWorkspaceView .task-list { height: auto; min-height: 0; flex: 1; overflow-y: auto; padding-right: 2px; }
-.work-panel .task-form { grid-template-columns: minmax(0, 1fr) 90px 72px 106px auto; }
+.work-panel .task-form { grid-template-columns: minmax(0, 1fr) 90px auto; }
 .priority-item,
 .score-card,
 .workflow-item,
@@ -1123,7 +1128,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 
 .task-view-tabs { display: flex; gap: 4px; }
 .task-view-tabs .small-control.active { color: #f7f3e9; border-color: var(--signature); background: var(--signature); text-shadow: 0 1px 0 rgba(31, 30, 30, 0.26); }
-.task-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: repeat(var(--task-group-rows, 2), max-content); align-content: start; gap: 7px 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.task-list { display: grid; grid-template-columns: 1fr; grid-auto-flow: row; grid-template-rows: none; align-content: start; gap: 7px; margin: 8px 0 0; padding: 0; list-style: none; }
 .task-list > .task-group { align-self: start; min-width: 0; padding: 8px; border: 1px solid rgba(73, 53, 72, 0.12); border-radius: 8px; background: rgba(255, 255, 255, 0.5); box-shadow: 0 5px 15px rgba(73, 53, 72, 0.045); }
 .task-group-header { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; align-items: center; gap: 4px; min-height: 25px; }
 .task-group-header.can-reorder { grid-template-columns: 16px 18px minmax(0, 1fr) auto auto; }
@@ -2775,6 +2780,8 @@ kbd {
   .language-vocab-grid,
   .language-video-list,
   .task-list { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
+  .task-form,
+  .work-panel .task-form { grid-template-columns: 1fr; grid-template-areas: "task" "date" "time" "alarm" "add"; }
   .event-checklist-row { grid-template-columns: auto auto minmax(0, 1fr) auto; }
   .event-checklist-due { grid-column: 3 / -1; width: 100%; }
   .class-schedule-controls { align-items: stretch; flex-direction: column; }
