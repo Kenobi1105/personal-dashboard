@@ -152,7 +152,7 @@
                 <form class="task-form" id="taskForm">
                   <input id="taskInput" type="text" placeholder="Add a dashboard task">
                   <input id="taskDueDate" type="date" aria-label="Task due date">
-                  <input id="taskDueTime" type="time" aria-label="Task due time">
+                  <input id="taskDueTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM" aria-label="Task due time">
                   <select id="taskAlarm" aria-label="Task alarm">
                     <option value="none">No alarm</option>
                     <option value="10">10 min before</option>
@@ -629,7 +629,7 @@
             <input id="taskModalDueDate" type="date">
           </label>
           <label>Due Time
-            <input id="taskModalDueTime" type="time">
+            <input id="taskModalDueTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" autocomplete="off" placeholder="HH:MM">
           </label>
           <label>Alarm
             <select id="taskModalAlarm">

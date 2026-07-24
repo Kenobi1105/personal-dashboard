@@ -591,9 +591,9 @@ function normalizeTimeInput(value) {
   return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
 }
 
-function normalizeTimeField(field) {
+function normalizeTimeField(field, displayFormatted) {
   var normalized = normalizeTimeInput(field.value);
-  if (normalized) field.value = normalized;
+  if (normalized) field.value = displayFormatted ? formatTimeOption(normalized) : normalized;
   return normalized;
 }
 
@@ -618,10 +618,14 @@ function populateTimeSuggestions() {
   for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
     var value = minutesToTime(minutes);
     var option = document.createElement("option");
-    option.value = value;
-    option.label = formatTimeOption(value);
+    option.value = formatTimeOption(value);
     list.appendChild(option);
   }
+  document.querySelectorAll("input.time-input").forEach(function (input) {
+    input.placeholder = state.settings.timeFormat === "12" ? "h:mm AM" : "HH:MM";
+    var normalized = normalizeTimeInput(input.value);
+    if (normalized) input.value = formatTimeOption(normalized);
+  });
 }
 
 function populateTimeSelects() {
@@ -753,10 +757,10 @@ function handleEventEndTimeChange() {
 }
 
 function updateScheduleEndTimeOptions() {
-  var start = normalizeTimeField(els.scheduleStartTime);
-  var end = normalizeTimeField(els.scheduleEndTime);
+  var start = normalizeTimeField(els.scheduleStartTime, true);
+  var end = normalizeTimeField(els.scheduleEndTime, true);
   if (start && (!end || timeToMinutes(end) < timeToMinutes(start))) {
-    els.scheduleEndTime.value = start;
+    els.scheduleEndTime.value = formatTimeOption(start);
   }
 }
 
@@ -792,7 +796,7 @@ function handleScheduleEndDateChange() {
 }
 
 function handleScheduleStartTimeChange() {
-  var start = normalizeTimeField(els.scheduleStartTime);
+  var start = normalizeTimeField(els.scheduleStartTime, true);
   var startMinutes = timeToMinutes(start);
   if (startMinutes === null) return;
   if (lastScheduleStartTime && els.scheduleEndTime.value) {
@@ -803,7 +807,7 @@ function handleScheduleStartTimeChange() {
 }
 
 function handleScheduleEndTimeChange() {
-  if (els.scheduleEndTime.value && !normalizeTimeField(els.scheduleEndTime)) return;
+  if (els.scheduleEndTime.value && !normalizeTimeField(els.scheduleEndTime, true)) return;
   updateScheduleEndTimeOptions();
   rememberScheduleTimeRange();
 }
@@ -1074,6 +1078,7 @@ var editingScheduleId = null;
 var editingScheduleFromDate = "";
 var currentSport = "mlb";
 var priorityScope = "week";
+var priorityClassGroupOpen = true;
 var lastEventStartDate = "";
 var lastEventRangeDays = 0;
 var lastEventStartTime = "";
@@ -2423,6 +2428,7 @@ function isInSelection(iso) {
 function renderCalendar() {
   els.calendarGrid.innerHTML = "";
   generatedOccurrenceMap = {};
+  els.calendarPanel.style.removeProperty("--class-schedule-extra-height");
   els.calendarPanel.classList.toggle("planning-mode", planningMode);
   els.calendarPanel.classList.toggle("schedule-mode", calendarMode === "schedule");
   els.calendarPanel.classList.toggle("class-schedule-mode", calendarMode === "class-schedule");
@@ -2740,9 +2746,11 @@ function classScheduleSources() {
 }
 
 function classScheduleTimeLabel(minutes) {
-  var start = minutesToTime(minutes).replace(":", "");
-  var end = minutes + 30 >= 24 * 60 ? "2400" : minutesToTime(minutes + 30).replace(":", "");
-  return start + "-" + end;
+  var start = formatTimeOption(minutesToTime(minutes));
+  var end = minutes + 30 >= 24 * 60
+    ? (state.settings.timeFormat === "12" ? "12:00 AM" : "24:00")
+    : formatTimeOption(minutesToTime(minutes + 30));
+  return start + "–" + end;
 }
 
 function classScheduleTone(item) {
@@ -3073,22 +3081,32 @@ function renderClassScheduleView() {
   var startLabel = document.createElement("label");
   startLabel.textContent = "Start";
   var startInput = document.createElement("input");
-  startInput.type = "time";
-  startInput.step = "1800";
-  startInput.value = state.settings.classScheduleStartTime || "08:00";
+  startInput.type = "text";
+  startInput.className = "time-input";
+  startInput.setAttribute("list", "dashboardTimeOptions");
+  startInput.setAttribute("inputmode", "numeric");
+  startInput.setAttribute("autocomplete", "off");
+  startInput.placeholder = state.settings.timeFormat === "12" ? "h:mm AM" : "HH:MM";
+  startInput.value = formatTimeOption(state.settings.classScheduleStartTime || "08:00");
   startLabel.appendChild(startInput);
   var endLabel = document.createElement("label");
   endLabel.textContent = "End";
   var endInput = document.createElement("input");
-  endInput.type = "time";
-  endInput.step = "1800";
-  endInput.value = state.settings.classScheduleEndTime || "18:00";
+  endInput.type = "text";
+  endInput.className = "time-input";
+  endInput.setAttribute("list", "dashboardTimeOptions");
+  endInput.setAttribute("inputmode", "numeric");
+  endInput.setAttribute("autocomplete", "off");
+  endInput.placeholder = state.settings.timeFormat === "12" ? "h:mm AM" : "HH:MM";
+  endInput.value = formatTimeOption(state.settings.classScheduleEndTime || "18:00");
   endLabel.appendChild(endInput);
   [startInput, endInput].forEach(function (input) {
-    input.addEventListener("change", function () {
+    function saveBounds() {
       saveClassScheduleBounds(startInput.value, endInput.value);
       renderCalendar();
-    });
+    }
+    input.addEventListener("change", saveBounds);
+    input.addEventListener("blur", saveBounds);
   });
   bounds.append(startLabel, endLabel);
   controls.appendChild(bounds);
@@ -3100,6 +3118,9 @@ function renderClassScheduleView() {
   if (endMinutes <= startMinutes) endMinutes = startMinutes + 30;
   var slots = [];
   for (var minute = startMinutes; minute < endMinutes; minute += 30) slots.push(minute);
+  var baselineSlots = 18;
+  var extraSlots = Math.max(0, slots.length - baselineSlots);
+  els.calendarPanel.style.setProperty("--class-schedule-extra-height", String(extraSlots * 32) + "px");
 
   var grid = document.createElement("div");
   grid.className = "class-schedule-grid";
@@ -3686,7 +3707,7 @@ function populateScheduleTimeSelects() {
   populateTimeSuggestions();
   [els.scheduleStartTime, els.scheduleEndTime].forEach(function (input) {
     var fallback = input === els.scheduleStartTime ? "08:00" : "09:00";
-    input.value = normalizeTimeInput(input.value) || fallback;
+    input.value = formatTimeOption(normalizeTimeInput(input.value) || fallback);
   });
 }
 
@@ -4334,8 +4355,17 @@ function renderPriorityList() {
   var classItems = items.filter(isClassEvent);
   var otherItems = items.filter(function (item) { return !isClassEvent(item); });
   var classGroup = document.createElement("section");
-  classGroup.className = "priority-group priority-class-group";
-  classGroup.innerHTML = "<div class='priority-group-heading'><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small></div>";
+  classGroup.className = "priority-group priority-class-group" + (priorityClassGroupOpen ? "" : " collapsed");
+  var classToggle = document.createElement("button");
+  classToggle.type = "button";
+  classToggle.className = "priority-group-toggle";
+  classToggle.setAttribute("aria-expanded", String(priorityClassGroupOpen));
+  classToggle.innerHTML = "<span class='priority-group-chevron' aria-hidden='true'></span><strong>Class</strong><small>" + classItems.length + " event" + (classItems.length === 1 ? "" : "s") + "</small>";
+  classToggle.addEventListener("click", function () {
+    priorityClassGroupOpen = !priorityClassGroupOpen;
+    renderPriorityList();
+  });
+  classGroup.appendChild(classToggle);
   var classGroupItems = document.createElement("div");
   classGroupItems.className = "priority-group-items";
   if (!classItems.length) classGroupItems.innerHTML = "<p class='empty-state'>No class events in these seven days.</p>";
@@ -4353,7 +4383,7 @@ function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alar
     id: id("task"),
     title: cleanTitle,
     dueDate: dueDate || "",
-    dueTime: dueTime || "",
+    dueTime: normalizeTimeInput(dueTime),
     alarm: alarm || "none",
     done: false,
     completedAt: "",
@@ -4932,7 +4962,7 @@ function openTaskModal(taskId, options) {
   els.taskModalTitle.textContent = editMode ? "Edit Task" : task.title || "Task";
   els.taskModalInput.value = task.title || "";
   els.taskModalDueDate.value = task.dueDate || "";
-  els.taskModalDueTime.value = task.dueTime || "";
+  els.taskModalDueTime.value = task.dueTime ? formatTimeOption(task.dueTime) : "";
   els.taskModalAlarm.value = task.alarm || "none";
   els.taskModalNotes.value = task.notes || "";
   els.taskModalDueDate.required = false;
@@ -7046,6 +7076,14 @@ els.scheduleStartTime.addEventListener("change", handleScheduleStartTimeChange);
 els.scheduleEndTime.addEventListener("change", handleScheduleEndTimeChange);
 els.scheduleStartTime.addEventListener("blur", handleScheduleStartTimeChange);
 els.scheduleEndTime.addEventListener("blur", handleScheduleEndTimeChange);
+function formatTaskTimeInput(input) {
+  var normalized = normalizeTimeInput(input.value);
+  if (normalized) input.value = formatTimeOption(normalized);
+}
+els.taskDueTime.addEventListener("change", function () { formatTaskTimeInput(els.taskDueTime); });
+els.taskDueTime.addEventListener("blur", function () { formatTaskTimeInput(els.taskDueTime); });
+els.taskModalDueTime.addEventListener("change", function () { formatTaskTimeInput(els.taskModalDueTime); });
+els.taskModalDueTime.addEventListener("blur", function () { formatTaskTimeInput(els.taskModalDueTime); });
 els.drawerAddEvent.addEventListener("click", function () { openEventModal({ mode: "create", start: selectedDate, end: selectedDate, timeStart: "08:00", timeEnd: "09:00" }); });
 els.closeDayDrawer.addEventListener("click", closeDayDrawer);
 els.verseToggle.addEventListener("click", function () {
@@ -7105,7 +7143,7 @@ els.taskModalForm.addEventListener("submit", function (event) {
   }
   task.title = title;
   task.dueDate = els.taskModalDueDate.value;
-  task.dueTime = els.taskModalDueTime.value;
+  task.dueTime = normalizeTimeInput(els.taskModalDueTime.value);
   task.alarm = els.taskModalAlarm.value || "none";
   task.notes = els.taskModalNotes.value.trim();
   syncChecklistCompletion(task);
