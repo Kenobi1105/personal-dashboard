@@ -327,17 +327,17 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 }
 .verse-visual {
   z-index: -2;
-  background-image: url("assets/verse-background.png");
+  background-image: url("assets/verse-background-light.png");
   background-size: cover;
   background-position: center right;
-  opacity: 0.98;
+  opacity: 1;
 }
 .verse-card::after {
   z-index: -1;
   content: "";
   background:
-    linear-gradient(90deg, rgba(31, 30, 30, 0.92) 0%, rgba(49, 38, 47, 0.84) 43%, rgba(73, 53, 72, 0.42) 71%, rgba(247, 243, 233, 0.13) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.36));
+    linear-gradient(90deg, rgba(255, 253, 247, 0.92) 0%, rgba(255, 250, 240, 0.81) 45%, rgba(255, 247, 232, 0.44) 72%, rgba(255, 250, 240, 0.10) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(236, 218, 184, 0.15));
 }
 .verse-content {
   position: relative;
@@ -348,36 +348,36 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   padding: 17px 20px 18px;
 }
 .verse-card .panel-heading { margin-bottom: 12px; }
-.verse-card .eyebrow { color: rgba(240, 208, 143, 0.92); }
+.verse-card .eyebrow { color: #78886b; }
 .verse-card .panel-heading h2 {
-  color: #fff9ea;
+  color: #493548;
   font-size: clamp(1.45rem, 2.2vw, 2.1rem);
   line-height: 0.98;
-  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.28);
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.72);
 }
 .verse-card .verse-text {
   max-width: min(780px, 90%);
-  color: #fffdf7;
+  color: #42343f;
   font-size: clamp(1.08rem, 1.45vw, 1.36rem);
   font-weight: 700;
   line-height: 1.42;
   letter-spacing: 0;
   text-wrap: balance;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.32);
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.7);
 }
 .verse-card .original-line {
   max-width: min(820px, 95%);
   margin-top: 10px;
-  color: #f7e9bd;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.38);
+  color: #68516a;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.68);
 }
 .verse-card .original-line.greek-text { font-size: clamp(1.08rem, 1.45vw, 1.36rem); line-height: 1.36; }
 .verse-card .original-line.hebrew-text { font-size: clamp(16pt, 1.6vw, 20pt); line-height: 1.38; }
 .verse-card .verse-reader-button,
 .verse-card .verse-toggle-button {
-  border-color: rgba(255, 249, 234, 0.36);
-  color: #fff9ea;
-  background: rgba(31, 30, 30, 0.28);
+  border-color: rgba(73, 53, 72, 0.22);
+  color: #493548;
+  background: rgba(255, 253, 247, 0.62);
   backdrop-filter: blur(8px);
 }
 .verse-card .verse-reader-button:hover,
@@ -387,11 +387,11 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 }
 .verse-card .verse-details {
   max-width: min(820px, 95%);
-  border-top-color: rgba(255, 249, 234, 0.26);
+  border-top-color: rgba(73, 53, 72, 0.18);
 }
 .verse-card .verse-source,
-.verse-card .verse-details dd { color: rgba(255, 249, 234, 0.82); }
-.verse-card .verse-details dt { color: #f0d08f; }
+.verse-card .verse-details dd { color: rgba(66, 52, 63, 0.84); }
+.verse-card .verse-details dt { color: #718060; }
 .planning-hint { color: var(--signature-soft); font-size: 0.72rem; font-weight: 800; line-height: 1.15; }
 .settings-group {
   display: grid;

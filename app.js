@@ -1053,6 +1053,7 @@ function loadState() {
       return {
         id: group.id || id("task-group"),
         name: group.name || "Untitled group",
+        eventId: group.eventId || "",
         collapsed: !!group.collapsed,
         sortOrder: typeof group.sortOrder === "number" ? group.sortOrder : index
       };
@@ -1077,6 +1078,7 @@ function loadState() {
 }
 
 var state = loadState();
+if (reconcileClassDeadlineTasks()) saveState();
 headlineCarouselPaused = !!state.settings.headlineCarouselPaused;
 var viewDate = parseISO(dashboardTodayISO());
 var scheduleWeekStart = startOfWeek(parseISO(dashboardTodayISO()));
@@ -2901,6 +2903,26 @@ function classDeadlineItems(deadline) {
   }, []);
 }
 
+function classDeadlineAnchorEventId(deadline) {
+  var entries = classDeadlineItems(deadline).sort(function (a, b) {
+    var dateDelta = String(a.event.start || "").localeCompare(String(b.event.start || ""));
+    if (dateDelta) return dateDelta;
+    return String(a.event.timeStart || "99:99").localeCompare(String(b.event.timeStart || "99:99"));
+  });
+  if (!entries.length) return "";
+  var dueDate = deadline.dueDate || entries[0].item.dueDate || "";
+  var priorEntries = dueDate ? entries.filter(function (entry) {
+    return String(entry.event.start || "") <= dueDate;
+  }) : entries;
+  return (priorEntries.length ? priorEntries[priorEntries.length - 1] : entries[0]).event.id;
+}
+
+function isClassDeadlineAnchorItem(item, eventItem) {
+  if (!item || !item.deadlineId) return true;
+  var deadline = (state.settings.classDeadlines || []).find(function (record) { return record.id === item.deadlineId; });
+  return !deadline || classDeadlineAnchorEventId(deadline) === eventItem.id;
+}
+
 function classDeadlineEntries() {
   return (state.settings.classDeadlines || []).map(function (deadline) {
     var items = classDeadlineItems(deadline);
@@ -2938,12 +2960,14 @@ function syncClassDeadlineValues(deadlineId, source) {
   record.dueDate = source.dueDate || "";
   record.dueTime = source.dueTime || "";
   record.alarm = source.alarm || "none";
+  reconcileClassDeadlineTasks();
 }
 
 function setClassDeadlineCompletion(deadlineId, done) {
   var record = (state.settings.classDeadlines || []).find(function (item) { return item.id === deadlineId; });
   if (!record) return;
-  var source = classDeadlineItems(record)[0];
+  var anchorEventId = classDeadlineAnchorEventId(record);
+  var source = classDeadlineItems(record).find(function (entry) { return entry.event.id === anchorEventId; }) || classDeadlineItems(record)[0];
   if (!source) return;
   source.item.done = !!done;
   syncClassDeadlineValues(deadlineId, source.item);
@@ -2990,11 +3014,12 @@ function addClassDeadline(values) {
     };
     event.checklist = event.checklist || [];
     event.checklist.push(checklistItem);
-    ensureEventChecklistTasks(event);
     record.eventIds.push(event.id);
     record.checklistItemIds.push(checklistItem.id);
   });
   state.settings.classDeadlines.push(record);
+  record.anchorEventId = classDeadlineAnchorEventId(record);
+  events.forEach(function (event) { ensureEventChecklistTasks(event); });
   saveState();
   renderAll();
   showToast("Deadline added to every " + eventTitle(events[0]) + " class event.");
@@ -3009,6 +3034,7 @@ function removeClassDeadline(deadlineId) {
     event.checklist = (event.checklist || []).filter(function (item) { return item.deadlineId !== deadlineId; });
   });
   state.settings.classDeadlines = (state.settings.classDeadlines || []).filter(function (item) { return item.id !== deadlineId; });
+  reconcileClassDeadlineTasks();
   saveState();
   renderAll();
 }
@@ -3106,7 +3132,9 @@ function renderClassDeadlinePanel() {
         text.className = "class-deadline-item-text";
         text.innerHTML = "<strong>" + escapeHTML(item.title) + "</strong><span>Every class event · " + escapeHTML(classDeadlineDueLabel(item)) + "</span>";
         text.addEventListener("click", function () {
-          if (item.taskId) openTaskModal(item.taskId, { source: "class-deadline" });
+          var anchorEventId = classDeadlineAnchorEventId(entry.deadline);
+          var anchorItem = entry.items.find(function (candidate) { return candidate.event.id === anchorEventId; });
+          if (anchorItem && anchorItem.item.taskId) openTaskModal(anchorItem.item.taskId, { source: "class-deadline" });
           else showToast("This deadline is not linked to a task yet.");
         });
         var remove = document.createElement("button");
@@ -3708,7 +3736,7 @@ function eventTaskGroupName(eventItem) {
 function ensureEventTaskGroup(eventItem) {
   state.taskGroups = state.taskGroups || [];
   var hasChecklistItems = (eventItem.checklist || []).some(function (item) {
-    return String(item.title || "").trim();
+    return String(item.title || "").trim() && isClassDeadlineAnchorItem(item, eventItem);
   });
   if (!hasChecklistItems) return null;
 
@@ -3774,9 +3802,44 @@ function ensureChecklistTask(item, eventItem, groupId) {
 function ensureEventChecklistTasks(eventItem) {
   var group = ensureEventTaskGroup(eventItem);
   var tasks = (eventItem.checklist || []).map(function (item) {
+    if (!isClassDeadlineAnchorItem(item, eventItem)) return null;
     return ensureChecklistTask(item, eventItem, group ? group.id : "");
   }).filter(Boolean);
   if (group) setTaskSortOrder(group.id, tasks);
+}
+
+function reconcileClassDeadlineTasks() {
+  if (typeof state === "undefined" || !state || !state.settings) return false;
+  var changed = false;
+  var taskCountBefore = state.tasks.length;
+  var groupCountBefore = (state.taskGroups || []).length;
+  var taskIdsToRemove = {};
+  (state.settings.classDeadlines || []).forEach(function (deadline) {
+    var anchorEventId = classDeadlineAnchorEventId(deadline);
+    if (!anchorEventId) return;
+    if (deadline.anchorEventId !== anchorEventId) {
+      deadline.anchorEventId = anchorEventId;
+      changed = true;
+    }
+    classDeadlineItems(deadline).forEach(function (entry) {
+      if (entry.event.id === anchorEventId) return;
+      if (entry.item.taskId) taskIdsToRemove[entry.item.taskId] = true;
+      if (entry.item.taskId || entry.item.promoted) changed = true;
+      entry.item.taskId = null;
+      entry.item.promoted = false;
+    });
+  });
+  if (Object.keys(taskIdsToRemove).length) {
+    state.tasks = state.tasks.filter(function (task) { return !taskIdsToRemove[task.id]; });
+    changed = true;
+  }
+  state.events.forEach(function (event) { ensureEventChecklistTasks(event); });
+  state.taskGroups = (state.taskGroups || []).filter(function (group) {
+    var linkedEvent = state.events.find(function (event) { return event.taskGroupId === group.id; });
+    return !linkedEvent || state.tasks.some(function (task) { return task.groupId === group.id; });
+  });
+  if (state.tasks.length !== taskCountBefore || state.taskGroups.length !== groupCountBefore) changed = true;
+  return changed;
 }
 
 function syncTaskFromChecklist(item) {
