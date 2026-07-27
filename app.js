@@ -6353,8 +6353,8 @@ function scrollSegmentTargets() {
   return [
     0,
     calendar ? Math.min(max, Math.max(0, calendar.offsetTop - calendarRevealOffset)) : Math.round(max * 0.16),
-    watch ? Math.min(max, Math.max(0, watch.offsetTop - 8)) : Math.round(max * 0.35),
-    news ? Math.min(max, Math.max(0, news.offsetTop - 8)) : Math.round(max * 0.7),
+    watch ? Math.min(max, Math.max(0, watch.offsetTop - calendarRevealOffset)) : Math.round(max * 0.35),
+    news ? Math.min(max, Math.max(0, news.offsetTop - calendarRevealOffset)) : Math.round(max * 0.7),
     max
   ];
 }
