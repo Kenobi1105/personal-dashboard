@@ -6346,11 +6346,13 @@ function updateMainSplitFromPointer(clientX) {
 function scrollSegmentTargets() {
   var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   var calendar = document.getElementById("calendarPanel");
+  var compactHeroHeight = els.compactWeatherHero ? Math.ceil(els.compactWeatherHero.getBoundingClientRect().height) : 74;
+  var calendarRevealOffset = compactHeroHeight + 18;
   var watch = document.querySelector(".tools-prayer-grid");
   var news = document.querySelector(".news-sports-grid");
   return [
     0,
-    calendar ? Math.min(max, Math.max(0, calendar.offsetTop - 8)) : Math.round(max * 0.16),
+    calendar ? Math.min(max, Math.max(0, calendar.offsetTop - calendarRevealOffset)) : Math.round(max * 0.16),
     watch ? Math.min(max, Math.max(0, watch.offsetTop - 8)) : Math.round(max * 0.35),
     news ? Math.min(max, Math.max(0, news.offsetTop - 8)) : Math.round(max * 0.7),
     max
