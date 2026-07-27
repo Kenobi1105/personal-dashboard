@@ -2210,7 +2210,10 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
 .task-view-due { margin: 0; color: var(--sage); font-size: 0.82rem; font-weight: 900; }
 .task-view-notes { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: rgba(247, 243, 233, 0.5); }
 .task-view-notes .eyebrow { margin: 0; }
-.task-view-notes > p:last-child { margin: 0; color: var(--ink); line-height: 1.45; white-space: pre-wrap; }
+.task-view-notes textarea,
+.event-detail-notes-input { width: 100%; min-height: 76px; resize: vertical; }
+.task-view-notes .small-control,
+.event-detail-notes-save { justify-self: start; }
 .task-modal-source { margin: -2px 0 0; color: var(--muted); font-size: 0.74rem; }
 .modal-actions { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .modal-spacer { flex: 1; }

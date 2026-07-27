@@ -241,6 +241,7 @@ var els = {
   taskModalView: document.getElementById("taskModalView"),
   taskModalViewDue: document.getElementById("taskModalViewDue"),
   taskModalViewNotes: document.getElementById("taskModalViewNotes"),
+  saveTaskNotesButton: document.getElementById("saveTaskNotesButton"),
   taskModalEditFields: document.getElementById("taskModalEditFields"),
   editTaskButton: document.getElementById("editTaskButton"),
   saveTaskButton: document.getElementById("saveTaskButton"),
@@ -969,6 +970,7 @@ function createEvent(values) {
     alarmTime: normalizeTimeInput(values.alarmTime),
     location: values.location || "",
     notes: values.notes || "",
+    occurrenceNotes: values.occurrenceNotes && typeof values.occurrenceNotes === "object" ? values.occurrenceNotes : {},
     image: values.image || "",
     checklist: values.checklist || [],
     taskGroupId: values.taskGroupId || "",
@@ -1789,10 +1791,12 @@ function isRecurringEvent(item) {
 
 function generatedOccurrence(base, occurrenceStartISO) {
   var duration = dayDiff(base.start, base.end || base.start);
+  var hasOccurrenceNotes = base.occurrenceNotes && Object.prototype.hasOwnProperty.call(base.occurrenceNotes, occurrenceStartISO);
   var occurrence = createEvent(Object.assign({}, base, {
     id: base.id + "::occ::" + occurrenceStartISO,
     start: occurrenceStartISO,
     end: toISO(addDays(parseISO(occurrenceStartISO), duration)),
+    notes: hasOccurrenceNotes ? base.occurrenceNotes[occurrenceStartISO] : base.notes,
     recurrenceInstance: true,
     occurrenceOf: base.id,
     occurrenceDate: occurrenceStartISO
@@ -2216,7 +2220,7 @@ function handleGoogleCalendarReturnMessage() {
 
 function getTaskDeadlineItems() {
   return state.tasks
-    .filter(function (task) { return !task.done && !!task.dueDate; })
+    .filter(function (task) { return !task.done && !!task.dueDate && !isClassDeadlineTask(task); })
     .map(function (task) {
       return {
         id: task.id,
@@ -2227,6 +2231,15 @@ function getTaskDeadlineItems() {
         task: task
       };
     });
+}
+
+function isClassDeadlineTask(task) {
+  if (!task || !task.id) return false;
+  return state.events.some(function (event) {
+    return (event.checklist || []).some(function (item) {
+      return item.taskId === task.id && !!item.deadlineId;
+    });
+  });
 }
 
 function eventTitle(item) {
@@ -2270,13 +2283,13 @@ function viewEvent(eventId) {
   els.eventDetailMeta.innerHTML = meta.map(function (entry) {
     return "<div><span>" + escapeHTML(entry[0]) + "</span><strong>" + escapeHTML(entry[1]) + "</strong></div>";
   }).join("");
-  els.eventDetailNotes.innerHTML = "<h3>Notes</h3><p>" + escapeHTML(item.notes || "No notes yet.") + "</p>";
   var readOnly = isGoogleReadOnlyEvent(item);
   var sourceEvent = state.events.find(function (event) {
     return event.id === item.id || event.id === item.occurrenceOf;
   }) || null;
   var checklistOwner = sourceEvent || item;
   var canReorderChecklist = !readOnly && !!sourceEvent;
+  renderEventDetailNotes(item, readOnly);
   if (checklistOwner.checklist && checklistOwner.checklist.length) {
     var checklistHeading = document.createElement("h3");
     checklistHeading.textContent = "Checklist";
@@ -2334,6 +2347,51 @@ function viewEvent(eventId) {
     els.eventDetailNotes.innerHTML += "<p><a href='" + escapeHTML(item.htmlLink) + "' target='_blank' rel='noopener'>Open in Google Calendar</a></p>";
   }
   if (!els.eventDetailModal.open) els.eventDetailModal.showModal();
+}
+
+function renderEventDetailNotes(item, readOnly) {
+  els.eventDetailNotes.innerHTML = "";
+  var heading = document.createElement("h3");
+  heading.textContent = "Notes";
+  els.eventDetailNotes.appendChild(heading);
+  if (readOnly) {
+    var readOnlyNotes = document.createElement("p");
+    readOnlyNotes.textContent = item.notes || "No notes yet.";
+    els.eventDetailNotes.appendChild(readOnlyNotes);
+    return;
+  }
+  var input = document.createElement("textarea");
+  input.className = "event-detail-notes-input";
+  input.rows = 4;
+  input.placeholder = "Add notes for this event";
+  input.value = item.notes || "";
+  var save = document.createElement("button");
+  save.type = "button";
+  save.className = "text-button small-control event-detail-notes-save";
+  save.textContent = "Save notes";
+  save.addEventListener("click", function () {
+    saveEventNotesForView(item.id, input.value);
+  });
+  els.eventDetailNotes.append(input, save);
+}
+
+function saveEventNotesForView(eventId, notes) {
+  var item = findEventForView(eventId);
+  if (!item || isGoogleReadOnlyEvent(item)) return;
+  var value = String(notes || "").trim();
+  if (item.occurrenceOf && item.occurrenceDate) {
+    var series = state.events.find(function (event) { return event.id === item.occurrenceOf; });
+    if (!series) return;
+    series.occurrenceNotes = series.occurrenceNotes && typeof series.occurrenceNotes === "object" ? series.occurrenceNotes : {};
+    series.occurrenceNotes[item.occurrenceDate] = value;
+  } else {
+    var source = state.events.find(function (event) { return event.id === item.id; });
+    if (!source) return;
+    source.notes = value;
+  }
+  saveState();
+  viewEvent(eventId);
+  showToast("Notes saved for this event only.");
 }
 
 function clearEventDetailChecklistPointerDrag(commit) {
@@ -3047,7 +3105,10 @@ function renderClassDeadlinePanel() {
         text.type = "button";
         text.className = "class-deadline-item-text";
         text.innerHTML = "<strong>" + escapeHTML(item.title) + "</strong><span>Every class event · " + escapeHTML(classDeadlineDueLabel(item)) + "</span>";
-        text.addEventListener("click", function () { viewEvent(entry.event.id); });
+        text.addEventListener("click", function () {
+          if (item.taskId) openTaskModal(item.taskId, { source: "class-deadline" });
+          else showToast("This deadline is not linked to a task yet.");
+        });
         var remove = document.createElement("button");
         remove.type = "button";
         remove.className = "delete-button trash-button";
@@ -3347,7 +3408,9 @@ function renderDayDrawer() {
   taskGroup.innerHTML = "<h3>Tasks Due</h3>";
   var taskEvents = document.createElement("div");
   taskEvents.className = "drawer-events";
-  var dueTasks = state.tasks.filter(function (task) { return !task.done && task.dueDate === selectedDate; });
+  var dueTasks = state.tasks.filter(function (task) {
+    return !task.done && task.dueDate === selectedDate && !isClassDeadlineTask(task);
+  });
   if (!dueTasks.length) {
     taskEvents.innerHTML = "<p class='empty-state'>No task deadlines.</p>";
   } else {
@@ -3682,7 +3745,7 @@ function ensureChecklistTask(item, eventItem, groupId) {
       alarm: item.alarm || "none",
       done: !!item.done,
       completedAt: item.done ? new Date().toISOString() : "",
-      notes: "",
+      notes: item.notes || "",
       source: "event",
       eventId: eventItem.id,
       eventTitle: eventTitle(eventItem),
@@ -3697,7 +3760,8 @@ function ensureChecklistTask(item, eventItem, groupId) {
     task.alarm = item.alarm || "none";
     task.done = item.done;
     task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
-    if (typeof task.notes !== "string") task.notes = "";
+    if (typeof task.notes !== "string") task.notes = item.notes || "";
+    item.notes = task.notes;
     task.eventId = eventItem.id;
     task.eventTitle = eventTitle(eventItem);
     task.groupId = groupId || "";
@@ -3724,6 +3788,7 @@ function syncTaskFromChecklist(item) {
   task.alarm = item.alarm || "none";
   task.done = item.done;
   task.completedAt = item.done ? task.completedAt || new Date().toISOString() : "";
+  task.notes = item.notes || task.notes || "";
   task.eventTitle = els.eventTitle.value.trim() || task.eventTitle;
   if (item.deadlineId) syncClassDeadlineValues(item.deadlineId, item);
   saveState();
@@ -4973,6 +5038,7 @@ function syncChecklistCompletion(task) {
       item.alarm = task.alarm || "none";
       item.alarmTime = task.alarmTime || "";
       item.done = !!task.done;
+      item.notes = task.notes || "";
       if (item.deadlineId) classDeadlineItem = item;
     });
   });
@@ -5036,11 +5102,11 @@ function openTaskModal(taskId, options) {
   syncTaskAlarmControl(els.taskModalAlarm, els.taskModalAlarmTimeLabel);
   els.taskModalNotes.value = task.notes || "";
   els.taskModalDueDate.required = false;
-  els.taskModalSource.textContent = taskSourceLabel(task);
+  els.taskModalSource.textContent = taskModalOpenSource === "class-deadline" ? "Class deadline" : taskSourceLabel(task);
   els.taskModalViewDue.textContent = task.dueDate
     ? "Due " + displayDate(task.dueDate) + (task.dueTime ? " at " + formatTimeOption(task.dueTime) : "") + (task.alarm && task.alarm !== "none" ? " · " + alarmLabel(task.alarm, task.alarmTime) : "")
     : "No due date";
-  els.taskModalViewNotes.textContent = task.notes || "No notes added.";
+  els.taskModalViewNotes.value = task.notes || "";
   els.taskModal.dataset.mode = editMode ? "edit" : "view";
   els.taskModalView.hidden = editMode;
   els.taskModalEditFields.hidden = !editMode;
@@ -7206,6 +7272,16 @@ els.tasksWorkspaceButton.addEventListener("click", function () { setWorkspaceVie
 els.workflowsWorkspaceButton.addEventListener("click", function () { setWorkspaceView("workflows"); });
 els.editTaskButton.addEventListener("click", function () {
   if (editingTaskId) openTaskModal(editingTaskId, { edit: true, source: taskModalOpenSource });
+});
+els.saveTaskNotesButton.addEventListener("click", function () {
+  var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
+  if (!task) return;
+  task.notes = els.taskModalViewNotes.value.trim();
+  syncChecklistCompletion(task);
+  saveState();
+  renderAll();
+  openTaskModal(task.id, { source: taskModalOpenSource });
+  showToast("Notes saved.");
 });
 els.deleteTaskPermanentlyButton.addEventListener("click", function () {
   var task = state.tasks.find(function (item) { return item.id === editingTaskId; });
