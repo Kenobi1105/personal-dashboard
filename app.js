@@ -91,6 +91,9 @@ var els = {
   todayLabel: document.getElementById("todayLabel"),
   dateLine: document.getElementById("dateLine"),
   timeLine: document.getElementById("timeLine"),
+  weatherHero: document.getElementById("weatherHero"),
+  weatherHeroVisual: document.getElementById("weatherHeroVisual"),
+  weatherHeroStatus: document.getElementById("weatherHeroStatus"),
   settingsButton: document.getElementById("settingsButton"),
   accountButton: document.getElementById("accountButton"),
   obsidianButton: document.getElementById("obsidianButton"),
@@ -1136,6 +1139,9 @@ var activeLanguageView = "vocabulary";
 var activeVerse = null;
 var verseTextCache = {};
 var verseFetches = {};
+var weatherHeroCoordinates = null;
+var weatherHeroRefreshTimer = null;
+var weatherHeroScene = "calm";
 var newsSourceOptions = null;
 var newsSourceLoadError = "";
 var newsLoadError = "";
@@ -1627,6 +1633,125 @@ function renderGreeting() {
   els.todayLabel.textContent = now.toLocaleDateString(undefined, { weekday: "long", timeZone: timeZone });
   els.dateLine.textContent = now.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric", timeZone: timeZone });
   els.timeLine.textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: state.settings.timeFormat === "12", timeZone: timeZone });
+}
+
+var WEATHER_HERO_IMAGES = {
+  calm: "assets/verse-background-light.png",
+  morning: "assets/hero-weather-morning.png",
+  afternoon: "assets/hero-weather-afternoon.png",
+  sunset: "assets/hero-weather-sunset.png",
+  rain: "assets/hero-weather-rain.png",
+  night: "assets/hero-weather-night.png"
+};
+
+function moonPhaseName(date) {
+  var synodicMonth = 29.53058867;
+  var knownNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
+  var age = (((date.getTime() - knownNewMoon) / 86400000) % synodicMonth + synodicMonth) % synodicMonth;
+  if (age < 1.85) return "New moon";
+  if (age < 5.54) return "Waxing crescent";
+  if (age < 9.23) return "First quarter";
+  if (age < 12.92) return "Waxing gibbous";
+  if (age < 16.61) return "Full moon";
+  if (age < 20.30) return "Waning gibbous";
+  if (age < 23.99) return "Last quarter";
+  if (age < 27.68) return "Waning crescent";
+  return "New moon";
+}
+
+function weatherLabel(code) {
+  if ([51, 53, 55, 56, 57].indexOf(code) > -1) return "Drizzle";
+  if ([61, 63, 65, 66, 67, 80, 81, 82].indexOf(code) > -1) return "Rain";
+  if ([71, 73, 75, 77, 85, 86].indexOf(code) > -1) return "Snow";
+  if ([95, 96, 99].indexOf(code) > -1) return "Thunderstorm";
+  if ([45, 48].indexOf(code) > -1) return "Fog";
+  if (code === 0) return "Clear sky";
+  if ([1, 2].indexOf(code) > -1) return "Mostly clear";
+  return "Cloudy";
+}
+
+function isWetWeather(current) {
+  var code = Number(current.weather_code);
+  return Number(current.precipitation || 0) > 0 || Number(current.rain || 0) > 0 || Number(current.showers || 0) > 0 ||
+    [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].indexOf(code) > -1;
+}
+
+function weatherHeroSceneFor(data) {
+  var current = data.current || {};
+  if (isWetWeather(current)) return "rain";
+  var currentTime = String(current.time || "");
+  var sunset = data.daily && data.daily.sunset ? String(data.daily.sunset[0] || "") : "";
+  var currentMinutes = Number(currentTime.slice(11, 13)) * 60 + Number(currentTime.slice(14, 16));
+  var sunsetMinutes = Number(sunset.slice(11, 13)) * 60 + Number(sunset.slice(14, 16));
+  if (sunset && currentTime && currentMinutes >= sunsetMinutes - 75 && currentMinutes <= sunsetMinutes + 15) return "sunset";
+  if (Number(current.is_day) === 0) return "night";
+  var hour = Number(currentTime.slice(11, 13));
+  return hour < 12 ? "morning" : "afternoon";
+}
+
+function applyWeatherHeroScene(scene, status) {
+  if (!els.weatherHero || !els.weatherHeroVisual) return;
+  var nextScene = WEATHER_HERO_IMAGES[scene] ? scene : "calm";
+  var setScene = function () {
+    els.weatherHero.dataset.scene = nextScene;
+    els.weatherHero.classList.toggle("is-night", nextScene === "night");
+    els.weatherHeroVisual.style.backgroundImage = "url('" + WEATHER_HERO_IMAGES[nextScene] + "')";
+    els.weatherHeroVisual.classList.remove("is-changing");
+  };
+  if (weatherHeroScene !== nextScene) {
+    els.weatherHeroVisual.classList.add("is-changing");
+    window.setTimeout(setScene, 260);
+  } else {
+    setScene();
+  }
+  weatherHeroScene = nextScene;
+  if (els.weatherHeroStatus) els.weatherHeroStatus.textContent = status || "Calm visual";
+}
+
+async function loadLocalWeatherHero() {
+  if (!weatherHeroCoordinates) return;
+  var latitude = Number(weatherHeroCoordinates.latitude).toFixed(4);
+  var longitude = Number(weatherHeroCoordinates.longitude).toFixed(4);
+  var query = new URLSearchParams({
+    latitude: latitude,
+    longitude: longitude,
+    current: "weather_code,is_day,precipitation,rain,showers,snowfall,cloud_cover",
+    daily: "sunrise,sunset",
+    timezone: "auto",
+    forecast_days: "1"
+  });
+  try {
+    var response = await fetch("https://api.open-meteo.com/v1/forecast?" + query.toString());
+    if (!response.ok) throw new Error("Weather request failed");
+    var data = await response.json();
+    var scene = weatherHeroSceneFor(data);
+    var label = weatherLabel(Number(data.current && data.current.weather_code));
+    if (scene === "night") label += " · " + moonPhaseName(new Date());
+    els.weatherHero.classList.toggle("is-overcast", scene !== "rain" && Number(data.current && data.current.cloud_cover) >= 60);
+    applyWeatherHeroScene(scene, "Local weather · " + label);
+  } catch (error) {
+    applyWeatherHeroScene("calm", "Calm visual · weather unavailable");
+  }
+}
+
+function startLocalWeatherHero() {
+  applyWeatherHeroScene("calm", "Calm visual · finding local weather");
+  if (!window.isSecureContext || !navigator.geolocation) {
+    applyWeatherHeroScene("calm", "Calm visual · location needs HTTPS");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(function (position) {
+    weatherHeroCoordinates = position.coords;
+    loadLocalWeatherHero();
+    if (weatherHeroRefreshTimer) window.clearInterval(weatherHeroRefreshTimer);
+    weatherHeroRefreshTimer = window.setInterval(loadLocalWeatherHero, 30 * 60 * 1000);
+  }, function () {
+    applyWeatherHeroScene("calm", "Calm visual · location unavailable");
+  }, {
+    enableHighAccuracy: false,
+    maximumAge: 15 * 60 * 1000,
+    timeout: 12000
+  });
 }
 
 function renderVerseOfDay() {
@@ -7649,6 +7774,7 @@ window.addEventListener("mouseup", function () {
 try {
   applyHostedModeUi();
   renderAll();
+  startLocalWeatherHero();
   initCloudIdentity();
   handleGoogleCalendarReturnMessage();
   refreshGoogleCalendar(false);

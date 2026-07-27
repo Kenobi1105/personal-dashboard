@@ -4,16 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ministry Dashboard</title>
-    <link rel="stylesheet" href="styles.css?v=22">
+    <link rel="stylesheet" href="styles.css?v=23">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
+      <header class="topbar weather-hero" id="weatherHero" data-scene="calm">
+        <div class="weather-hero-visual" id="weatherHeroVisual" aria-hidden="true"></div>
         <section class="greeting-block" aria-live="polite">
           <p class="eyebrow" id="todayLabel">Today</p>
           <h1 id="greeting">Good Morning</h1>
-          <p class="time-line"><span id="dateLine"></span><span aria-hidden="true"> / </span><span id="timeLine"></span></p>
+          <p class="time-line"><span id="dateLine"></span><span aria-hidden="true"> / </span><span id="timeLine"></span><span class="weather-hero-status" id="weatherHeroStatus">Calm visual</span></p>
         </section>
 
         <nav class="top-actions" aria-label="Dashboard actions">
