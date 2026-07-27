@@ -4,7 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ministry Dashboard</title>
-    <link rel="stylesheet" href="styles.css?v=23">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=24">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -12,9 +15,16 @@
       <header class="topbar weather-hero" id="weatherHero" data-scene="calm">
         <div class="weather-hero-visual" id="weatherHeroVisual" aria-hidden="true"></div>
         <section class="greeting-block" aria-live="polite">
-          <p class="eyebrow" id="todayLabel">Today</p>
-          <h1 id="greeting">Good Morning</h1>
-          <p class="time-line"><span id="dateLine"></span><span aria-hidden="true"> / </span><span id="timeLine"></span><span class="weather-hero-status" id="weatherHeroStatus">Calm visual</span></p>
+          <div class="hero-copy">
+            <p class="eyebrow" id="todayLabel">Today</p>
+            <h1 id="greeting">Good Morning</h1>
+            <p class="time-line"><span id="dateLine"></span><span aria-hidden="true"> / </span><span id="timeLine"></span><span class="weather-hero-status" id="weatherHeroStatus">Calm visual</span></p>
+          </div>
+          <div class="hero-date" aria-label="Today's date">
+            <span class="hero-date-day" id="heroDateDay">1</span>
+            <span class="hero-date-month" id="heroDateMonth">January</span>
+            <span class="hero-date-year" id="heroDateYear">2026</span>
+          </div>
         </section>
 
         <nav class="top-actions" aria-label="Dashboard actions">
@@ -373,10 +383,11 @@
       <button type="button" data-scroll-step="-1" aria-label="Previous section">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 7.4 7.1 7.1-1.4 1.4L12 10.2l-5.7 5.7-1.4-1.4L12 7.4Z"/></svg>
       </button>
-      <button type="button" data-scroll-target="0" aria-label="Top section"></button>
-      <button type="button" data-scroll-target="1" aria-label="World Watch section"></button>
-      <button type="button" data-scroll-target="2" aria-label="Daily Brief section"></button>
-      <button type="button" data-scroll-target="3" aria-label="Bottom section"></button>
+      <button type="button" data-scroll-target="0" aria-label="Splash screen"></button>
+      <button type="button" data-scroll-target="1" aria-label="Calendar section"></button>
+      <button type="button" data-scroll-target="2" aria-label="World Watch section"></button>
+      <button type="button" data-scroll-target="3" aria-label="Daily Brief section"></button>
+      <button type="button" data-scroll-target="4" aria-label="Bottom section"></button>
       <button type="button" data-scroll-step="1" aria-label="Next section">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 16.6-7.1-7.1 1.4-1.4 5.7 5.7 5.7-5.7 1.4 1.4-7.1 7.1Z"/></svg>
       </button>

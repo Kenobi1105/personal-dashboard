@@ -94,6 +94,9 @@ var els = {
   weatherHero: document.getElementById("weatherHero"),
   weatherHeroVisual: document.getElementById("weatherHeroVisual"),
   weatherHeroStatus: document.getElementById("weatherHeroStatus"),
+  heroDateDay: document.getElementById("heroDateDay"),
+  heroDateMonth: document.getElementById("heroDateMonth"),
+  heroDateYear: document.getElementById("heroDateYear"),
   settingsButton: document.getElementById("settingsButton"),
   accountButton: document.getElementById("accountButton"),
   obsidianButton: document.getElementById("obsidianButton"),
@@ -1142,6 +1145,7 @@ var verseFetches = {};
 var weatherHeroCoordinates = null;
 var weatherHeroRefreshTimer = null;
 var weatherHeroScene = "calm";
+var heroSplashRange = 520;
 var newsSourceOptions = null;
 var newsSourceLoadError = "";
 var newsLoadError = "";
@@ -1633,6 +1637,9 @@ function renderGreeting() {
   els.todayLabel.textContent = now.toLocaleDateString(undefined, { weekday: "long", timeZone: timeZone });
   els.dateLine.textContent = now.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric", timeZone: timeZone });
   els.timeLine.textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: state.settings.timeFormat === "12", timeZone: timeZone });
+  if (els.heroDateDay) els.heroDateDay.textContent = now.toLocaleDateString(undefined, { day: "numeric", timeZone: timeZone });
+  if (els.heroDateMonth) els.heroDateMonth.textContent = now.toLocaleDateString(undefined, { month: "long", timeZone: timeZone });
+  if (els.heroDateYear) els.heroDateYear.textContent = now.toLocaleDateString(undefined, { year: "numeric", timeZone: timeZone });
 }
 
 var WEATHER_HERO_IMAGES = {
@@ -1641,22 +1648,36 @@ var WEATHER_HERO_IMAGES = {
   afternoon: "assets/hero-weather-afternoon.png",
   sunset: "assets/hero-weather-sunset.png",
   rain: "assets/hero-weather-rain.png",
-  night: "assets/hero-weather-night.png"
+  thunderstorm: "assets/hero-weather-thunderstorm.png",
+  "rain-night": "assets/hero-weather-rain-night.png",
+  "thunderstorm-night": "assets/hero-weather-thunderstorm-night.png",
+  "moon-new": "assets/hero-moon-new.png",
+  "moon-waxing-crescent": "assets/hero-moon-waxing-crescent.png",
+  "moon-first-quarter": "assets/hero-moon-first-quarter.png",
+  "moon-waxing-gibbous": "assets/hero-moon-waxing-gibbous.png",
+  "moon-full": "assets/hero-moon-full.png",
+  "moon-waning-gibbous": "assets/hero-moon-waning-gibbous.png",
+  "moon-last-quarter": "assets/hero-moon-last-quarter.png",
+  "moon-waning-crescent": "assets/hero-moon-waning-crescent.png"
 };
 
-function moonPhaseName(date) {
+function moonPhaseInfo(date) {
   var synodicMonth = 29.53058867;
   var knownNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
   var age = (((date.getTime() - knownNewMoon) / 86400000) % synodicMonth + synodicMonth) % synodicMonth;
-  if (age < 1.85) return "New moon";
-  if (age < 5.54) return "Waxing crescent";
-  if (age < 9.23) return "First quarter";
-  if (age < 12.92) return "Waxing gibbous";
-  if (age < 16.61) return "Full moon";
-  if (age < 20.30) return "Waning gibbous";
-  if (age < 23.99) return "Last quarter";
-  if (age < 27.68) return "Waning crescent";
-  return "New moon";
+  if (age < 1.85) return { key: "new", label: "New moon" };
+  if (age < 5.54) return { key: "waxing-crescent", label: "Waxing crescent" };
+  if (age < 9.23) return { key: "first-quarter", label: "First quarter" };
+  if (age < 12.92) return { key: "waxing-gibbous", label: "Waxing gibbous" };
+  if (age < 16.61) return { key: "full", label: "Full moon" };
+  if (age < 20.30) return { key: "waning-gibbous", label: "Waning gibbous" };
+  if (age < 23.99) return { key: "last-quarter", label: "Last quarter" };
+  if (age < 27.68) return { key: "waning-crescent", label: "Waning crescent" };
+  return { key: "new", label: "New moon" };
+}
+
+function moonPhaseName(date) {
+  return moonPhaseInfo(date).label;
 }
 
 function weatherLabel(code) {
@@ -1676,15 +1697,21 @@ function isWetWeather(current) {
     [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].indexOf(code) > -1;
 }
 
+function isThunderstorm(current) {
+  return [95, 96, 99].indexOf(Number(current.weather_code)) > -1;
+}
+
 function weatherHeroSceneFor(data) {
   var current = data.current || {};
-  if (isWetWeather(current)) return "rain";
+  var isNight = Number(current.is_day) === 0;
+  if (isThunderstorm(current)) return isNight ? "thunderstorm-night" : "thunderstorm";
+  if (isWetWeather(current)) return isNight ? "rain-night" : "rain";
   var currentTime = String(current.time || "");
   var sunset = data.daily && data.daily.sunset ? String(data.daily.sunset[0] || "") : "";
   var currentMinutes = Number(currentTime.slice(11, 13)) * 60 + Number(currentTime.slice(14, 16));
   var sunsetMinutes = Number(sunset.slice(11, 13)) * 60 + Number(sunset.slice(14, 16));
   if (sunset && currentTime && currentMinutes >= sunsetMinutes - 75 && currentMinutes <= sunsetMinutes + 15) return "sunset";
-  if (Number(current.is_day) === 0) return "night";
+  if (isNight) return "moon-" + moonPhaseInfo(new Date()).key;
   var hour = Number(currentTime.slice(11, 13));
   return hour < 12 ? "morning" : "afternoon";
 }
@@ -1694,7 +1721,7 @@ function applyWeatherHeroScene(scene, status) {
   var nextScene = WEATHER_HERO_IMAGES[scene] ? scene : "calm";
   var setScene = function () {
     els.weatherHero.dataset.scene = nextScene;
-    els.weatherHero.classList.toggle("is-night", nextScene === "night");
+    els.weatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);
     els.weatherHeroVisual.style.backgroundImage = "url('" + WEATHER_HERO_IMAGES[nextScene] + "')";
     els.weatherHeroVisual.classList.remove("is-changing");
   };
@@ -1726,8 +1753,9 @@ async function loadLocalWeatherHero() {
     var data = await response.json();
     var scene = weatherHeroSceneFor(data);
     var label = weatherLabel(Number(data.current && data.current.weather_code));
+    if (scene.indexOf("moon-") === 0) label += " · " + moonPhaseName(new Date());
     if (scene === "night") label += " · " + moonPhaseName(new Date());
-    els.weatherHero.classList.toggle("is-overcast", scene !== "rain" && Number(data.current && data.current.cloud_cover) >= 60);
+    els.weatherHero.classList.toggle("is-overcast", ["rain", "rain-night", "thunderstorm", "thunderstorm-night"].indexOf(scene) === -1 && Number(data.current && data.current.cloud_cover) >= 60);
     applyWeatherHeroScene(scene, "Local weather · " + label);
   } catch (error) {
     applyWeatherHeroScene("calm", "Calm visual · weather unavailable");
@@ -1752,6 +1780,22 @@ function startLocalWeatherHero() {
     maximumAge: 15 * 60 * 1000,
     timeout: 12000
   });
+}
+
+function updateHeroSplash() {
+  if (!els.weatherHero) return;
+  var compactHeight = window.innerWidth <= 760 ? 148 : 148;
+  var splashHeight = window.innerWidth <= 760
+    ? Math.max(420, Math.min(620, Math.round(window.innerHeight * 0.66)))
+    : Math.max(500, Math.min(720, Math.round(window.innerHeight * 0.74)));
+  var scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+  var progress = Math.max(0, Math.min(1, scrollTop / heroSplashRange));
+  var height = Math.round(splashHeight - ((splashHeight - compactHeight) * progress));
+  els.weatherHero.style.setProperty("--hero-height", height + "px");
+  els.weatherHero.style.setProperty("--hero-splash-opacity", String(1 - progress));
+  els.weatherHero.style.setProperty("--hero-date-scale", String(1 - (progress * 0.28)));
+  els.weatherHero.style.setProperty("--hero-copy-scale", String(1 - (progress * 0.2)));
+  els.weatherHero.classList.toggle("hero-compact", progress > 0.96);
 }
 
 function renderVerseOfDay() {
@@ -6299,10 +6343,12 @@ function updateMainSplitFromPointer(clientX) {
 
 function scrollSegmentTargets() {
   var max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  var calendar = document.getElementById("calendarPanel");
   var watch = document.querySelector(".tools-prayer-grid");
   var news = document.querySelector(".news-sports-grid");
   return [
     0,
+    calendar ? Math.min(max, Math.max(0, calendar.offsetTop - 8)) : Math.round(max * 0.16),
     watch ? Math.min(max, Math.max(0, watch.offsetTop - 8)) : Math.round(max * 0.35),
     news ? Math.min(max, Math.max(0, news.offsetTop - 8)) : Math.round(max * 0.7),
     max
@@ -7051,6 +7097,7 @@ function renderAll() {
   renderEventTypeList();
   updatePlanButtons();
   if (els.dayDrawer.classList.contains("open")) renderDayDrawer();
+  updateHeroSplash();
   updateScrollDots();
 }
 
@@ -7692,8 +7739,14 @@ if (els.scrollDots) {
     var step = Number(button.dataset.scrollStep || 0);
     if (step) scrollToSegment(currentScrollSegment() + step);
   });
-  window.addEventListener("scroll", updateScrollDots, { passive: true });
-  window.addEventListener("resize", updateScrollDots);
+  window.addEventListener("scroll", function () {
+    updateScrollDots();
+    updateHeroSplash();
+  }, { passive: true });
+  window.addEventListener("resize", function () {
+    updateScrollDots();
+    updateHeroSplash();
+  });
 }
 els.splitReaderFrame.addEventListener("error", function () {
   els.splitReaderFrame.hidden = true;
