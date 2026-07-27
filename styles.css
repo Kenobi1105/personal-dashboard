@@ -74,6 +74,7 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   border-radius: 14px;
   background: var(--background);
   box-shadow: 0 14px 32px rgba(73, 53, 72, 0.08);
+  transition: height 320ms ease, padding 320ms ease;
 }
 
 .weather-hero-visual,
@@ -165,6 +166,7 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 .hero-date-month { margin-top: 12px; }
 .hero-date-year { opacity: 0.78; }
 .topbar.hero-compact {
+  height: 148px;
   padding-top: 22px;
   padding-bottom: 22px;
 }
@@ -173,9 +175,12 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   min-width: 0;
   padding: 0;
   overflow: hidden;
+  opacity: 0;
+  transform: scale(0.72);
   pointer-events: none;
 }
 .topbar.hero-compact .greeting-block h1 { font-size: clamp(1.85rem, 3.6vw, 3.65rem); }
+.topbar.hero-compact .hero-copy { transform: scale(0.8); }
 
 .greeting-block h1 {
   max-width: 760px;
@@ -208,7 +213,15 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
   top: 18px;
   right: 22px;
   display: flex;
+  align-items: flex-start;
   gap: 8px;
+}
+.weather-hero > .top-actions { position: absolute; }
+.top-actions .icon-button {
+  flex: 0 0 38px;
+  width: 38px;
+  min-height: 38px;
+  height: 38px;
 }
 .mobile-module-menu { display: none; position: relative; }
 

@@ -99,7 +99,6 @@ var els = {
   heroDateYear: document.getElementById("heroDateYear"),
   settingsButton: document.getElementById("settingsButton"),
   accountButton: document.getElementById("accountButton"),
-  obsidianButton: document.getElementById("obsidianButton"),
   settingsModal: document.getElementById("settingsModal"),
   settingsForm: document.getElementById("settingsForm"),
   preferredName: document.getElementById("preferredName"),
@@ -1145,7 +1144,6 @@ var verseFetches = {};
 var weatherHeroCoordinates = null;
 var weatherHeroRefreshTimer = null;
 var weatherHeroScene = "calm";
-var heroSplashRange = 520;
 var newsSourceOptions = null;
 var newsSourceLoadError = "";
 var newsLoadError = "";
@@ -1784,18 +1782,10 @@ function startLocalWeatherHero() {
 
 function updateHeroSplash() {
   if (!els.weatherHero) return;
-  var compactHeight = window.innerWidth <= 760 ? 148 : 148;
-  var splashHeight = window.innerWidth <= 760
-    ? Math.max(420, Math.min(620, Math.round(window.innerHeight * 0.66)))
-    : Math.max(500, Math.min(720, Math.round(window.innerHeight * 0.74)));
   var scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-  var progress = Math.max(0, Math.min(1, scrollTop / heroSplashRange));
-  var height = Math.round(splashHeight - ((splashHeight - compactHeight) * progress));
-  els.weatherHero.style.setProperty("--hero-height", height + "px");
-  els.weatherHero.style.setProperty("--hero-splash-opacity", String(1 - progress));
-  els.weatherHero.style.setProperty("--hero-date-scale", String(1 - (progress * 0.28)));
-  els.weatherHero.style.setProperty("--hero-copy-scale", String(1 - (progress * 0.2)));
-  els.weatherHero.classList.toggle("hero-compact", progress > 0.96);
+  var isCompact = els.weatherHero.classList.contains("hero-compact");
+  if (!isCompact && scrollTop > 56) els.weatherHero.classList.add("hero-compact");
+  if (isCompact && scrollTop < 8) els.weatherHero.classList.remove("hero-compact");
 }
 
 function renderVerseOfDay() {
@@ -1878,10 +1868,6 @@ function openSettings() {
     if (status && status.connected) loadGoogleCalendarChoices(false);
   });
   runCloudStatusChecks();
-}
-
-function openVaultPlaceholder() {
-  showToast("Obsidian vault settings were removed for now. We can reconnect this later.");
 }
 
 function calendarVisibleRange() {
@@ -7133,7 +7119,6 @@ if (els.accountButton) els.accountButton.addEventListener("click", toggleCloudSi
 if (els.cloudStatusRefresh) els.cloudStatusRefresh.addEventListener("click", runCloudStatusChecks);
 if (els.cloudSyncNow) els.cloudSyncNow.addEventListener("click", function () { syncCloudNow(true); });
 els.closeSettingsButton.addEventListener("click", function () { els.settingsModal.close(); });
-els.obsidianButton.addEventListener("click", openVaultPlaceholder);
 els.settingsModal.addEventListener("click", function (event) {
   if (event.target === els.settingsModal) els.settingsModal.close();
 });
