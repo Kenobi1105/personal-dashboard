@@ -94,6 +94,13 @@ var els = {
   weatherHero: document.getElementById("weatherHero"),
   weatherHeroVisual: document.getElementById("weatherHeroVisual"),
   weatherHeroStatus: document.getElementById("weatherHeroStatus"),
+  compactWeatherHero: document.getElementById("compactWeatherHero"),
+  compactWeatherVisual: document.getElementById("compactWeatherVisual"),
+  compactGreeting: document.getElementById("compactGreeting"),
+  compactDateLine: document.getElementById("compactDateLine"),
+  compactWeatherStatus: document.getElementById("compactWeatherStatus"),
+  compactAccountButton: document.getElementById("compactAccountButton"),
+  compactSettingsButton: document.getElementById("compactSettingsButton"),
   heroDateDay: document.getElementById("heroDateDay"),
   heroDateMonth: document.getElementById("heroDateMonth"),
   heroDateYear: document.getElementById("heroDateYear"),
@@ -1409,16 +1416,19 @@ async function loadCloudState() {
 }
 
 function updateAccountButton() {
-  if (!els.accountButton) return;
+  var accountButtons = [els.accountButton, els.compactAccountButton].filter(Boolean);
+  if (!accountButtons.length) return;
   if (!cloudAvailable()) {
-    els.accountButton.hidden = true;
+    accountButtons.forEach(function (button) { button.hidden = true; });
     return;
   }
-  els.accountButton.hidden = false;
   var email = cloudSession && cloudSession.user && cloudSession.user.email ? cloudSession.user.email : "";
-  els.accountButton.classList.toggle("connected", !!email);
-  els.accountButton.title = email ? "Signed in as " + email + ". Click to sign out." : "Sign in to sync";
-  els.accountButton.setAttribute("aria-label", email ? "Signed in. Click to sign out." : "Sign in to sync");
+  accountButtons.forEach(function (button) {
+    button.hidden = false;
+    button.classList.toggle("connected", !!email);
+    button.title = email ? "Signed in as " + email + ". Click to sign out." : "Sign in to sync";
+    button.setAttribute("aria-label", email ? "Signed in. Click to sign out." : "Sign in to sync");
+  });
   renderCloudStatus();
 }
 
@@ -1426,9 +1436,9 @@ function applyHostedModeUi() {
   document.body.classList.toggle("hosted-dashboard", isHostedDashboard);
   if (els.apiSportsKeySetting) els.apiSportsKeySetting.hidden = isHostedDashboard;
   if (els.cloudPrivateSettingsNote) els.cloudPrivateSettingsNote.hidden = !isHostedDashboard;
-  if (els.accountButton) {
-    els.accountButton.title = isHostedDashboard ? "Sign in / Account sync" : "Local account sync";
-  }
+  [els.accountButton, els.compactAccountButton].filter(Boolean).forEach(function (button) {
+    button.title = isHostedDashboard ? "Sign in / Account sync" : "Local account sync";
+  });
 }
 
 function cloudStatusClass(state) {
@@ -1632,8 +1642,10 @@ function renderGreeting() {
   var greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   var name = state.settings.preferredName.trim();
   els.greeting.textContent = name ? greeting + ", " + name : greeting;
+  if (els.compactGreeting) els.compactGreeting.textContent = name ? greeting + ", " + name : greeting;
   els.todayLabel.textContent = now.toLocaleDateString(undefined, { weekday: "long", timeZone: timeZone });
   els.dateLine.textContent = now.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric", timeZone: timeZone });
+  if (els.compactDateLine) els.compactDateLine.textContent = now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone: timeZone });
   els.timeLine.textContent = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: state.settings.timeFormat === "12", timeZone: timeZone });
   if (els.heroDateDay) els.heroDateDay.textContent = now.toLocaleDateString(undefined, { day: "numeric", timeZone: timeZone });
   if (els.heroDateMonth) els.heroDateMonth.textContent = now.toLocaleDateString(undefined, { month: "long", timeZone: timeZone });
@@ -1721,6 +1733,11 @@ function applyWeatherHeroScene(scene, status) {
     els.weatherHero.dataset.scene = nextScene;
     els.weatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);
     els.weatherHeroVisual.style.backgroundImage = "url('" + WEATHER_HERO_IMAGES[nextScene] + "')";
+    if (els.compactWeatherHero && els.compactWeatherVisual) {
+      els.compactWeatherHero.dataset.scene = nextScene;
+      els.compactWeatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);
+      els.compactWeatherVisual.style.backgroundImage = "url('" + WEATHER_HERO_IMAGES[nextScene] + "')";
+    }
     els.weatherHeroVisual.classList.remove("is-changing");
   };
   if (weatherHeroScene !== nextScene) {
@@ -1731,6 +1748,7 @@ function applyWeatherHeroScene(scene, status) {
   }
   weatherHeroScene = nextScene;
   if (els.weatherHeroStatus) els.weatherHeroStatus.textContent = status || "Calm visual";
+  if (els.compactWeatherStatus) els.compactWeatherStatus.textContent = status || "Calm visual";
 }
 
 async function loadLocalWeatherHero() {
@@ -1781,11 +1799,9 @@ function startLocalWeatherHero() {
 }
 
 function updateHeroSplash() {
-  if (!els.weatherHero) return;
+  if (!els.compactWeatherHero) return;
   var scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
-  var isCompact = els.weatherHero.classList.contains("hero-compact");
-  if (!isCompact && scrollTop > 56) els.weatherHero.classList.add("hero-compact");
-  if (isCompact && scrollTop < 8) els.weatherHero.classList.remove("hero-compact");
+  els.compactWeatherHero.classList.toggle("is-visible", scrollTop > 56);
 }
 
 function renderVerseOfDay() {
@@ -7116,6 +7132,8 @@ function submitFormOnEnter(form, submitSelector) {
 
 els.settingsButton.addEventListener("click", openSettings);
 if (els.accountButton) els.accountButton.addEventListener("click", toggleCloudSignIn);
+if (els.compactSettingsButton) els.compactSettingsButton.addEventListener("click", openSettings);
+if (els.compactAccountButton) els.compactAccountButton.addEventListener("click", toggleCloudSignIn);
 if (els.cloudStatusRefresh) els.cloudStatusRefresh.addEventListener("click", runCloudStatusChecks);
 if (els.cloudSyncNow) els.cloudSyncNow.addEventListener("click", function () { syncCloudNow(true); });
 els.closeSettingsButton.addEventListener("click", function () { els.settingsModal.close(); });
