@@ -2107,7 +2107,7 @@ function applyWeatherHeroScene(scene, status) {
   var setScene = function () {
     els.weatherHero.dataset.scene = nextScene;
     els.weatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);
-    els.weatherHeroVisual.style.backgroundImage = "url('" + WEATHER_HERO_IMAGES[nextScene] + "')";
+    els.weatherHeroVisual.style.setProperty("--weather-hero-image", "url('" + WEATHER_HERO_IMAGES[nextScene] + "')");
     if (els.compactWeatherHero && els.compactWeatherVisual) {
       els.compactWeatherHero.dataset.scene = nextScene;
       els.compactWeatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);

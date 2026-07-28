@@ -87,13 +87,16 @@ svg { width: 1rem; height: 1rem; fill: currentColor; }
 }
 .weather-hero-visual {
   z-index: -2;
-  background-image: url("assets/verse-background-light.png");
-  background-size: cover;
-  background-position: center;
+  --weather-hero-image: url("assets/verse-background-light.png");
+  background-color: #d9d2c6;
+  background-image: var(--weather-hero-image), var(--weather-hero-image);
+  background-size: contain, cover;
+  background-repeat: no-repeat;
+  background-position: center, center;
   opacity: 1;
-  transform: scale(1.025);
+  transform: none;
   transition: opacity 260ms ease;
-  animation: weather-hero-drift 24s ease-in-out infinite alternate;
+  animation: none;
 }
 .weather-hero-visual.is-changing { opacity: 0.08; }
 .weather-hero.is-overcast .weather-hero-visual { filter: saturate(0.76) brightness(0.84); }
