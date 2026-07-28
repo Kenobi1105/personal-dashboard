@@ -978,7 +978,7 @@ function seedState() {
   var sermonDate = toISO(addDays(today, 13));
   var bibleStudyDate = toISO(addDays(today, 3));
   return {
-    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, classScheduleEventIds: [], classScheduleStartTime: "08:00", classScheduleEndTime: "18:00", classDeadlines: [], googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
+    settings: { preferredName: "", timeFormat: "24", timeZone: "Asia/Manila", headlineCarouselPaused: false, readerSplit: 50, mainReaderSplit: 62, hideBirthdaysFromCalendar: false, classScheduleEventIds: [], classScheduleStartTime: "08:00", classScheduleEndTime: "18:00", classDeadlines: [], classDeadlineView: "list", classDeadlineHiddenCourses: [], googleCalendarUseAll: true, googleCalendarIds: [], eventTypes: DEFAULT_EVENT_TYPES.slice(), newsSources: { world: [], philippines: [], theology: [] }, customNewsSources: { world: [], philippines: [], theology: [] }, newsSourceOrder: { world: [], philippines: [], theology: [] } },
     events: [
       createEvent({ type: "Sermon", passage: "Jn 3:16", title: "Sermon: Jn 3:16", start: sermonDate, end: sermonDate, timeSlot: "Morning", source: "dashboard" }),
       createEvent({ type: "Bible Study", passage: "Rom 8:1-11", title: "Bible Study: Rom 8:1-11", start: bibleStudyDate, end: bibleStudyDate, timeSlot: "Evening", source: "dashboard" })
@@ -1060,6 +1060,8 @@ function loadState() {
     loaded.settings.classDeadlines = Array.isArray(loaded.settings.classDeadlines) ? loaded.settings.classDeadlines.filter(function (item) {
       return item && item.id && ((item.eventId && item.checklistItemId) || (item.courseKey && Array.isArray(item.eventIds) && item.eventIds.length));
     }) : [];
+    loaded.settings.classDeadlineView = loaded.settings.classDeadlineView === "board" ? "board" : "list";
+    loaded.settings.classDeadlineHiddenCourses = Array.isArray(loaded.settings.classDeadlineHiddenCourses) ? loaded.settings.classDeadlineHiddenCourses.filter(Boolean) : [];
     loaded.syncMeta = loaded.syncMeta && typeof loaded.syncMeta === "object" ? loaded.syncMeta : {};
     loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
     loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
@@ -3599,12 +3601,73 @@ function classDeadlineDueLabel(item) {
   return "Due " + displayDate(item.dueDate) + (item.dueTime ? " at " + formatTimeOption(item.dueTime) : "") + (item.alarm && item.alarm !== "none" ? " · " + alarmLabel(item.alarm, item.alarmTime) : "");
 }
 
+function classDeadlineView() {
+  return state.settings.classDeadlineView === "board" ? "board" : "list";
+}
+
+function setClassDeadlineView(view) {
+  state.settings.classDeadlineView = view === "board" ? "board" : "list";
+  saveState();
+  renderAll();
+}
+
+function setClassDeadlineCourseHidden(courseKey, hidden) {
+  var current = Array.isArray(state.settings.classDeadlineHiddenCourses) ? state.settings.classDeadlineHiddenCourses.slice() : [];
+  state.settings.classDeadlineHiddenCourses = hidden ? Array.from(new Set(current.concat(courseKey))) : current.filter(function (key) { return key !== courseKey; });
+  saveState();
+  renderAll();
+}
+
+function createClassDeadlineItem(entry) {
+  var item = entry.checklistItem;
+  var row = document.createElement("div");
+  row.className = "class-deadline-item" + (item.done ? " done" : "");
+  var done = document.createElement("input");
+  done.type = "checkbox";
+  done.checked = !!item.done;
+  done.setAttribute("aria-label", "Mark " + item.title + " complete");
+  done.addEventListener("change", function () { setClassDeadlineCompletion(entry.deadline.id, done.checked); });
+  var text = document.createElement("button");
+  text.type = "button";
+  text.className = "class-deadline-item-text";
+  text.innerHTML = "<strong>" + escapeHTML(item.title) + "</strong><span>Every class event &middot; " + escapeHTML(classDeadlineDueLabel(item)) + "</span>";
+  text.addEventListener("click", function () {
+    var anchorEventId = classDeadlineAnchorEventId(entry.deadline);
+    var anchorItem = entry.items.find(function (candidate) { return candidate.event.id === anchorEventId; });
+    if (anchorItem && anchorItem.item.taskId) openTaskModal(anchorItem.item.taskId, { source: "class-deadline" });
+    else showToast("This deadline is not linked to a task yet.");
+  });
+  var remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "delete-button trash-button";
+  remove.innerHTML = trashIcon();
+  remove.setAttribute("aria-label", "Delete deadline");
+  remove.addEventListener("click", function () { removeClassDeadline(entry.deadline.id); });
+  row.append(done, text, remove);
+  return row;
+}
+
 function renderClassDeadlinePanel() {
   var panel = document.createElement("section");
   panel.className = "class-deadline-panel";
   var heading = document.createElement("div");
   heading.className = "class-deadline-heading";
   heading.innerHTML = "<div><p class='eyebrow'>Master list</p><h3>Class Deadlines</h3></div>";
+  var viewControls = document.createElement("div");
+  viewControls.className = "class-deadline-view-controls";
+  [
+    { value: "list", label: "List" },
+    { value: "board", label: "By class" }
+  ].forEach(function (view) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "small-control" + (classDeadlineView() === view.value ? " selected" : "");
+    button.textContent = view.label;
+    button.setAttribute("aria-pressed", classDeadlineView() === view.value ? "true" : "false");
+    button.addEventListener("click", function () { setClassDeadlineView(view.value); });
+    viewControls.appendChild(button);
+  });
+  heading.appendChild(viewControls);
   panel.appendChild(heading);
 
   var form = document.createElement("form");
@@ -3650,6 +3713,74 @@ function renderClassDeadlinePanel() {
   var entries = classDeadlineEntries().sort(function (a, b) {
     return String(a.checklistItem.dueDate || "9999-99-99").localeCompare(String(b.checklistItem.dueDate || "9999-99-99"));
   });
+  if (classDeadlineView() === "board") {
+    var boardList = document.createElement("div");
+    boardList.className = "class-deadline-list class-deadline-board";
+    if (!entries.length) {
+      boardList.innerHTML = "<p class='empty-state'>Add a deadline, choose its class, and it will be added to every event in that class series.</p>";
+    } else {
+      var boardGroups = {};
+      entries.forEach(function (entry) {
+        var courseKey = classDeadlineCourseKey(entry.event);
+        if (!boardGroups[courseKey]) boardGroups[courseKey] = [];
+        boardGroups[courseKey].push(entry);
+      });
+      var courseKeys = Object.keys(boardGroups).sort(function (a, b) {
+        return eventTitle(boardGroups[a][0].event).localeCompare(eventTitle(boardGroups[b][0].event));
+      });
+      var hiddenCourses = state.settings.classDeadlineHiddenCourses || [];
+      var hiddenKeys = courseKeys.filter(function (courseKey) { return hiddenCourses.indexOf(courseKey) !== -1; });
+      if (hiddenKeys.length) {
+        var hiddenBar = document.createElement("div");
+        hiddenBar.className = "class-deadline-hidden-classes";
+        var hiddenLabel = document.createElement("span");
+        hiddenLabel.textContent = "Hidden classes:";
+        hiddenBar.appendChild(hiddenLabel);
+        hiddenKeys.forEach(function (courseKey) {
+          var show = document.createElement("button");
+          show.type = "button";
+          show.className = "small-control";
+          show.textContent = "Show " + eventTitle(boardGroups[courseKey][0].event);
+          show.addEventListener("click", function () { setClassDeadlineCourseHidden(courseKey, false); });
+          hiddenBar.appendChild(show);
+        });
+        boardList.appendChild(hiddenBar);
+      }
+      var board = document.createElement("div");
+      board.className = "class-deadline-board-columns";
+      courseKeys.filter(function (courseKey) { return hiddenCourses.indexOf(courseKey) === -1; }).forEach(function (courseKey) {
+        var groupEntries = boardGroups[courseKey];
+        var column = document.createElement("section");
+        column.className = "class-deadline-board-column";
+        var columnHeading = document.createElement("div");
+        columnHeading.className = "class-deadline-board-column-heading";
+        var groupTitle = document.createElement("button");
+        groupTitle.type = "button";
+        groupTitle.className = "class-deadline-group-title";
+        groupTitle.textContent = eventTitle(groupEntries[0].event);
+        groupTitle.addEventListener("click", function () { viewEvent(groupEntries[0].event.id); });
+        var hide = document.createElement("button");
+        hide.type = "button";
+        hide.className = "small-control";
+        hide.textContent = "Hide";
+        hide.setAttribute("aria-label", "Hide " + eventTitle(groupEntries[0].event) + " from the class deadline board");
+        hide.addEventListener("click", function () { setClassDeadlineCourseHidden(courseKey, true); });
+        columnHeading.append(groupTitle, hide);
+        column.appendChild(columnHeading);
+        groupEntries.forEach(function (entry) { column.appendChild(createClassDeadlineItem(entry)); });
+        board.appendChild(column);
+      });
+      if (!board.childElementCount) {
+        var none = document.createElement("p");
+        none.className = "empty-state";
+        none.textContent = "All classes are hidden. Use the controls above to show a class again.";
+        board.appendChild(none);
+      }
+      boardList.appendChild(board);
+    }
+    panel.appendChild(boardList);
+    return panel;
+  }
   var list = document.createElement("div");
   list.className = "class-deadline-list";
   if (!entries.length) {

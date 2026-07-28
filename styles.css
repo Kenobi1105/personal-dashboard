@@ -1089,6 +1089,9 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 .class-deadline-heading { display: flex; align-items: center; justify-content: space-between; }
 .class-deadline-heading .eyebrow { margin: 0; }
 .class-deadline-heading h3 { margin: 1px 0 0; color: var(--signature); font-size: 0.88rem; }
+.class-deadline-view-controls { display: flex; gap: 4px; }
+.class-deadline-view-controls .small-control { min-height: 27px; padding: 3px 8px; font-size: 0.68rem; }
+.class-deadline-view-controls .selected { color: #fffaf0; background: var(--signature); border-color: var(--signature); }
 .class-deadline-form { display: grid; grid-template-columns: 112px minmax(145px, 1fr) minmax(160px, 1.2fr) 122px auto; gap: 5px; align-items: end; }
 .class-deadline-form input,
 .class-deadline-form select { min-width: 0; min-height: 32px; font-size: 0.74rem; }
@@ -1103,6 +1106,13 @@ body:not(.hosted-dashboard) .cloud-only-setting { display: none !important; }
 .class-deadline-item-text strong { display: block; font-size: 0.74rem; }
 .class-deadline-item-text span { display: block; margin-top: 1px; color: var(--muted); font-size: 0.68rem; }
 .class-deadline-add { min-height: 32px !important; padding: 0 9px !important; white-space: nowrap; }
+.class-deadline-board { max-height: none; overflow: visible; }
+.class-deadline-board-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 7px; overflow-x: auto; padding: 1px 2px 7px; }
+.class-deadline-board-column { display: grid; align-content: start; gap: 5px; min-height: 100%; padding: 7px; border: 1px solid rgba(73, 53, 72, 0.14); border-radius: 7px; background: rgba(255, 255, 255, 0.58); }
+.class-deadline-board-column-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(73, 53, 72, 0.1); }
+.class-deadline-board-column-heading .small-control { min-height: 26px; padding: 3px 7px; font-size: 0.66rem; }
+.class-deadline-hidden-classes { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 2px 1px; color: var(--muted); font-size: 0.68rem; font-weight: 800; }
+.class-deadline-hidden-classes .small-control { min-height: 25px; padding: 3px 7px; font-size: 0.65rem; }
 
 .day-cell.has-plan {
   background:
