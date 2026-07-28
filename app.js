@@ -135,7 +135,9 @@ var els = {
   dateLine: document.getElementById("dateLine"),
   timeLine: document.getElementById("timeLine"),
   weatherHero: document.getElementById("weatherHero"),
+  weatherHeroVideo: document.getElementById("weatherHeroVideo"),
   weatherHeroVisual: document.getElementById("weatherHeroVisual"),
+  weatherHeroMotion: document.getElementById("weatherHeroMotion"),
   weatherHeroStatus: document.getElementById("weatherHeroStatus"),
   compactWeatherHero: document.getElementById("compactWeatherHero"),
   compactWeatherVisual: document.getElementById("compactWeatherVisual"),
@@ -2045,6 +2047,28 @@ var WEATHER_HERO_IMAGES = {
   "moon-last-quarter": "assets/hero-moon-last-quarter.png",
   "moon-waning-crescent": "assets/hero-moon-waning-crescent.png"
 };
+var WEATHER_HERO_VIDEOS = {
+  calm: "assets/hero-calm.mp4",
+  morning: "assets/hero-weather-morning.mp4",
+  afternoon: "assets/hero-weather-afternoon.mp4",
+  sunset: "assets/hero-weather-sunset.mp4",
+  rain: "assets/hero-weather-rain.mp4",
+  thunderstorm: "assets/hero-weather-thunderstorm.mp4",
+  "rain-night": "assets/hero-weather-rain-night.mp4",
+  "thunderstorm-night": "assets/hero-weather-thunderstorm-night.mp4",
+  "moon-new": "assets/hero-moon-new.mp4",
+  "moon-waxing-crescent": "assets/hero-moon-waxing-crescent.mp4",
+  "moon-first-quarter": "assets/hero-moon-first-quarter.mp4",
+  "moon-waxing-gibbous": "assets/hero-moon-waxing-gibbous.mp4",
+  "moon-full": "assets/hero-moon-full.mp4",
+  "moon-waning-gibbous": "assets/hero-moon-waning-gibbous.mp4",
+  "moon-last-quarter": "assets/hero-moon-last-quarter.mp4",
+  "moon-waning-crescent": "assets/hero-moon-waning-crescent.mp4"
+};
+if (els.weatherHeroVideo) {
+  els.weatherHeroVideo.addEventListener("canplay", function () { els.weatherHeroVideo.classList.add("is-ready"); });
+  els.weatherHeroVideo.addEventListener("error", function () { els.weatherHeroVideo.classList.remove("is-ready"); });
+}
 
 function moonPhaseInfo(date) {
   var synodicMonth = 29.53058867;
@@ -2108,6 +2132,17 @@ function applyWeatherHeroScene(scene, status) {
     els.weatherHero.dataset.scene = nextScene;
     els.weatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);
     els.weatherHeroVisual.style.setProperty("--weather-hero-image", "url('" + WEATHER_HERO_IMAGES[nextScene] + "')");
+    if (els.weatherHeroVideo) {
+      var videoSource = WEATHER_HERO_VIDEOS[nextScene] || "";
+      els.weatherHeroVideo.dataset.scene = nextScene;
+      els.weatherHeroVideo.classList.remove("is-ready");
+      if (videoSource && els.weatherHeroVideo.getAttribute("src") !== videoSource) {
+        els.weatherHeroVideo.setAttribute("src", videoSource);
+        els.weatherHeroVideo.load();
+      }
+      var playback = els.weatherHeroVideo.play();
+      if (playback && playback.catch) playback.catch(function () {});
+    }
     if (els.compactWeatherHero && els.compactWeatherVisual) {
       els.compactWeatherHero.dataset.scene = nextScene;
       els.compactWeatherHero.classList.toggle("is-night", nextScene.indexOf("night") > -1 || nextScene.indexOf("moon-") === 0);
