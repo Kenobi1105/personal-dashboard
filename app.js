@@ -87,6 +87,36 @@ function hostedHint(functionName, error) {
 }
 
 var els = {
+  mobileQuickPlanner: document.getElementById("mobileQuickPlanner"),
+  openFullDashboardButton: document.getElementById("openFullDashboardButton"),
+  mobileQuickReturn: document.getElementById("mobileQuickReturn"),
+  mobilePlannerCalendar: document.getElementById("mobilePlannerCalendar"),
+  mobilePlannerLabel: document.getElementById("mobilePlannerLabel"),
+  mobilePlannerPrevious: document.getElementById("mobilePlannerPrevious"),
+  mobilePlannerToday: document.getElementById("mobilePlannerToday"),
+  mobilePlannerNext: document.getElementById("mobilePlannerNext"),
+  mobileEventForm: document.getElementById("mobileEventForm"),
+  mobileEventTitle: document.getElementById("mobileEventTitle"),
+  mobileEventType: document.getElementById("mobileEventType"),
+  mobileEventDate: document.getElementById("mobileEventDate"),
+  mobileEventStart: document.getElementById("mobileEventStart"),
+  mobileEventEnd: document.getElementById("mobileEventEnd"),
+  mobileEventAllDay: document.getElementById("mobileEventAllDay"),
+  mobileEventPassage: document.getElementById("mobileEventPassage"),
+  mobileEventLocation: document.getElementById("mobileEventLocation"),
+  mobileEventAlarm: document.getElementById("mobileEventAlarm"),
+  mobileEventAlarmTime: document.getElementById("mobileEventAlarmTime"),
+  mobileEventRepeat: document.getElementById("mobileEventRepeat"),
+  mobileEventRepeatEvery: document.getElementById("mobileEventRepeatEvery"),
+  mobileEventRepeatUnit: document.getElementById("mobileEventRepeatUnit"),
+  mobileEventNotes: document.getElementById("mobileEventNotes"),
+  mobileTaskForm: document.getElementById("mobileTaskForm"),
+  mobileTaskTitle: document.getElementById("mobileTaskTitle"),
+  mobileTaskDate: document.getElementById("mobileTaskDate"),
+  mobileTaskTime: document.getElementById("mobileTaskTime"),
+  mobileTaskAlarm: document.getElementById("mobileTaskAlarm"),
+  mobileTaskAlarmTime: document.getElementById("mobileTaskAlarmTime"),
+  mobileTaskNotes: document.getElementById("mobileTaskNotes"),
   greeting: document.getElementById("greeting"),
   todayLabel: document.getElementById("todayLabel"),
   dateLine: document.getElementById("dateLine"),
@@ -1097,6 +1127,8 @@ var scheduleWeekStart = startOfWeek(parseISO(dashboardTodayISO()));
 var calendarMode = "normal";
 var planningMode = false;
 var selectedDate = dashboardTodayISO();
+var mobilePlannerView = "day";
+var mobilePlannerDate = dashboardTodayISO();
 var eventModalMode = "create";
 var editingEventId = null;
 var viewingEventId = null;
@@ -2030,6 +2062,128 @@ function visibleCalendarEvents(startISO, endISO, options) {
     }
   });
   return items;
+}
+
+function mobilePlannerRange() {
+  var date = parseISO(mobilePlannerDate);
+  if (mobilePlannerView === "month") {
+    var monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+    return { start: toISO(addDays(monthStart, -monthStart.getDay())), end: toISO(addDays(monthStart, 41)) };
+  }
+  if (mobilePlannerView === "week") return { start: mobilePlannerDate, end: toISO(addDays(date, 6)) };
+  return { start: mobilePlannerDate, end: mobilePlannerDate };
+}
+
+function renderMobilePlannerEvent(item) {
+  var button = document.createElement("button");
+  button.type = "button";
+  button.className = "mobile-timeline-event";
+  if (item.colorKey) {
+    var color = eventColor(item.colorKey);
+    button.style.setProperty("--mobile-event-color", color.value);
+    button.style.setProperty("--mobile-event-bg", color.bg);
+  }
+  button.innerHTML = "<strong>" + escapeHTML(eventTitle(item)) + "</strong><span>" + escapeHTML(eventTimingLabel(item)) + "</span>";
+  if (!item.draft) button.addEventListener("click", function () { viewEvent(item.id); });
+  return button;
+}
+
+function renderMobileQuickPlanner() {
+  if (!els.mobilePlannerCalendar) return;
+  var range = mobilePlannerRange();
+  var date = parseISO(mobilePlannerDate);
+  var events = sortCalendarItemsByTime(visibleCalendarEvents(range.start, range.end).filter(function (item) { return !item.taskDeadline; }));
+  document.querySelectorAll("[data-mobile-view]").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.mobileView === mobilePlannerView);
+  });
+  if (els.mobilePlannerLabel) {
+    els.mobilePlannerLabel.textContent = mobilePlannerView === "day"
+      ? displayLongDate(mobilePlannerDate)
+      : mobilePlannerView === "week"
+        ? displayDate(range.start) + " – " + displayDate(range.end)
+        : date.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: dashboardTimeZone() });
+  }
+  if (els.mobileEventDate && !els.mobileEventDate.value) els.mobileEventDate.value = mobilePlannerDate;
+  if (els.mobileTaskDate && !els.mobileTaskDate.value) els.mobileTaskDate.value = mobilePlannerDate;
+  if (els.mobileEventStart && !els.mobileEventStart.value) els.mobileEventStart.value = "09:00";
+  if (els.mobileEventEnd && !els.mobileEventEnd.value) els.mobileEventEnd.value = "10:00";
+  if (els.mobileEventType && !els.mobileEventType.options.length) {
+    eventTypes().forEach(function (type) {
+      var option = document.createElement("option");
+      option.value = type;
+      option.textContent = type;
+      els.mobileEventType.appendChild(option);
+    });
+    els.mobileEventType.value = defaultEventType();
+  }
+
+  els.mobilePlannerCalendar.innerHTML = "";
+  if (mobilePlannerView === "month") {
+    var monthGrid = document.createElement("div");
+    monthGrid.className = "mobile-month-grid";
+    ["S", "M", "T", "W", "T", "F", "S"].forEach(function (label) {
+      var weekday = document.createElement("span");
+      weekday.className = "mobile-month-weekday";
+      weekday.textContent = label;
+      monthGrid.appendChild(weekday);
+    });
+    for (var monthIndex = 0; monthIndex < 42; monthIndex += 1) {
+      var iso = toISO(addDays(parseISO(range.start), monthIndex));
+      var dayEvents = events.filter(function (item) { return isWithinRange(item, iso, iso); });
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "mobile-month-day" + (iso === dashboardTodayISO() ? " today" : "") + (parseISO(iso).getMonth() !== date.getMonth() ? " outside" : "");
+      cell.innerHTML = "<span>" + parseISO(iso).getDate() + "</span>" + (dayEvents.length ? "<small>" + dayEvents.length + "</small>" : "");
+      cell.addEventListener("click", (function (dayISO) {
+        return function () { mobilePlannerDate = dayISO; mobilePlannerView = "day"; renderMobileQuickPlanner(); };
+      })(iso));
+      monthGrid.appendChild(cell);
+    }
+    els.mobilePlannerCalendar.appendChild(monthGrid);
+    return;
+  }
+
+  var dates = mobilePlannerView === "week" ? Array.from({ length: 7 }, function (_item, index) { return toISO(addDays(date, index)); }) : [mobilePlannerDate];
+  dates.forEach(function (iso) {
+    var section = document.createElement("section");
+    section.className = "mobile-day-timeline";
+    if (mobilePlannerView === "week") {
+      var heading = document.createElement("h3");
+      heading.textContent = displayLongDate(iso);
+      section.appendChild(heading);
+    }
+    var allDay = events.filter(function (item) { return isWithinRange(item, iso, iso) && (item.allDay || item.timeSlot === "All Day"); });
+    if (allDay.length) {
+      var allDayRow = document.createElement("div");
+      allDayRow.className = "mobile-all-day-row";
+      allDayRow.innerHTML = "<span>All day</span>";
+      allDay.forEach(function (item) { allDayRow.appendChild(renderMobilePlannerEvent(item)); });
+      section.appendChild(allDayRow);
+    }
+    var timed = events.filter(function (item) { return isWithinRange(item, iso, iso) && !(item.allDay || item.timeSlot === "All Day"); });
+    for (var hour = 6; hour <= 21; hour += 1) {
+      var slot = document.createElement("div");
+      slot.className = "mobile-timeline-slot";
+      slot.innerHTML = "<time>" + String(hour).padStart(2, "0") + ":00</time>";
+      timed.filter(function (item) { return timeToMinutes(item.timeStart || "") >= hour * 60 && timeToMinutes(item.timeStart || "") < (hour + 1) * 60; }).forEach(function (item) { slot.appendChild(renderMobilePlannerEvent(item)); });
+      section.appendChild(slot);
+    }
+    var dueTasks = state.tasks.filter(function (task) { return !task.done && task.dueDate === iso; });
+    if (dueTasks.length) {
+      var taskRow = document.createElement("div");
+      taskRow.className = "mobile-day-tasks";
+      taskRow.innerHTML = "<span>Tasks</span>";
+      dueTasks.forEach(function (task) {
+        var taskButton = document.createElement("button");
+        taskButton.type = "button";
+        taskButton.textContent = task.title + (task.dueTime ? " · " + task.dueTime : "");
+        taskButton.addEventListener("click", function () { openTaskModal(task.id); });
+        taskRow.appendChild(taskButton);
+      });
+      section.appendChild(taskRow);
+    }
+    els.mobilePlannerCalendar.appendChild(section);
+  });
 }
 
 function findEventForView(eventId) {
@@ -4741,7 +4895,7 @@ function renderPriorityList() {
   otherItems.forEach(function (item) { appendAgendaItem(item, els.priorityList, false); });
 }
 
-function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alarm, alarmTime) {
+function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alarm, alarmTime, notes) {
   var cleanTitle = title.trim();
   if (!cleanTitle) return;
   state.tasks.unshift({
@@ -4753,7 +4907,7 @@ function addTask(title, dueDate, source, eventId, eventTitleValue, dueTime, alar
     alarmTime: alarm === "on-day" ? normalizeTimeInput(alarmTime) : "",
     done: false,
     completedAt: "",
-    notes: "",
+    notes: notes || "",
     groupId: "",
     sortOrder: -Date.now(),
     source: source || "dashboard",
@@ -7091,6 +7245,7 @@ function renderAll() {
   renderGreeting();
   renderVerseOfDay();
   renderCalendar();
+  renderMobileQuickPlanner();
   renderPriorityList();
   renderTasks();
   renderTemplates();
@@ -7495,6 +7650,85 @@ els.taskForm.addEventListener("submit", function (event) {
   els.taskAlarm.value = "none";
   els.taskAlarmTime.value = "";
   syncTaskAlarmControl(els.taskAlarm, els.taskAlarmTime);
+});
+if (els.mobileEventForm) els.mobileEventForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+  var title = els.mobileEventTitle.value.trim();
+  var start = els.mobileEventDate.value || mobilePlannerDate;
+  var allDay = els.mobileEventAllDay.checked;
+  var timeStart = allDay ? "" : normalizeTimeInput(els.mobileEventStart.value || "09:00");
+  var timeEnd = allDay ? "" : normalizeTimeInput(els.mobileEventEnd.value || "10:00");
+  if (!title) return;
+  if (!allDay && (!timeStart || !timeEnd || timeToMinutes(timeEnd) <= timeToMinutes(timeStart))) {
+    showToast("Enter a valid start and end time.");
+    return;
+  }
+  var alarm = els.mobileEventAlarm.value || "none";
+  var alarmTime = alarm === "on-day" ? normalizeTimeInput(els.mobileEventAlarmTime.value) : "";
+  if (alarm === "on-day" && !alarmTime) {
+    showToast("Choose an alarm time for the day of this event.");
+    return;
+  }
+  var repeatRule = els.mobileEventRepeat.value === "custom"
+    ? normalizeRepeatRule({ frequency: "custom", interval: els.mobileEventRepeatEvery.value, unit: els.mobileEventRepeatUnit.value, endMode: "never" })
+    : defaultRepeatRule();
+  var type = els.mobileEventType.value || defaultEventType();
+  var item = createEvent({
+    type: type,
+    title: title,
+    passage: isPassageEventType(type) ? els.mobileEventPassage.value.trim() : "",
+    start: start,
+    end: start,
+    timeSlot: allDay ? "All Day" : getTimeSlotFromTime(timeStart),
+    timeStart: timeStart,
+    timeEnd: timeEnd,
+    allDay: allDay,
+    alarm: alarm,
+    alarmTime: alarmTime,
+    location: els.mobileEventLocation.value.trim(),
+    notes: els.mobileEventNotes.value.trim(),
+    repeatRule: repeatRule,
+    recurring: repeatRule.frequency !== "none",
+    source: "dashboard"
+  });
+  state.events.push(item);
+  selectedDate = start;
+  mobilePlannerDate = start;
+  saveState();
+  if (!googleCalendarStatus.connected && googleCalendarStatus.configured) await loadGoogleCalendarStatus();
+  if (googleCalendarStatus.connected) await syncDashboardEventToGoogle(item, false);
+  els.mobileEventForm.reset();
+  renderAll();
+  showToast("Event added.");
+});
+if (els.mobileTaskForm) els.mobileTaskForm.addEventListener("submit", function (event) {
+  event.preventDefault();
+  var alarm = els.mobileTaskAlarm.value || "none";
+  var alarmTime = alarm === "on-day" ? normalizeTimeInput(els.mobileTaskAlarmTime.value) : "";
+  if (alarm === "on-day" && !alarmTime) {
+    showToast("Choose an alarm time for the day of this task.");
+    return;
+  }
+  var dueDate = els.mobileTaskDate.value || mobilePlannerDate;
+  addTask(els.mobileTaskTitle.value, dueDate, "dashboard", null, "", els.mobileTaskTime.value, alarm, alarmTime, els.mobileTaskNotes.value.trim());
+  mobilePlannerDate = dueDate;
+  els.mobileTaskForm.reset();
+  renderAll();
+  showToast("Task added.");
+});
+if (els.openFullDashboardButton) els.openFullDashboardButton.addEventListener("click", function () { document.body.classList.add("mobile-full-dashboard"); });
+if (els.mobileQuickReturn) els.mobileQuickReturn.addEventListener("click", function () { document.body.classList.remove("mobile-full-dashboard"); });
+if (els.mobilePlannerToday) els.mobilePlannerToday.addEventListener("click", function () { mobilePlannerDate = dashboardTodayISO(); renderMobileQuickPlanner(); });
+if (els.mobilePlannerPrevious) els.mobilePlannerPrevious.addEventListener("click", function () {
+  mobilePlannerDate = toISO(addDays(parseISO(mobilePlannerDate), mobilePlannerView === "month" ? -30 : mobilePlannerView === "week" ? -7 : -1));
+  renderMobileQuickPlanner();
+});
+if (els.mobilePlannerNext) els.mobilePlannerNext.addEventListener("click", function () {
+  mobilePlannerDate = toISO(addDays(parseISO(mobilePlannerDate), mobilePlannerView === "month" ? 31 : mobilePlannerView === "week" ? 7 : 1));
+  renderMobileQuickPlanner();
+});
+document.querySelectorAll("[data-mobile-view]").forEach(function (button) {
+  button.addEventListener("click", function () { mobilePlannerView = button.dataset.mobileView; renderMobileQuickPlanner(); });
 });
 els.taskGroupForm.addEventListener("submit", function (event) {
   event.preventDefault();
