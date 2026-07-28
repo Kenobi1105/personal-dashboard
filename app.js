@@ -91,6 +91,9 @@ var els = {
   mobileQuickPlanner: document.getElementById("mobileQuickPlanner"),
   openFullDashboardButton: document.getElementById("openFullDashboardButton"),
   mobileQuickReturn: document.getElementById("mobileQuickReturn"),
+  mobileQuickAddMode: document.getElementById("mobileQuickAddMode"),
+  mobileEventQuickAddCard: document.getElementById("mobileEventQuickAddCard"),
+  mobileTaskQuickAddCard: document.getElementById("mobileTaskQuickAddCard"),
   mobilePlannerCalendar: document.getElementById("mobilePlannerCalendar"),
   mobilePlannerLabel: document.getElementById("mobilePlannerLabel"),
   mobilePlannerPrevious: document.getElementById("mobilePlannerPrevious"),
@@ -104,12 +107,20 @@ var els = {
   mobileEventEnd: document.getElementById("mobileEventEnd"),
   mobileEventAllDay: document.getElementById("mobileEventAllDay"),
   mobileEventPassage: document.getElementById("mobileEventPassage"),
+  mobileEventPassageLabel: document.getElementById("mobileEventPassageLabel"),
   mobileEventLocation: document.getElementById("mobileEventLocation"),
   mobileEventAlarm: document.getElementById("mobileEventAlarm"),
   mobileEventAlarmTime: document.getElementById("mobileEventAlarmTime"),
+  mobileEventAlarmTimeLabel: document.getElementById("mobileEventAlarmTimeLabel"),
   mobileEventRepeat: document.getElementById("mobileEventRepeat"),
   mobileEventRepeatEvery: document.getElementById("mobileEventRepeatEvery"),
+  mobileEventRepeatEveryLabel: document.getElementById("mobileEventRepeatEveryLabel"),
   mobileEventRepeatUnit: document.getElementById("mobileEventRepeatUnit"),
+  mobileEventRepeatUnitLabel: document.getElementById("mobileEventRepeatUnitLabel"),
+  mobileEventRepeatEnd: document.getElementById("mobileEventRepeatEnd"),
+  mobileEventRepeatEndLabel: document.getElementById("mobileEventRepeatEndLabel"),
+  mobileEventRepeatEndDate: document.getElementById("mobileEventRepeatEndDate"),
+  mobileEventRepeatEndDateLabel: document.getElementById("mobileEventRepeatEndDateLabel"),
   mobileEventNotes: document.getElementById("mobileEventNotes"),
   mobileTaskForm: document.getElementById("mobileTaskForm"),
   mobileTaskTitle: document.getElementById("mobileTaskTitle"),
@@ -117,6 +128,7 @@ var els = {
   mobileTaskTime: document.getElementById("mobileTaskTime"),
   mobileTaskAlarm: document.getElementById("mobileTaskAlarm"),
   mobileTaskAlarmTime: document.getElementById("mobileTaskAlarmTime"),
+  mobileTaskAlarmTimeLabel: document.getElementById("mobileTaskAlarmTimeLabel"),
   mobileTaskNotes: document.getElementById("mobileTaskNotes"),
   greeting: document.getElementById("greeting"),
   todayLabel: document.getElementById("todayLabel"),
@@ -941,6 +953,104 @@ function syncEventAlarmControl() {
   if (onDay && !normalizeTimeInput(els.eventAlarmTime.value)) els.eventAlarmTime.value = formatTimeOption("09:00");
 }
 
+function setMobileQuickAddMode(mode) {
+  var nextMode = mode === "task" ? "task" : "event";
+  if (els.mobileQuickAddMode) els.mobileQuickAddMode.value = nextMode;
+  if (els.mobileEventQuickAddCard) els.mobileEventQuickAddCard.hidden = nextMode !== "event";
+  if (els.mobileTaskQuickAddCard) els.mobileTaskQuickAddCard.hidden = nextMode !== "task";
+}
+
+function setMobileFieldDisabled(label, input, disabled) {
+  if (input) input.disabled = disabled;
+  if (label) label.classList.toggle("control-disabled", disabled);
+}
+
+function syncMobileEventPassageField() {
+  if (!els.mobileEventPassage || !els.mobileEventPassageLabel) return;
+  var showPassage = isPassageEventType(els.mobileEventType.value);
+  els.mobileEventPassageLabel.hidden = !showPassage;
+  els.mobileEventPassage.disabled = !showPassage;
+  if (!showPassage) els.mobileEventPassage.value = "";
+}
+
+function syncMobileEventAlarmControl() {
+  if (!els.mobileEventAlarm || !els.mobileEventAlarmTime) return;
+  var onDay = els.mobileEventAlarm.value === "on-day";
+  setMobileFieldDisabled(els.mobileEventAlarmTimeLabel, els.mobileEventAlarmTime, !onDay);
+  if (onDay && !normalizeTimeInput(els.mobileEventAlarmTime.value)) els.mobileEventAlarmTime.value = formatTimeOption("09:00");
+}
+
+function syncMobileTaskAlarmControl() {
+  if (!els.mobileTaskAlarm || !els.mobileTaskAlarmTime) return;
+  var onDay = els.mobileTaskAlarm.value === "on-day";
+  setMobileFieldDisabled(els.mobileTaskAlarmTimeLabel, els.mobileTaskAlarmTime, !onDay);
+  if (onDay && !normalizeTimeInput(els.mobileTaskAlarmTime.value)) els.mobileTaskAlarmTime.value = formatTimeOption("09:00");
+}
+
+function syncMobileEventRepeatControls() {
+  if (!els.mobileEventRepeat) return;
+  var repeats = els.mobileEventRepeat.value === "custom";
+  var endsOnDate = repeats && els.mobileEventRepeatEnd.value === "on";
+  setMobileFieldDisabled(els.mobileEventRepeatEveryLabel, els.mobileEventRepeatEvery, !repeats);
+  setMobileFieldDisabled(els.mobileEventRepeatUnitLabel, els.mobileEventRepeatUnit, !repeats);
+  setMobileFieldDisabled(els.mobileEventRepeatEndLabel, els.mobileEventRepeatEnd, !repeats);
+  setMobileFieldDisabled(els.mobileEventRepeatEndDateLabel, els.mobileEventRepeatEndDate, !endsOnDate);
+  if (els.mobileEventDate.value) els.mobileEventRepeatEndDate.min = els.mobileEventDate.value;
+}
+
+function syncMobileEventTimeControls() {
+  if (!els.mobileEventAllDay || !els.mobileEventStart || !els.mobileEventEnd) return;
+  var disabled = els.mobileEventAllDay.checked;
+  els.mobileEventStart.disabled = disabled;
+  els.mobileEventEnd.disabled = disabled;
+  els.mobileEventStart.closest(".mobile-form-row").classList.toggle("time-disabled", disabled);
+  if (disabled) return;
+  if (!normalizeTimeInput(els.mobileEventStart.value)) els.mobileEventStart.value = formatTimeOption("09:00");
+  if (!normalizeTimeInput(els.mobileEventEnd.value)) els.mobileEventEnd.value = formatTimeOption(minutesToTime(timeToMinutes(normalizeTimeInput(els.mobileEventStart.value)) + mobileEventDurationMinutes));
+}
+
+function handleMobileEventStartTimeChange() {
+  var start = normalizeTimeField(els.mobileEventStart, true);
+  var startMinutes = timeToMinutes(start);
+  if (startMinutes === null) return;
+  els.mobileEventEnd.value = formatTimeOption(minutesToTime(startMinutes + mobileEventDurationMinutes));
+  syncMobileEventTimeControls();
+}
+
+function handleMobileEventEndTimeChange() {
+  var end = normalizeTimeField(els.mobileEventEnd, true);
+  var start = normalizeTimeInput(els.mobileEventStart.value);
+  var startMinutes = timeToMinutes(start);
+  var endMinutes = timeToMinutes(end);
+  if (startMinutes !== null && endMinutes !== null && endMinutes > startMinutes) mobileEventDurationMinutes = endMinutes - startMinutes;
+  else if (startMinutes !== null) els.mobileEventEnd.value = formatTimeOption(minutesToTime(startMinutes + mobileEventDurationMinutes));
+  syncMobileEventTimeControls();
+}
+
+function resetMobileEventForm() {
+  if (!els.mobileEventForm) return;
+  els.mobileEventForm.reset();
+  els.mobileEventDate.value = mobilePlannerDate;
+  els.mobileEventStart.value = formatTimeOption("09:00");
+  els.mobileEventEnd.value = formatTimeOption("10:00");
+  els.mobileEventRepeat.value = "none";
+  els.mobileEventRepeatEvery.value = "1";
+  els.mobileEventRepeatUnit.value = "week";
+  els.mobileEventRepeatEnd.value = "never";
+  mobileEventDurationMinutes = 60;
+  syncMobileEventPassageField();
+  syncMobileEventAlarmControl();
+  syncMobileEventRepeatControls();
+  syncMobileEventTimeControls();
+}
+
+function resetMobileTaskForm() {
+  if (!els.mobileTaskForm) return;
+  els.mobileTaskForm.reset();
+  els.mobileTaskDate.value = mobilePlannerDate;
+  syncMobileTaskAlarmControl();
+}
+
 function syncTaskAlarmControl(select, container, input) {
   var timeInput = input || (container && container.matches("input") ? container : container && container.querySelector("input"));
   if (!select || !container || !timeInput) return;
@@ -1136,6 +1246,7 @@ var planningMode = false;
 var selectedDate = dashboardTodayISO();
 var mobilePlannerView = "day";
 var mobilePlannerDate = dashboardTodayISO();
+var mobileEventDurationMinutes = 60;
 var eventModalMode = "create";
 var editingEventId = null;
 var viewingEventId = null;
@@ -2322,6 +2433,7 @@ function renderMobilePlannerEvent(item) {
 
 function renderMobileQuickPlanner() {
   if (!els.mobilePlannerCalendar) return;
+  setMobileQuickAddMode(els.mobileQuickAddMode ? els.mobileQuickAddMode.value : "event");
   var range = mobilePlannerRange();
   var date = parseISO(mobilePlannerDate);
   var events = sortCalendarItemsByTime(visibleCalendarEvents(range.start, range.end).filter(function (item) { return !item.taskDeadline; }));
@@ -2348,6 +2460,11 @@ function renderMobileQuickPlanner() {
     });
     els.mobileEventType.value = defaultEventType();
   }
+  syncMobileEventPassageField();
+  syncMobileEventAlarmControl();
+  syncMobileEventRepeatControls();
+  syncMobileEventTimeControls();
+  syncMobileTaskAlarmControl();
 
   els.mobilePlannerCalendar.innerHTML = "";
   if (mobilePlannerView === "month") {
@@ -8031,7 +8148,7 @@ if (els.mobileEventForm) els.mobileEventForm.addEventListener("submit", async fu
     return;
   }
   var repeatRule = els.mobileEventRepeat.value === "custom"
-    ? normalizeRepeatRule({ frequency: "custom", interval: els.mobileEventRepeatEvery.value, unit: els.mobileEventRepeatUnit.value, endMode: "never" })
+    ? normalizeRepeatRule({ frequency: "custom", interval: els.mobileEventRepeatEvery.value, unit: els.mobileEventRepeatUnit.value, endMode: els.mobileEventRepeatEnd.value, endDate: els.mobileEventRepeatEndDate.value })
     : defaultRepeatRule();
   var type = els.mobileEventType.value || defaultEventType();
   var item = createEvent({
@@ -8058,7 +8175,7 @@ if (els.mobileEventForm) els.mobileEventForm.addEventListener("submit", async fu
   saveState();
   if (!googleCalendarStatus.connected && googleCalendarStatus.configured) await loadGoogleCalendarStatus();
   if (googleCalendarStatus.connected) await syncDashboardEventToGoogle(item, false);
-  els.mobileEventForm.reset();
+  resetMobileEventForm();
   renderAll();
   showToast("Event added.");
 });
@@ -8073,10 +8190,26 @@ if (els.mobileTaskForm) els.mobileTaskForm.addEventListener("submit", function (
   var dueDate = els.mobileTaskDate.value || mobilePlannerDate;
   addTask(els.mobileTaskTitle.value, dueDate, "dashboard", null, "", els.mobileTaskTime.value, alarm, alarmTime, els.mobileTaskNotes.value.trim());
   mobilePlannerDate = dueDate;
-  els.mobileTaskForm.reset();
+  resetMobileTaskForm();
   renderAll();
   showToast("Task added.");
 });
+if (els.mobileQuickAddMode) els.mobileQuickAddMode.addEventListener("change", function () { setMobileQuickAddMode(els.mobileQuickAddMode.value); });
+if (els.mobileEventType) els.mobileEventType.addEventListener("change", syncMobileEventPassageField);
+if (els.mobileEventAlarm) els.mobileEventAlarm.addEventListener("change", syncMobileEventAlarmControl);
+if (els.mobileTaskAlarm) els.mobileTaskAlarm.addEventListener("change", syncMobileTaskAlarmControl);
+if (els.mobileEventRepeat) els.mobileEventRepeat.addEventListener("change", syncMobileEventRepeatControls);
+if (els.mobileEventRepeatEnd) els.mobileEventRepeatEnd.addEventListener("change", syncMobileEventRepeatControls);
+if (els.mobileEventDate) els.mobileEventDate.addEventListener("change", syncMobileEventRepeatControls);
+if (els.mobileEventAllDay) els.mobileEventAllDay.addEventListener("change", syncMobileEventTimeControls);
+if (els.mobileEventStart) {
+  els.mobileEventStart.addEventListener("change", handleMobileEventStartTimeChange);
+  els.mobileEventStart.addEventListener("blur", handleMobileEventStartTimeChange);
+}
+if (els.mobileEventEnd) {
+  els.mobileEventEnd.addEventListener("change", handleMobileEventEndTimeChange);
+  els.mobileEventEnd.addEventListener("blur", handleMobileEventEndTimeChange);
+}
 if (els.openFullDashboardButton) els.openFullDashboardButton.addEventListener("click", function () { document.body.classList.add("mobile-full-dashboard"); });
 if (els.mobileQuickReturn) els.mobileQuickReturn.addEventListener("click", function () { document.body.classList.remove("mobile-full-dashboard"); });
 if (els.mobilePlannerToday) els.mobilePlannerToday.addEventListener("click", function () { mobilePlannerDate = dashboardTodayISO(); renderMobileQuickPlanner(); });

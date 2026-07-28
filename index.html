@@ -20,6 +20,14 @@
           </div>
           <button class="text-button small-control" id="openFullDashboardButton" type="button">Full dashboard</button>
         </header>
+        <section class="mobile-quick-add-switcher" aria-label="Quick add">
+          <label>Add to planner
+            <select id="mobileQuickAddMode">
+              <option value="event">Add event</option>
+              <option value="task">Add task</option>
+            </select>
+          </label>
+        </section>
         <nav class="mobile-planner-tabs" aria-label="Mobile calendar view">
           <button type="button" class="active" data-mobile-view="day">Day</button>
           <button type="button" data-mobile-view="week">7 Days</button>
@@ -34,11 +42,11 @@
         <section class="mobile-calendar-card">
           <div id="mobilePlannerCalendar"></div>
         </section>
-        <section class="mobile-quick-add-card">
+        <section class="mobile-quick-add-card" id="mobileEventQuickAddCard">
           <div class="panel-heading tight-heading"><div><p class="eyebrow">Calendar</p><h2>Add event</h2></div></div>
           <form id="mobileEventForm" class="mobile-quick-form">
             <input id="mobileEventTitle" type="text" placeholder="Event title" required>
-            <div class="mobile-form-row">
+            <div class="mobile-form-row mobile-event-meta-row">
               <select id="mobileEventType" aria-label="Event category"></select>
               <input id="mobileEventDate" type="date" aria-label="Event date" required>
             </div>
@@ -46,23 +54,24 @@
               <input id="mobileEventStart" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="Start time">
               <input id="mobileEventEnd" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="End time">
             </div>
-            <label class="check-label"><input id="mobileEventAllDay" type="checkbox"><span>All-day event</span></label>
+            <label class="check-label mobile-all-day-label"><input id="mobileEventAllDay" type="checkbox"><span>All-day event</span></label>
             <details class="mobile-more-options">
               <summary>More options</summary>
               <div class="mobile-more-fields">
-                <input id="mobileEventPassage" type="text" placeholder="Passage (Sermon/Bible Study)">
+                <label id="mobileEventPassageLabel">Passage<input id="mobileEventPassage" type="text" placeholder="e.g., John 3:16"></label>
                 <input id="mobileEventLocation" type="text" placeholder="Location">
                 <select id="mobileEventAlarm" aria-label="Event alarm"><option value="none">No alarm</option><option value="on-day">On the day</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
-                <input id="mobileEventAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="Alarm time for on the day">
-                <div class="mobile-form-row"><select id="mobileEventRepeat"><option value="none">Does not repeat</option><option value="custom">Repeats</option></select><input id="mobileEventRepeatEvery" type="number" min="1" value="1" aria-label="Repeat every"></div>
-                <select id="mobileEventRepeatUnit" aria-label="Repeat unit"><option value="week">Week</option><option value="day">Day</option><option value="month">Month</option><option value="year">Year</option></select>
+                <label id="mobileEventAlarmTimeLabel">Alarm time<input id="mobileEventAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="Alarm time"></label>
+                <label>Repeat<select id="mobileEventRepeat"><option value="none">Does not repeat</option><option value="custom">Repeats</option></select></label>
+                <div class="mobile-form-row"><label id="mobileEventRepeatEveryLabel">Every<input id="mobileEventRepeatEvery" type="number" min="1" value="1"></label><label id="mobileEventRepeatUnitLabel">Unit<select id="mobileEventRepeatUnit"><option value="week">Week</option><option value="day">Day</option><option value="month">Month</option><option value="year">Year</option></select></label></div>
+                <div class="mobile-form-row"><label id="mobileEventRepeatEndLabel">End repeat<select id="mobileEventRepeatEnd"><option value="never">Never</option><option value="on">On date</option></select></label><label id="mobileEventRepeatEndDateLabel">End date<input id="mobileEventRepeatEndDate" type="date"></label></div>
                 <textarea id="mobileEventNotes" rows="3" placeholder="Notes"></textarea>
               </div>
             </details>
             <button class="accent-button" type="submit">Add event</button>
           </form>
         </section>
-        <section class="mobile-quick-add-card">
+        <section class="mobile-quick-add-card" id="mobileTaskQuickAddCard" hidden>
           <div class="panel-heading tight-heading"><div><p class="eyebrow">Tasks</p><h2>Add task</h2></div></div>
           <form id="mobileTaskForm" class="mobile-quick-form">
             <input id="mobileTaskTitle" type="text" placeholder="Task title" required>
@@ -72,7 +81,7 @@
               <div class="mobile-more-fields">
                 <input id="mobileTaskTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="Due time">
                 <select id="mobileTaskAlarm" aria-label="Task alarm"><option value="none">No alarm</option><option value="on-day">On the day</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
-                <input id="mobileTaskAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="Alarm time for on the day">
+                <label id="mobileTaskAlarmTimeLabel">Alarm time<input id="mobileTaskAlarmTime" class="time-input" type="text" list="dashboardTimeOptions" inputmode="numeric" placeholder="Alarm time"></label>
                 <textarea id="mobileTaskNotes" rows="3" placeholder="Notes"></textarea>
               </div>
             </details>

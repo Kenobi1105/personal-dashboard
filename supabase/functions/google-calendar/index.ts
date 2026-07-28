@@ -195,7 +195,7 @@ async function calendarRequest(userId: string, apiPath: string, init: RequestIni
   }
   if (response.status === 204) return {};
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error?.message || "Google Calendar request failed");
+  if (!response.ok) throw new Error("Google Calendar request failed (" + response.status + "): " + (data.error?.message || "Unknown error"));
   return data;
 }
 
@@ -371,6 +371,37 @@ function googlePayload(event: any) {
   return payload;
 }
 
+async function dashboardGoogleEventId(dashboardEventId: string) {
+  const bytes = new TextEncoder().encode(String(dashboardEventId || "dashboard-event"));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, "0")).join("");
+  // Google Calendar accepts lower-case base32hex characters. Hex is a valid subset.
+  return "d" + hex;
+}
+
+async function saveDashboardEvent(userId: string, event: any) {
+  const payload = googlePayload(event);
+  if (event.googleEventId) {
+    return calendarRequest(userId, "/calendars/primary/events/" + encodeURIComponent(event.googleEventId), { method: "PATCH", body: JSON.stringify(payload) });
+  }
+
+  const dashboardEventId = String(event.id || "");
+  const stableGoogleId = await dashboardGoogleEventId(dashboardEventId);
+  payload.id = stableGoogleId;
+  payload.extendedProperties = { private: { dashboardEventId } };
+  try {
+    return await calendarRequest(userId, "/calendars/primary/events", { method: "POST", body: JSON.stringify(payload) });
+  } catch (error) {
+    // A second device can race the first upload. The deterministic Google event ID
+    // makes that response a conflict rather than creating a second event.
+    if (!(error instanceof Error) || !error.message.includes("(409)")) throw error;
+    const existing = await calendarRequest(userId, "/calendars/primary/events/" + encodeURIComponent(stableGoogleId));
+    const existingDashboardId = String(existing?.extendedProperties?.private?.dashboardEventId || "");
+    if (existingDashboardId !== dashboardEventId) throw new Error("Google Calendar event ID conflict for a different dashboard event.");
+    return calendarRequest(userId, "/calendars/primary/events/" + encodeURIComponent(stableGoogleId), { method: "PATCH", body: JSON.stringify(payload) });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return optionsResponse();
   const url = new URL(req.url);
@@ -478,9 +509,7 @@ Deno.serve(async (req) => {
   if (path === "/events" && req.method === "POST") {
     const body = await req.json().catch(() => ({}));
     const event = body.event || body;
-    const data = event.googleEventId
-      ? await calendarRequest(user.id, "/calendars/primary/events/" + encodeURIComponent(event.googleEventId), { method: "PATCH", body: JSON.stringify(googlePayload(event)) })
-      : await calendarRequest(user.id, "/calendars/primary/events", { method: "POST", body: JSON.stringify(googlePayload(event)) });
+    const data = await saveDashboardEvent(user.id, event);
     return json({ ok: true, event: normalizeGoogleEvent(data, {}, eventTimeZone(event)) });
   }
 
