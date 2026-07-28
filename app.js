@@ -1,4 +1,5 @@
 var STORAGE_KEY = "ministry-dashboard-state-v2";
+var BACKUP_KEY_PREFIX = STORAGE_KEY + "-backup-";
 var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var TIME_SLOTS = ["All Day", "Morning", "Afternoon", "Evening"];
 var EVENT_COLORS = [
@@ -1059,6 +1060,7 @@ function loadState() {
     loaded.settings.classDeadlines = Array.isArray(loaded.settings.classDeadlines) ? loaded.settings.classDeadlines.filter(function (item) {
       return item && item.id && ((item.eventId && item.checklistItemId) || (item.courseKey && Array.isArray(item.eventIds) && item.eventIds.length));
     }) : [];
+    loaded.syncMeta = loaded.syncMeta && typeof loaded.syncMeta === "object" ? loaded.syncMeta : {};
     loaded.settings.googleCalendarUseAll = loaded.settings.googleCalendarUseAll !== false;
     loaded.settings.googleCalendarIds = Array.isArray(loaded.settings.googleCalendarIds) ? loaded.settings.googleCalendarIds.filter(Boolean) : [];
     var storedEventTypes = Array.isArray(loaded.settings.eventTypes) && loaded.settings.eventTypes.length
@@ -1120,6 +1122,9 @@ function loadState() {
 }
 
 var state = loadState();
+var syncBaseline = null;
+ensureSyncMeta(state);
+syncBaseline = syncBaselineSnapshot(state);
 if (reconcileClassDeadlineTasks()) saveState();
 headlineCarouselPaused = !!state.settings.headlineCarouselPaused;
 var viewDate = parseISO(dashboardTodayISO());
@@ -1327,9 +1332,119 @@ var DAILY_VERSES = [
   }
 ];
 
+function deepCopy(value) {
+  return JSON.parse(JSON.stringify(value === undefined ? null : value));
+}
+
+function ensureSyncMeta(target) {
+  target.syncMeta = target.syncMeta && typeof target.syncMeta === "object" ? target.syncMeta : {};
+  target.syncMeta.entities = target.syncMeta.entities && typeof target.syncMeta.entities === "object" ? target.syncMeta.entities : {};
+  target.syncMeta.deleted = target.syncMeta.deleted && typeof target.syncMeta.deleted === "object" ? target.syncMeta.deleted : {};
+  ["events", "plans", "tasks", "taskGroups", "templates", "rssFeeds", "deadlines", "settings"].forEach(function (key) {
+    target.syncMeta.entities[key] = target.syncMeta.entities[key] && typeof target.syncMeta.entities[key] === "object" ? target.syncMeta.entities[key] : {};
+    target.syncMeta.deleted[key] = target.syncMeta.deleted[key] && typeof target.syncMeta.deleted[key] === "object" ? target.syncMeta.deleted[key] : {};
+  });
+  return target.syncMeta;
+}
+
+function syncItemKey(item, index) {
+  if (item && item.id) return String(item.id);
+  if (item && item.url) return "url:" + item.url;
+  if (item && item.name) return "name:" + item.name;
+  return "index:" + index;
+}
+
+function syncBaselineSnapshot(source) {
+  var target = source || state;
+  return deepCopy({
+    settings: target.settings || {},
+    events: target.events || [],
+    plans: target.plans || [],
+    tasks: target.tasks || [],
+    taskGroups: target.taskGroups || [],
+    templates: target.templates || [],
+    rssFeeds: target.rssFeeds || [],
+    activeTemplateId: target.activeTemplateId || null,
+    activeRssSource: target.activeRssSource || "",
+    rssReadMoreUrl: target.rssReadMoreUrl || ""
+  });
+}
+
+function jsonChanged(left, right) {
+  return JSON.stringify(left === undefined ? null : left) !== JSON.stringify(right === undefined ? null : right);
+}
+
+function stampCollectionChanges(name, current, previous, now) {
+  var meta = ensureSyncMeta(state);
+  var before = {};
+  (previous || []).forEach(function (item, index) { before[syncItemKey(item, index)] = item; });
+  var after = {};
+  (current || []).forEach(function (item, index) { after[syncItemKey(item, index)] = item; });
+  Object.keys(after).forEach(function (key) {
+    if (!before[key] || jsonChanged(after[key], before[key])) {
+      meta.entities[name][key] = now;
+      delete meta.deleted[name][key];
+    }
+  });
+  Object.keys(before).forEach(function (key) {
+    if (!after[key]) {
+      meta.deleted[name][key] = now;
+      delete meta.entities[name][key];
+    }
+  });
+}
+
+function stampSyncChanges() {
+  var now = new Date().toISOString();
+  var previous = syncBaseline || syncBaselineSnapshot(state);
+  var meta = ensureSyncMeta(state);
+  ["events", "plans", "tasks", "taskGroups", "templates", "rssFeeds"].forEach(function (name) {
+    stampCollectionChanges(name, state[name], previous[name], now);
+  });
+  stampCollectionChanges("deadlines", state.settings.classDeadlines || [], (previous.settings || {}).classDeadlines || [], now);
+  var beforeSettings = previous.settings || {};
+  var currentSettings = state.settings || {};
+  var settingKeys = new Set(Object.keys(beforeSettings).concat(Object.keys(currentSettings)));
+  settingKeys.forEach(function (key) {
+    if (key === "classDeadlines") return;
+    if (jsonChanged(currentSettings[key], beforeSettings[key])) {
+      if (Object.prototype.hasOwnProperty.call(currentSettings, key)) {
+        meta.entities.settings[key] = now;
+        delete meta.deleted.settings[key];
+      } else {
+        meta.deleted.settings[key] = now;
+        delete meta.entities.settings[key];
+      }
+    }
+  });
+  syncBaseline = syncBaselineSnapshot(state);
+}
+
+function writeLocalBackup() {
+  try {
+    var previous = localStorage.getItem(STORAGE_KEY);
+    if (!previous) return;
+    var timestamp = new Date().toISOString();
+    localStorage.setItem(BACKUP_KEY_PREFIX + timestamp, previous);
+    var keys = [];
+    for (var index = 0; index < localStorage.length; index += 1) {
+      var key = localStorage.key(index);
+      if (key && key.indexOf(BACKUP_KEY_PREFIX) === 0) keys.push(key);
+    }
+    keys.sort();
+    while (keys.length > 12) localStorage.removeItem(keys.shift());
+  } catch (error) {
+    console.warn("Could not create local dashboard backup.", error);
+  }
+}
+
 function saveState(options) {
   options = options || {};
-  if (options.touch !== false) state.updatedAt = new Date().toISOString();
+  if (options.touch !== false) {
+    writeLocalBackup();
+    stampSyncChanges();
+    state.updatedAt = new Date().toISOString();
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (options.cloud !== false) queueCloudStateSave();
 }
@@ -1346,24 +1461,111 @@ function syncableStateSnapshot() {
     rssFeeds: state.rssFeeds,
     activeRssSource: state.activeRssSource,
     rssReadMoreUrl: state.rssReadMoreUrl,
+    syncMeta: state.syncMeta,
     updatedAt: state.updatedAt || new Date().toISOString()
   };
 }
 
+function syncStamp(meta, bucket, key, fallback) {
+  var value = meta && meta.entities && meta.entities[bucket] ? meta.entities[bucket][key] : "";
+  return Date.parse(value || fallback || "") || 0;
+}
+
+function deletedSyncStamp(meta, bucket, key) {
+  var value = meta && meta.deleted && meta.deleted[bucket] ? meta.deleted[bucket][key] : "";
+  return Date.parse(value || "") || 0;
+}
+
+function newestSyncMeta(localMeta, remoteMeta) {
+  var merged = deepCopy(localMeta || {});
+  ensureSyncMeta({ syncMeta: merged });
+  var target = { syncMeta: merged };
+  ensureSyncMeta(target);
+  ["entities", "deleted"].forEach(function (section) {
+    Object.keys((remoteMeta && remoteMeta[section]) || {}).forEach(function (bucket) {
+      var remoteBucket = remoteMeta[section][bucket] || {};
+      var targetBucket = target.syncMeta[section][bucket] = target.syncMeta[section][bucket] || {};
+      Object.keys(remoteBucket).forEach(function (key) {
+        if ((Date.parse(remoteBucket[key] || "") || 0) > (Date.parse(targetBucket[key] || "") || 0)) targetBucket[key] = remoteBucket[key];
+      });
+    });
+  });
+  return target.syncMeta;
+}
+
+function mergeSyncCollection(localItems, remoteItems, bucket, localMeta, remoteMeta, localUpdated, remoteUpdated, normalizer) {
+  var localByKey = {};
+  var remoteByKey = {};
+  (localItems || []).forEach(function (item, index) { localByKey[syncItemKey(item, index)] = item; });
+  (remoteItems || []).forEach(function (item, index) { remoteByKey[syncItemKey(item, index)] = item; });
+  var keys = Array.from(new Set(Object.keys(localByKey).concat(Object.keys(remoteByKey))));
+  var localWins = false;
+  var merged = [];
+  keys.forEach(function (key) {
+    var localItem = localByKey[key];
+    var remoteItem = remoteByKey[key];
+    var localTime = syncStamp(localMeta, bucket, key, localUpdated);
+    var remoteTime = syncStamp(remoteMeta, bucket, key, remoteUpdated);
+    var deletedAt = Math.max(deletedSyncStamp(localMeta, bucket, key), deletedSyncStamp(remoteMeta, bucket, key));
+    if (deletedAt && deletedAt >= Math.max(localTime, remoteTime)) return;
+    var useLocal = !!localItem && (!remoteItem || localTime >= remoteTime);
+    if (useLocal && (!remoteItem || localTime > remoteTime)) localWins = true;
+    var chosen = useLocal ? localItem : remoteItem;
+    if (chosen) merged.push(normalizer ? normalizer(chosen) : deepCopy(chosen));
+  });
+  return { items: merged, localWins: localWins };
+}
+
+function mergeEventCollection(localItems, remoteItems, bucket, localMeta, remoteMeta, localUpdated, remoteUpdated) {
+  var localByKey = {};
+  var remoteByKey = {};
+  (localItems || []).forEach(function (item, index) { localByKey[syncItemKey(item, index)] = item; });
+  (remoteItems || []).forEach(function (item, index) { remoteByKey[syncItemKey(item, index)] = item; });
+  var localWins = false;
+  var merged = Array.from(new Set(Object.keys(localByKey).concat(Object.keys(remoteByKey)))).map(function (key) {
+    var localItem = localByKey[key];
+    var remoteItem = remoteByKey[key];
+    var localTime = syncStamp(localMeta, bucket, key, localUpdated);
+    var remoteTime = syncStamp(remoteMeta, bucket, key, remoteUpdated);
+    var deletedAt = Math.max(deletedSyncStamp(localMeta, bucket, key), deletedSyncStamp(remoteMeta, bucket, key));
+    if (deletedAt && deletedAt >= Math.max(localTime, remoteTime)) return null;
+    var localIsNewer = !!localItem && (!remoteItem || localTime >= remoteTime);
+    if (localIsNewer && (!remoteItem || localTime > remoteTime)) localWins = true;
+    var newest = localIsNewer ? localItem : remoteItem;
+    var older = localIsNewer ? remoteItem : localItem;
+    if (!newest) return null;
+    var combined = Object.assign({}, older || {}, newest);
+    combined.occurrenceNotes = Object.assign({}, (older && older.occurrenceNotes) || {}, (newest && newest.occurrenceNotes) || {});
+    if (!combined.notes && older && older.notes) combined.notes = older.notes;
+    return normalizeEvent(combined);
+  }).filter(Boolean);
+  return { items: merged, localWins: localWins };
+}
+
 function mergeCloudState(remote) {
-  if (!remote || typeof remote !== "object") return false;
+  if (!remote || typeof remote !== "object") return { changed: false, needsUpload: false };
   var localUpdated = Date.parse(state.updatedAt || "") || 0;
   var remoteUpdated = Date.parse(remote.updatedAt || "") || 0;
-  if (localUpdated && remoteUpdated && localUpdated > remoteUpdated) return false;
-  state.settings = Object.assign({}, state.settings, remote.settings || {});
-  state.events = (remote.events || state.events || []).map(normalizeEvent);
-  state.plans = (remote.plans || state.plans || []).map(normalizeEvent);
-  state.tasks = (remote.tasks || state.tasks || []).map(function (task, index) {
+  var before = JSON.stringify(syncableStateSnapshot());
+  var localMeta = ensureSyncMeta(state);
+  var remoteHolder = { syncMeta: deepCopy(remote.syncMeta || {}) };
+  var remoteMeta = ensureSyncMeta(remoteHolder);
+  state.syncMeta = newestSyncMeta(localMeta, remoteMeta);
+  var eventMerge = mergeEventCollection(state.events, remote.events, "events", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  var planMerge = mergeEventCollection(state.plans, remote.plans, "plans", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  var taskMerge = mergeSyncCollection(state.tasks, remote.tasks, "tasks", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  var groupMerge = mergeSyncCollection(state.taskGroups, remote.taskGroups, "taskGroups", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  var templateMerge = mergeSyncCollection(state.templates, remote.templates, "templates", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  var feedMerge = mergeSyncCollection(state.rssFeeds, remote.rssFeeds, "rssFeeds", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  var deadlineMerge = mergeSyncCollection((state.settings || {}).classDeadlines, (remote.settings || {}).classDeadlines, "deadlines", localMeta, remoteMeta, state.updatedAt, remote.updatedAt);
+  state.events = eventMerge.items;
+  state.plans = planMerge.items;
+  state.tasks = taskMerge.items.map(function (task, index) {
     task.groupId = task.groupId || "";
     task.sortOrder = typeof task.sortOrder === "number" ? task.sortOrder : index;
     return task;
   });
-  state.taskGroups = (remote.taskGroups || state.taskGroups || []).map(function (group, index) {
+  state.taskGroups = groupMerge.items.map(function (group, index) {
     return {
       id: group.id || id("task-group"),
       name: group.name || "Untitled group",
@@ -1371,14 +1573,33 @@ function mergeCloudState(remote) {
       sortOrder: typeof group.sortOrder === "number" ? group.sortOrder : index
     };
   });
-  state.templates = remote.templates || state.templates || [];
-  state.activeTemplateId = remote.activeTemplateId || state.activeTemplateId || null;
-  state.rssFeeds = remote.rssFeeds || state.rssFeeds || [];
-  state.activeRssSource = remote.activeRssSource || state.activeRssSource || "";
-  state.rssReadMoreUrl = remote.rssReadMoreUrl || state.rssReadMoreUrl || "";
-  state.updatedAt = remote.updatedAt || state.updatedAt || "";
+  state.templates = templateMerge.items;
+  state.rssFeeds = feedMerge.items;
+  var localSettings = state.settings || {};
+  var remoteSettings = remote.settings || {};
+  var mergedSettings = {};
+  Array.from(new Set(Object.keys(localSettings).concat(Object.keys(remoteSettings)))).forEach(function (key) {
+    if (key === "classDeadlines") return;
+    var localTime = syncStamp(localMeta, "settings", key, state.updatedAt);
+    var remoteTime = syncStamp(remoteMeta, "settings", key, remote.updatedAt);
+    var deletedAt = Math.max(deletedSyncStamp(localMeta, "settings", key), deletedSyncStamp(remoteMeta, "settings", key));
+    if (deletedAt >= Math.max(localTime, remoteTime) && deletedAt) return;
+    if (Object.prototype.hasOwnProperty.call(localSettings, key) && (!Object.prototype.hasOwnProperty.call(remoteSettings, key) || localTime >= remoteTime)) mergedSettings[key] = deepCopy(localSettings[key]);
+    else if (Object.prototype.hasOwnProperty.call(remoteSettings, key)) mergedSettings[key] = deepCopy(remoteSettings[key]);
+  });
+  mergedSettings.classDeadlines = deadlineMerge.items;
+  state.settings = mergedSettings;
+  state.activeTemplateId = (remoteUpdated > localUpdated ? remote.activeTemplateId : state.activeTemplateId) || null;
+  state.activeRssSource = remoteUpdated > localUpdated ? (remote.activeRssSource || "") : (state.activeRssSource || "");
+  state.rssReadMoreUrl = remoteUpdated > localUpdated ? (remote.rssReadMoreUrl || "") : (state.rssReadMoreUrl || "");
+  state.updatedAt = new Date(Math.max(localUpdated, remoteUpdated) || Date.now()).toISOString();
+  syncBaseline = syncBaselineSnapshot(state);
   saveState({ touch: false, cloud: false });
-  return true;
+  var changed = before !== JSON.stringify(syncableStateSnapshot());
+  return {
+    changed: changed,
+    needsUpload: eventMerge.localWins || planMerge.localWins || taskMerge.localWins || groupMerge.localWins || templateMerge.localWins || feedMerge.localWins || deadlineMerge.localWins
+  };
 }
 
 function queueCloudStateSave() {
@@ -1391,7 +1612,16 @@ async function saveCloudState() {
   if (!cloudClient || !cloudSession) return;
   cloudSaveInFlight = true;
   try {
-    state.updatedAt = state.updatedAt || new Date().toISOString();
+    try {
+      var latestResponse = await dashboardFetch("/api/dashboard-sync", { cache: "no-store" });
+      if (latestResponse.ok) {
+        var latestData = await readDashboardJson(latestResponse, "dashboard-sync reconcile");
+        if (latestData && latestData.state) mergeCloudState(latestData.state);
+      }
+    } catch (reconcileError) {
+      console.warn("Cloud reconciliation skipped before save.", reconcileError);
+    }
+    state.updatedAt = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     var payload = syncableStateSnapshot();
     var response = await dashboardFetch("/api/dashboard-sync", {
@@ -1421,16 +1651,16 @@ async function loadCloudState() {
     var data = await readDashboardJson(response, "dashboard-sync load");
     var remote = data && data.state ? data.state : null;
     if (remote && Object.keys(remote).length) {
-      var localUpdated = Date.parse(state.updatedAt || "") || 0;
-      var remoteUpdated = Date.parse(remote.updatedAt || "") || 0;
-      if (localUpdated && remoteUpdated && localUpdated > remoteUpdated) {
+      var mergeResult = mergeCloudState(remote);
+      if (mergeResult.needsUpload) {
         shouldUploadLocal = true;
-        setCloudStatus("sync", "checking", "This device has newer changes. Uploading them to cloud...");
-      } else if (mergeCloudState(remote)) {
+        setCloudStatus("sync", "checking", "Reconciling newer device changes with the cloud...");
+      }
+      if (mergeResult.changed) {
         renderAll();
         renderRssFeeds();
-        showToast("Synced dashboard data loaded.");
-        setCloudStatus("sync", "ok", "Cloud dashboard data loaded.");
+        showToast("Dashboard changes reconciled.");
+        if (!shouldUploadLocal) setCloudStatus("sync", "ok", "Cloud dashboard data reconciled.");
       } else {
         setCloudStatus("sync", "ok", "Cloud dashboard data is current.");
       }

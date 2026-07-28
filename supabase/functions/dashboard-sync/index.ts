@@ -4,8 +4,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return optionsResponse();
   const user = await getAuthUser(req);
   if (!user || !user.id) return json({ error: "Sign in required" }, 401);
+  const url = new URL(req.url);
 
   if (req.method === "GET") {
+    if (url.searchParams.get("history") === "1") {
+      const response = await serviceRequest("/rest/v1/dashboard_state_history?user_id=eq." + encodeURIComponent(user.id) + "&select=id,state,created_at&order=created_at.desc&limit=12");
+      if (!response.ok) return json({ error: await response.text() }, response.status);
+      return json({ history: await response.json() });
+    }
     const response = await serviceRequest("/rest/v1/dashboard_state?user_id=eq." + encodeURIComponent(user.id) + "&select=state,updated_at&limit=1");
     if (!response.ok) return json({ error: await response.text() }, response.status);
     const rows = await response.json();
@@ -18,6 +24,18 @@ Deno.serve(async (req) => {
 
   if (req.method === "PUT" || req.method === "POST") {
     const body = await req.json().catch(() => ({}));
+    const previousResponse = await serviceRequest("/rest/v1/dashboard_state?user_id=eq." + encodeURIComponent(user.id) + "&select=state&limit=1");
+    if (previousResponse.ok) {
+      const previousRows = await previousResponse.json();
+      const previous = previousRows[0]?.state;
+      if (previous && JSON.stringify(previous) !== JSON.stringify(body.state || {})) {
+        await serviceRequest("/rest/v1/dashboard_state_history", {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ user_id: user.id, state: previous }),
+        });
+      }
+    }
     const payload = {
       user_id: user.id,
       state: body.state || {},
