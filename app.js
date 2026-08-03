@@ -1,5 +1,7 @@
 var STORAGE_KEY = "ministry-dashboard-state-v2";
 var BACKUP_KEY_PREFIX = STORAGE_KEY + "-backup-";
+var MAX_LOCAL_BACKUPS = 3;
+var LOCAL_BACKUP_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
 var WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var TIME_SLOTS = ["All Day", "Morning", "Afternoon", "Evening"];
 var EVENT_COLORS = [
@@ -21,6 +23,7 @@ var cloudSession = null;
 var cloudStateLoaded = false;
 var cloudSaveTimer = null;
 var cloudSaveInFlight = false;
+var googleCalendarRefreshPromise = null;
 
 function cloudAvailable() {
   return !!(window.supabase && SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
@@ -1153,6 +1156,7 @@ function normalizeEvent(event) {
 
 function loadState() {
   try {
+    pruneLocalBackups();
     var raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return seedState();
     var loaded = JSON.parse(raw);
@@ -1533,28 +1537,52 @@ function stampSyncChanges() {
   syncBaseline = syncBaselineSnapshot(state);
 }
 
+function getLocalBackupEntries() {
+  var entries = [];
+  for (var index = 0; index < localStorage.length; index += 1) {
+    var key = localStorage.key(index);
+    if (!key || key.indexOf(BACKUP_KEY_PREFIX) !== 0) continue;
+    var timestamp = Date.parse(key.slice(BACKUP_KEY_PREFIX.length));
+    entries.push({ key: key, timestamp: Number.isFinite(timestamp) ? timestamp : 0 });
+  }
+  return entries.sort(function (left, right) { return right.timestamp - left.timestamp || right.key.localeCompare(left.key); });
+}
+
+function pruneLocalBackups() {
+  var entries = getLocalBackupEntries();
+  entries.slice(MAX_LOCAL_BACKUPS).forEach(function (entry) {
+    localStorage.removeItem(entry.key);
+  });
+  return entries.slice(0, MAX_LOCAL_BACKUPS);
+}
+
+function canWriteLocalBackup(entries) {
+  if (!entries.length || !entries[0].timestamp) return true;
+  return Date.now() - entries[0].timestamp >= LOCAL_BACKUP_MIN_INTERVAL_MS;
+}
+
 function writeLocalBackup() {
   try {
+    // Prune first so legacy backup buildup cannot make the new write exceed the
+    // shared GitHub Pages origin quota.
+    var entries = pruneLocalBackups();
+    if (!canWriteLocalBackup(entries)) return false;
     var previous = localStorage.getItem(STORAGE_KEY);
-    if (!previous) return;
+    if (!previous) return false;
     var timestamp = new Date().toISOString();
     localStorage.setItem(BACKUP_KEY_PREFIX + timestamp, previous);
-    var keys = [];
-    for (var index = 0; index < localStorage.length; index += 1) {
-      var key = localStorage.key(index);
-      if (key && key.indexOf(BACKUP_KEY_PREFIX) === 0) keys.push(key);
-    }
-    keys.sort();
-    while (keys.length > 12) localStorage.removeItem(keys.shift());
+    pruneLocalBackups();
+    return true;
   } catch (error) {
     console.warn("Could not create local dashboard backup.", error);
+    return false;
   }
 }
 
 function saveState(options) {
   options = options || {};
   if (options.touch !== false) {
-    writeLocalBackup();
+    if (options.backup !== false) writeLocalBackup();
     stampSyncChanges();
     state.updatedAt = new Date().toISOString();
   }
@@ -1953,6 +1981,7 @@ async function syncCloudNow(showNotice) {
 }
 
 async function initCloudIdentity() {
+  if (cloudClient) return;
   if (!cloudAvailable()) return;
   cloudClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
@@ -2739,7 +2768,7 @@ async function loadGoogleCalendarEvents(showNotice, localSyncResult) {
       return !syncedIds[event.googleEventId] && !syncedIds[event.googleRecurringEventId];
     });
     state.events = state.events.filter(function (event) { return event.source !== "google"; }).concat(googleEvents);
-    saveState();
+    saveState({ backup: false });
     renderAll();
     var count = googleEvents.length;
     var rawCount = rawGoogleEvents.length;
@@ -2805,7 +2834,7 @@ async function syncDashboardEventToGoogle(localEvent, showNotice) {
   if (!canSyncToGoogle(localEvent)) return false;
   if (!googleCalendarStatus.connected || googleCalendarStatus.needsReconnect) return false;
   localEvent.syncStatus = "syncing";
-  saveState();
+  saveState({ backup: false });
   try {
     var response = await dashboardFetch("/api/google-calendar/events", {
       method: "POST",
@@ -2829,7 +2858,7 @@ async function syncDashboardEventToGoogle(localEvent, showNotice) {
     if (showNotice) showToast("Event saved locally. Google sync will need another try.");
     return false;
   } finally {
-    saveState();
+    saveState({ backup: false });
     renderCalendar();
     updateGoogleCalendarControls();
   }
@@ -2871,7 +2900,7 @@ async function deleteGoogleCalendarEvent(localEvent) {
   }
 }
 
-async function refreshGoogleCalendar(showNotice) {
+async function refreshGoogleCalendarNow(showNotice) {
   await loadGoogleCalendarStatus();
   if (googleCalendarStatus.connected) {
     await loadGoogleCalendarChoices(false);
@@ -2879,6 +2908,14 @@ async function refreshGoogleCalendar(showNotice) {
     await loadGoogleCalendarEvents(showNotice, localSyncResult);
   }
   else if (showNotice && googleCalendarStatus.configured) showToast("Connect Google Calendar first.");
+}
+
+function refreshGoogleCalendar(showNotice) {
+  if (googleCalendarRefreshPromise) return googleCalendarRefreshPromise;
+  googleCalendarRefreshPromise = refreshGoogleCalendarNow(showNotice).finally(function () {
+    googleCalendarRefreshPromise = null;
+  });
+  return googleCalendarRefreshPromise;
 }
 
 function handleGoogleCalendarReturnMessage() {

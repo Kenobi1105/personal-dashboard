@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete account</title>
+    <link rel="stylesheet" href="./auth-pages.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Complete your account</h1>
+      <p id="intro">Checking your confirmed sign-in.</p>
+
+      <form id="usernameForm" hidden>
+        <label>
+          Username
+          <input id="username" name="username" autocomplete="username" pattern="[a-z0-9][a-z0-9_]{1,22}[a-z0-9]" minlength="3" maxlength="24" required>
+        </label>
+        <button type="submit">Save username</button>
+      </form>
+
+      <a id="continue" class="button-link" hidden>Continue to editor</a>
+      <p id="message" class="message" aria-live="polite"></p>
+    </main>
+
+    <script type="module">
+      import {
+        configurePhrasingSync,
+        getCurrentProfile,
+        getCurrentUser,
+        onAuthStateChange,
+        setUsername
+      } from '../phrasing-supabase-sync.js';
+
+      // Replace these values when copying this template into the editor repo.
+      const EDITOR_URL = 'https://YOUR_GITHUB_USERNAME.github.io/YOUR_EDITOR_REPO/';
+      configurePhrasingSync({
+        supabaseUrl: 'https://YOUR_PROJECT_REF.supabase.co',
+        supabaseAnonKey: 'YOUR_SUPABASE_ANON_PUBLIC_KEY',
+        redirectTo: EDITOR_URL
+      });
+
+      const intro = document.getElementById('intro');
+      const form = document.getElementById('usernameForm');
+      const username = document.getElementById('username');
+      const message = document.getElementById('message');
+      const continueLink = document.getElementById('continue');
+
+      function showMessage(text, isError = false) {
+        message.textContent = text;
+        message.classList.toggle('error', isError);
+      }
+
+      async function refresh() {
+        const user = await getCurrentUser();
+        if (!user) {
+          intro.textContent = 'Confirm your email from the message we sent, then use that link to return here.';
+          form.hidden = true;
+          return;
+        }
+
+        const profile = await getCurrentProfile();
+        if (profile) {
+          intro.textContent = 'Your account is ready.';
+          continueLink.href = EDITOR_URL;
+          continueLink.hidden = false;
+          return;
+        }
+
+        intro.textContent = 'Choose a private username to finish setting up cloud sync.';
+        form.hidden = false;
+        username.focus();
+      }
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const button = form.querySelector('button');
+        button.disabled = true;
+        showMessage('');
+        const result = await setUsername(username.value);
+        button.disabled = false;
+
+        if (result.ok) {
+          form.hidden = true;
+          intro.textContent = 'Your account is ready.';
+          continueLink.href = EDITOR_URL;
+          continueLink.hidden = false;
+          showMessage('Username saved.');
+          return;
+        }
+        if (result.reason === 'username_unavailable') showMessage('That username is already in use. Try another one.', true);
+        else if (result.reason === 'invalid_username') showMessage('Use 3-24 lowercase letters, numbers, or underscores. Start and end with a letter or number.', true);
+        else showMessage('We could not save your username. Please try again when you are online.', true);
+      });
+
+      onAuthStateChange(function () { refresh(); });
+      refresh();
+    </script>
+  </body>
+</html>
